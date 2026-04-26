@@ -10,6 +10,9 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'config.yaml'
+      - 'products.yaml'
+      - 'settings.yaml'
+      - 'i18n/**'
       - 'Dockerfile'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
@@ -40,6 +43,6 @@ jobs:
             --restart unless-stopped \
             -e TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
             -e BOT_ENV=vps \
-            -e DATA_PATH=/data/state.json \
+            -e DATA_DIR=/data \
             -v tgbase_data:/data \
             tgbase
