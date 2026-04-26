@@ -6,8 +6,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/padington/tgbase/internal/bot"
+	"github.com/padington/tgbase/internal/config"
+	"github.com/padington/tgbase/internal/reminder"
 )
 
 func main() {
@@ -16,11 +19,22 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN is not set")
 	}
 
+	appCfg, err := config.Load(os.Getenv("CONFIG_PATH"))
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
 	cfg := bot.Config{
-		Token:   token,
-		Debug:   os.Getenv("BOT_DEBUG") == "true",
-		Timeout: 60,
-		Env:     os.Getenv("BOT_ENV"),
+		Token:              token,
+		Debug:              os.Getenv("BOT_DEBUG") == "true",
+		Timeout:            60,
+		Env:                os.Getenv("BOT_ENV"),
+		DataPath:           os.Getenv("DATA_PATH"),
+		StateFlushInterval: time.Duration(appCfg.State.FlushInterval),
+		Reminder: reminder.Config{
+			ScanInterval:  time.Duration(appCfg.Reminder.ScanInterval),
+			ReminderAfter: time.Duration(appCfg.Reminder.ReminderAfter),
+		},
 	}
 
 	b, err := bot.New(cfg)
