@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod *)",
+      "Read(//usr/local/go/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(docker --version)",
+      "Bash(gh --version)",
+      "Bash(git --version)",
+      "Bash(git *)",
+      "Bash(ssh *)",
+      "Bash(ping -c 3 185.243.215.31)",
+      "Bash(nc -zv -w 5 185.243.215.31 22)",
+      "Bash(docker rm *)",
+      "Bash(docker run *)",
+      "Bash(docker stop *)",
+      "Bash(gh run *)",
+      "Bash(gh workflow *)",
+      "Bash(colima status *)",
+      "Bash(/opt/homebrew/bin/go test *)"
+    ]
+  }
+}
