@@ -12,6 +12,7 @@ type Config struct {
 	Token   string
 	Debug   bool
 	Timeout int
+	Env     string // optional label e.g. "local" or "vps"
 }
 
 type Bot struct {

@@ -1,7 +1,10 @@
 package bot
 
 import (
+	"fmt"
 	"log"
+	"os"
+	"runtime"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -23,9 +26,23 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 	switch cmd {
 	case "ping":
 		b.reply(update.Message, "pong")
+	case "whoami":
+		b.reply(update.Message, b.whoami())
 	default:
 		log.Printf("unknown command: /%s", cmd)
 	}
+}
+
+func (b *Bot) whoami() string {
+	hostname, _ := os.Hostname()
+	env := b.cfg.Env
+	if env == "" {
+		env = "unknown"
+	}
+	return fmt.Sprintf(
+		"env: %s\nhostname: %s\nos: %s/%s",
+		env, hostname, runtime.GOOS, runtime.GOARCH,
+	)
 }
 
 func (b *Bot) reply(msg *tgbotapi.Message, text string) {

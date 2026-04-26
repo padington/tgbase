@@ -20,6 +20,7 @@ func main() {
 		Token:   token,
 		Debug:   os.Getenv("BOT_DEBUG") == "true",
 		Timeout: 60,
+		Env:     os.Getenv("BOT_ENV"),
 	}
 
 	b, err := bot.New(cfg)

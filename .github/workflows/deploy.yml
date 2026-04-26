@@ -25,4 +25,5 @@ jobs:
             --name tgbot \
             --restart unless-stopped \
             -e TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
+            -e BOT_ENV=vps \
             tgbase
