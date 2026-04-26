@@ -10,7 +10,6 @@ import (
 
 	"github.com/padington/tgbase/internal/bot"
 	"github.com/padington/tgbase/internal/config"
-	"github.com/padington/tgbase/internal/reminder"
 )
 
 func main() {
@@ -29,12 +28,12 @@ func main() {
 		Debug:              os.Getenv("BOT_DEBUG") == "true",
 		Timeout:            60,
 		Env:                os.Getenv("BOT_ENV"),
+		DataDir:            os.Getenv("DATA_DIR"),
 		DataPath:           os.Getenv("DATA_PATH"),
 		StateFlushInterval: time.Duration(appCfg.State.FlushInterval),
-		Reminder: reminder.Config{
-			ScanInterval:  time.Duration(appCfg.Reminder.ScanInterval),
-			ReminderAfter: time.Duration(appCfg.Reminder.ReminderAfter),
-		},
+		ProductsSeedPath:   appCfg.Bootstrap.ProductsSeedPath,
+		SettingsSeedPath:   appCfg.Bootstrap.SettingsSeedPath,
+		I18nDir:            appCfg.Bootstrap.I18nDir,
 	}
 
 	b, err := bot.New(cfg)
