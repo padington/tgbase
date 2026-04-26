@@ -1,0 +1,9 @@
+# environment
+.env
+*.env
+
+# build output
+/bot
+
+# Go
+vendor/
