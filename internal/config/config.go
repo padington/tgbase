@@ -10,14 +10,26 @@ import (
 
 // Config is the top-level app config loaded from YAML.
 type Config struct {
-	State    StateConfig    `yaml:"state"`
-	Reminder ReminderConfig `yaml:"reminder"`
+	State     StateConfig     `yaml:"state"`
+	Bootstrap BootstrapConfig `yaml:"bootstrap"`
+	Reminder  ReminderConfig  `yaml:"reminder"` // legacy — superseded by settings.Store; kept until bot wiring switches
 }
 
 type StateConfig struct {
 	FlushInterval Duration `yaml:"flush_interval"`
 }
 
+// BootstrapConfig points at the seed files that populate runtime stores
+// on first boot (when the backend is empty). After the first boot the
+// backend is the source of truth and these paths are no longer consulted.
+type BootstrapConfig struct {
+	ProductsSeedPath string `yaml:"products_seed_path"`
+	SettingsSeedPath string `yaml:"settings_seed_path"`
+	I18nDir          string `yaml:"i18n_dir"`
+}
+
+// ReminderConfig is the legacy reminder block. Deprecated: settings live in
+// settings.Store now. Kept here so existing bot wiring still parses.
 type ReminderConfig struct {
 	ScanInterval  Duration `yaml:"scan_interval"`
 	ReminderAfter Duration `yaml:"reminder_after"`

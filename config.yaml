@@ -1,6 +1,14 @@
 state:
   flush_interval: 200ms
 
+bootstrap:
+  products_seed_path: /products.yaml
+  settings_seed_path: /settings.yaml
+  i18n_dir: /i18n
+
+# Deprecated — superseded by settings.Store (mutable at runtime under DATA_DIR).
+# Kept for backward compatibility with the bot wiring; will be removed once
+# the journey rollout completes.
 reminder:
   scan_interval: 10s
   reminder_after: 1m

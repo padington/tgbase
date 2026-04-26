@@ -54,6 +54,35 @@ func TestLoad_MissingFile(t *testing.T) {
 	}
 }
 
+func TestLoad_ParsesBootstrap(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "c.yaml")
+	if err := writeFile(path, `
+state:
+  flush_interval: 200ms
+bootstrap:
+  products_seed_path: /products.yaml
+  settings_seed_path: /settings.yaml
+  i18n_dir: /i18n
+`); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Bootstrap.ProductsSeedPath != "/products.yaml" {
+		t.Errorf("products path: got %q", cfg.Bootstrap.ProductsSeedPath)
+	}
+	if cfg.Bootstrap.SettingsSeedPath != "/settings.yaml" {
+		t.Errorf("settings path: got %q", cfg.Bootstrap.SettingsSeedPath)
+	}
+	if cfg.Bootstrap.I18nDir != "/i18n" {
+		t.Errorf("i18n dir: got %q", cfg.Bootstrap.I18nDir)
+	}
+}
+
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o600)
 }
