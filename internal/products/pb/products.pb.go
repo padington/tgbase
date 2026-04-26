@@ -186,6 +186,8 @@ type Product struct {
 	Note          string                 `protobuf:"bytes,5,opt,name=note,proto3" json:"note,omitempty"`
 	NameLocalized map[string]string      `protobuf:"bytes,6,rep,name=name_localized,json=nameLocalized,proto3" json:"name_localized,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	NoteLocalized map[string]string      `protobuf:"bytes,7,rep,name=note_localized,json=noteLocalized,proto3" json:"note_localized,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Category      string                 `protobuf:"bytes,8,opt,name=category,proto3" json:"category,omitempty"`
+	Emoji         string                 `protobuf:"bytes,9,opt,name=emoji,proto3" json:"emoji,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -269,6 +271,20 @@ func (x *Product) GetNoteLocalized() map[string]string {
 	return nil
 }
 
+func (x *Product) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *Product) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
 type Catalog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Products      []*Product             `protobuf:"bytes,1,rep,name=products,proto3" json:"products,omitempty"`
@@ -317,7 +333,7 @@ var File_products_proto protoreflect.FileDescriptor
 
 const file_products_proto_rawDesc = "" +
 	"\n" +
-	"\x0eproducts.proto\x12\x12tgbase.products.v1\"\xcf\x04\n" +
+	"\x0eproducts.proto\x12\x12tgbase.products.v1\"\x81\x05\n" +
 	"\aProduct\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x127\n" +
 	"\x06fodmap\x18\x02 \x01(\x0e2\x1f.tgbase.products.v1.FodmapLevelR\x06fodmap\x125\n" +
@@ -325,7 +341,9 @@ const file_products_proto_rawDesc = "" +
 	"\x06stages\x18\x04 \x03(\v2'.tgbase.products.v1.Product.StagesEntryR\x06stages\x12\x12\n" +
 	"\x04note\x18\x05 \x01(\tR\x04note\x12U\n" +
 	"\x0ename_localized\x18\x06 \x03(\v2..tgbase.products.v1.Product.NameLocalizedEntryR\rnameLocalized\x12U\n" +
-	"\x0enote_localized\x18\a \x03(\v2..tgbase.products.v1.Product.NoteLocalizedEntryR\rnoteLocalized\x1a9\n" +
+	"\x0enote_localized\x18\a \x03(\v2..tgbase.products.v1.Product.NoteLocalizedEntryR\rnoteLocalized\x12\x1a\n" +
+	"\bcategory\x18\b \x01(\tR\bcategory\x12\x14\n" +
+	"\x05emoji\x18\t \x01(\tR\x05emoji\x1a9\n" +
 	"\vStagesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\x1a@\n" +

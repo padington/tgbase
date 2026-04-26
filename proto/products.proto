@@ -33,6 +33,8 @@ message Product {
   string note = 5;
   map<string, string> name_localized = 6;
   map<string, string> note_localized = 7;
+  string category = 8;
+  string emoji = 9;
 }
 
 message Catalog {
