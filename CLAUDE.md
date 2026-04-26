@@ -1,6 +1,23 @@
 # Agent instructions
 
+## Branching & PRs
+
+All changes ship via a feature branch and a pull request — **never push directly to `main`**.
+
+Workflow:
+
+1. `git checkout -b <topic>` — descriptive branch name (e.g. `feat/stage-choice`, `fix/ci-cache`, `docs/readme-cleanup`).
+2. Implement and commit per the discipline below.
+3. `git push -u origin <topic>`.
+4. `gh pr create` with a focused title and a short body that says **why**.
+5. Wait for the `Test` workflow to go green.
+6. Merge via **Squash and merge** — each PR collapses to one commit on `main`.
+
+`main` is the deploy branch: every push to it triggers `deploy.yml`. Squash-merging a PR is a push to `main`, so deploy still runs after each merge.
+
 ## Commit discipline
+
+Per-package commits are kept on the branch for **PR-review readability** — reviewers can scan one package at a time. Squash-merge then collapses them into a single commit on `main`, so the rule is about the branch, not `main`'s history.
 
 Each commit must touch **one package or concern only**. Never mix changes across package boundaries in a single commit.
 
@@ -21,7 +38,7 @@ Each commit must touch **one package or concern only**. Never mix changes across
 | `cmd/` | only entry point files |
 | `README.md` / `CHANGELOG.md` / `CLAUDE.md` | docs only |
 
-Cross-package refactors that must touch multiple packages require **one commit per package**, submitted as a sequence, not bundled.
+Cross-package refactors that must touch multiple packages require **one commit per package**, submitted as a sequence within the same PR, not bundled into a single commit.
 
 ## Test protection
 
