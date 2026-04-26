@@ -1,0 +1,6 @@
+state:
+  flush_interval: 200ms
+
+reminder:
+  scan_interval: 10s
+  reminder_after: 1m
