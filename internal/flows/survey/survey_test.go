@@ -33,7 +33,7 @@ func sentText(c tgbotapi.Chattable) string {
 }
 
 func TestStart_SetsStateAndSendsKeyboard(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	s := &mockSender{}
 
 	before := time.Now()
@@ -71,7 +71,7 @@ func TestStart_SetsStateAndSendsKeyboard(t *testing.T) {
 }
 
 func TestStart_ResetsReminderSentOnRestart(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{
 		State:        state.StateIdle,
 		ReminderSent: true,
@@ -91,7 +91,7 @@ func TestStart_ResetsReminderSentOnRestart(t *testing.T) {
 }
 
 func TestAnswerPredicate_TrueWhenAwaiting(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer})
 
 	pred := survey.AnswerPredicate(store)
@@ -101,7 +101,7 @@ func TestAnswerPredicate_TrueWhenAwaiting(t *testing.T) {
 }
 
 func TestAnswerPredicate_FalseWhenIdle(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 
 	pred := survey.AnswerPredicate(store)
 	if pred(newMsg(1, "2")) {
@@ -110,7 +110,7 @@ func TestAnswerPredicate_FalseWhenIdle(t *testing.T) {
 }
 
 func TestAnswerHandler_PersistsAndResetsState(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer})
 	s := &mockSender{}
 
@@ -129,7 +129,7 @@ func TestAnswerHandler_PersistsAndResetsState(t *testing.T) {
 }
 
 func TestAnswerHandler_InvalidInput_StaysInAwaitingState(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer})
 	s := &mockSender{}
 
