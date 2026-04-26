@@ -54,22 +54,12 @@ func (p ProductChoicePhase) Collect(ctx Context, input string) Outcome {
 	if !ok {
 		return Outcome{ReplyKey: "phase.product.invalid"}
 	}
-	now := ctx.Now()
 	return Outcome{
-		NextState: state.StateAwaitingStageCheckin,
+		NextState: state.StateAwaitingStageChoice,
 		Mutate: func(u *state.UserData) {
 			u.CurrentProduct = picked.Name
-			u.CurrentStage = products.StageLow
-			u.StageStartedAt = now
+			u.CurrentStage = ""
 			u.CheckinAsked = false
-			if u.Products == nil {
-				u.Products = make(map[string]state.ProductProgress)
-			}
-			prog := u.Products[picked.Name]
-			prog.LastStage = products.StageLow
-			prog.Status = "in_progress"
-			prog.UpdatedAt = now
-			u.Products[picked.Name] = prog
 		},
 	}
 }

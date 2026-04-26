@@ -63,6 +63,8 @@ phase.defecation.reminder: "Still there?"
 phase.product.prompt: "Pick:"
 phase.product.invalid: "Tap a button."
 phase.product.exhausted: "All done."
+phase.stage_choice.prompt: "Recommended for {name}: {recommended}. Pick a volume:"
+phase.stage_choice.invalid: "Tap one of the amounts."
 phase.stage.prompt: "Take {description}. Check in {checkin}."
 phase.stage.next: "Now take {description}."
 phase.stage.checkin: "OK after {description}?"
@@ -82,6 +84,8 @@ cmd.abandon.confirmed: "abandoned {name}"
 cmd.abandon.no_active: "nothing active"
 product.measure_template.pieces: "{value} {name}"
 product.measure_template.grams: "{value}g {name}"
+product.amount_template.pieces: "{value}"
+product.amount_template.grams: "{value}g"
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -127,9 +131,51 @@ default_locale: en
 	runner := journey.New(stateStore, sender, cat, settingsStore, trans)
 	runner.Register(journey.NewDefecationPhase())
 	runner.Register(journey.NewProductChoicePhase())
+	runner.Register(journey.NewStageChoicePhase())
 	runner.Register(journey.NewStageCheckinPhase())
 
 	return runner, stateStore, sender
+}
+
+// lowAmountFor returns the low-stage button label for the seed-test catalog,
+// matching the labels rendered by Product.AmountLabel under the test i18n.
+func lowAmountFor(t *testing.T, product string) string {
+	t.Helper()
+	switch product {
+	case "Apple":
+		return "0.25"
+	case "Cashews":
+		return "10g"
+	default:
+		t.Fatalf("lowAmountFor: unexpected product %q", product)
+		return ""
+	}
+}
+
+func mediumAmountFor(t *testing.T, product string) string {
+	t.Helper()
+	switch product {
+	case "Apple":
+		return "0.5"
+	case "Cashews":
+		return "20g"
+	default:
+		t.Fatalf("mediumAmountFor: unexpected product %q", product)
+		return ""
+	}
+}
+
+func highAmountFor(t *testing.T, product string) string {
+	t.Helper()
+	switch product {
+	case "Apple":
+		return "1"
+	case "Cashews":
+		return "30g"
+	default:
+		t.Fatalf("highAmountFor: unexpected product %q", product)
+		return ""
+	}
 }
 
 func newMsg(userID int64, text string) *tgbotapi.Message {
@@ -216,7 +262,7 @@ func TestHandleText_DefecationInvalidStays(t *testing.T) {
 	}
 }
 
-func TestHandleText_PickProductTransitionsToStage(t *testing.T) {
+func TestHandleText_PickProductTransitionsToStageChoice(t *testing.T) {
 	runner, store, sender := setup(t)
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	runner.HandleText(sender, newMsg(1, "2"))
@@ -229,14 +275,87 @@ func TestHandleText_PickProductTransitionsToStage(t *testing.T) {
 	runner.HandleText(sender, newMsg(1, picked))
 
 	d := store.Get(1)
-	if d.State != state.StateAwaitingStageCheckin {
-		t.Errorf("expected AwaitingStageCheckin, got %q", d.State)
+	if d.State != state.StateAwaitingStageChoice {
+		t.Errorf("expected AwaitingStageChoice, got %q", d.State)
 	}
 	if d.CurrentProduct != picked {
 		t.Errorf("CurrentProduct: got %q, want %q", d.CurrentProduct, picked)
 	}
+	if d.CurrentStage != "" {
+		t.Errorf("CurrentStage should be unset until user picks a volume, got %q", d.CurrentStage)
+	}
+}
+
+func TestHandleText_StageChoicePicksLowStartsCheckin(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingStageCheckin {
+		t.Errorf("expected AwaitingStageCheckin, got %q", d.State)
+	}
 	if d.CurrentStage != products.StageLow {
-		t.Errorf("CurrentStage: got %q", d.CurrentStage)
+		t.Errorf("expected CurrentStage=low, got %q", d.CurrentStage)
+	}
+	if d.Products[picked].LastStage != products.StageLow {
+		t.Errorf("expected progress LastStage=low, got %q", d.Products[picked].LastStage)
+	}
+}
+
+func TestHandleText_StageChoicePicksMediumSkipsLow(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+
+	runner.HandleText(sender, newMsg(1, mediumAmountFor(t, picked)))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingStageCheckin {
+		t.Errorf("expected AwaitingStageCheckin, got %q", d.State)
+	}
+	if d.CurrentStage != products.StageMedium {
+		t.Errorf("expected CurrentStage=medium, got %q", d.CurrentStage)
+	}
+}
+
+func TestHandleText_StageChoiceInvalidStays(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+
+	runner.HandleText(sender, newMsg(1, "blue"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingStageChoice {
+		t.Errorf("expected to stay in AwaitingStageChoice, got %q", d.State)
+	}
+	if d.CurrentStage != "" {
+		t.Errorf("CurrentStage should remain unset, got %q", d.CurrentStage)
+	}
+	if got := sender.lastText(); got != "Tap one of the amounts." {
+		t.Errorf("expected invalid prompt, got %q", got)
+	}
+}
+
+func TestHandleText_StageChoicePromptIncludesRecommendation(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+
+	got := sender.lastText()
+	if !contains(got, picked) {
+		t.Errorf("stage-choice prompt should name the picked product, got %q", got)
 	}
 }
 
@@ -246,6 +365,7 @@ func TestHandleText_StageYesAdvances(t *testing.T) {
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
 
 	runner.HandleText(sender, newMsg(1, "yes"))
 
@@ -264,6 +384,7 @@ func TestHandleText_StageHighYesCompletes(t *testing.T) {
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
 	runner.HandleText(sender, newMsg(1, "yes")) // → medium
 	runner.HandleText(sender, newMsg(1, "yes")) // → high
 	runner.HandleText(sender, newMsg(1, "yes")) // → completed
@@ -280,12 +401,32 @@ func TestHandleText_StageHighYesCompletes(t *testing.T) {
 	}
 }
 
+func TestHandleText_StageStartingHighOneYesCompletes(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, highAmountFor(t, picked)))
+
+	runner.HandleText(sender, newMsg(1, "yes"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingProductChoice {
+		t.Errorf("starting at high then yes should complete; got state %q", d.State)
+	}
+	if d.Products[picked].Status != "completed" {
+		t.Errorf("expected completed status, got %q", d.Products[picked].Status)
+	}
+}
+
 func TestHandleText_StageNoMarksNotTolerated(t *testing.T) {
 	runner, store, sender := setup(t)
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
 
 	runner.HandleText(sender, newMsg(1, "no"))
 
@@ -340,6 +481,7 @@ func TestHandleAbandon_MarksInterruptedAndShowsList(t *testing.T) {
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
 
 	runner.HandleAbandon(sender, newMsg(1, "/abandon"))
 
