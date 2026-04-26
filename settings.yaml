@@ -1,0 +1,9 @@
+# Bundled into the Docker image at /settings.yaml. On first boot the
+# settings.Store seeds itself from this file. After that the backend
+# (under DATA_DIR) is the source of truth and this file is only a
+# fresh-install fallback. Future admin commands can mutate at runtime
+# via settings.Store.Update.
+defecation_reminder_after: 1m
+checkin_interval: 30m
+scan_interval: 10s
+default_locale: en
