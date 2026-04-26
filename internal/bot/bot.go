@@ -84,6 +84,7 @@ func New(cfg Config) (*Bot, error) {
 	runner := journey.New(stateStore, api, catalog, settingsStore, trans)
 	runner.Register(journey.NewDefecationPhase())
 	runner.Register(journey.NewProductChoicePhase())
+	runner.Register(journey.NewStageChoicePhase())
 	runner.Register(journey.NewStageCheckinPhase())
 
 	worker := reminder.NewWithCallback(
