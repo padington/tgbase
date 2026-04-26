@@ -39,9 +39,12 @@ proto/              canonical schemas (state, products, settings, i18n)
 stateDiagram-v2
     [*] --> Idle
     Idle --> AwaitingDefecation : /start (SetupPhase)
-    AwaitingDefecation --> AwaitingProductChoice : 1/2/3 → fluid/normal/issues
+    AwaitingDefecation --> AwaitingProductCategory : 1/2/3 → fluid/normal/issues
+    AwaitingProductCategory --> AwaitingProductChoice : tap category (auto-skips when only one bucket has products)
+    AwaitingProductCategory --> Idle : catalog exhausted (auto report)
+    AwaitingProductChoice --> AwaitingProductChoice : tap Prev / Next (page)
+    AwaitingProductChoice --> AwaitingProductCategory : tap Back (or category emptied)
     AwaitingProductChoice --> AwaitingStageChoice : pick product
-    AwaitingProductChoice --> Idle : catalog exhausted (auto report)
     AwaitingStageChoice --> AwaitingStageCheckin : pick volume (low/medium/high)
     AwaitingStageCheckin --> AwaitingStageCheckin : "yes" → advance to next stage
     AwaitingStageCheckin --> AwaitingProductChoice : "yes" on high → completed
@@ -63,10 +66,14 @@ sequenceDiagram
     Bot-->>User: "How are things today? 1/2/3" + keyboard
 
     User->>Bot: 2
-    Bot->>Backend: Put users (DefecationState=normal, state=AwaitingProductChoice)
-    Bot-->>User: "Pick a food to trial:" + 10-button keyboard
+    Bot->>Backend: Put users (DefecationState=normal, state=AwaitingProductCategory)
+    Bot-->>User: "Pick a category:" + 2-col grid (🍎 Fruits, 🥬 Vegetables, …)
 
-    User->>Bot: Apple
+    User->>Bot: 🍎 Fruits
+    Bot->>Backend: Put users (PickerCategory=fruits, PickerPage=0, state=AwaitingProductChoice)
+    Bot-->>User: "Pick a food to trial:" + 4×3 product grid + [⬅ Back] [Next ▶]
+
+    User->>Bot: 🍎 Apple
     Bot->>Backend: Put users (CurrentProduct=Apple, state=AwaitingStageChoice)
     Bot-->>User: "Recommended starting dose for Apple is 0.25 Apple. Pick the volume you want to start with:" + [0.25] [0.5] [1] keyboard
 
