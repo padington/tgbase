@@ -18,6 +18,7 @@ const (
 	StateAwaitingHowamiAnswer  StateKind = "awaiting_howami_answer" // legacy — survey flow, scheduled for removal
 	StateAwaitingDefecation    StateKind = "awaiting_defecation"
 	StateAwaitingProductChoice StateKind = "awaiting_product_choice"
+	StateAwaitingStageChoice   StateKind = "awaiting_stage_choice"
 	StateAwaitingStageCheckin  StateKind = "awaiting_stage_checkin"
 )
 
