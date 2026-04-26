@@ -15,6 +15,9 @@ RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /app/bot /bot
 COPY config.yaml /config.yaml
+COPY products.yaml /products.yaml
+COPY settings.yaml /settings.yaml
+COPY i18n /i18n
 
 ENV CONFIG_PATH=/config.yaml
 
