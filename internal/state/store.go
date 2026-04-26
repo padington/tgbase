@@ -31,19 +31,16 @@ type Store struct {
 }
 
 // NewStore loads existing state from the persister and returns a ready store.
-// Passing no persister (or nil) defaults to MemoryPersister{}; the variadic
-// shape is transitional so existing call sites continue to compile until bot
-// wiring is updated in a later commit.
-func NewStore(p ...Persister) *Store {
-	var persister Persister = MemoryPersister{}
-	if len(p) > 0 && p[0] != nil {
-		persister = p[0]
+// A nil persister is treated as MemoryPersister{}.
+func NewStore(p Persister) *Store {
+	if p == nil {
+		p = MemoryPersister{}
 	}
 	s := &Store{
 		data:      make(map[int64]UserData),
-		persister: persister,
+		persister: p,
 	}
-	loaded, err := persister.Load()
+	loaded, err := p.Load()
 	if err != nil {
 		log.Printf("state: load: %v", err)
 	} else if loaded != nil {
