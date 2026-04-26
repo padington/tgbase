@@ -40,9 +40,11 @@ stateDiagram-v2
     [*] --> Idle
     Idle --> AwaitingDefecation : /start (SetupPhase)
     AwaitingDefecation --> AwaitingProductChoice : 1/2/3 → fluid/normal/issues
-    AwaitingProductChoice --> AwaitingStageCheckin : pick product
+    AwaitingProductChoice --> AwaitingStageChoice : pick product
     AwaitingProductChoice --> Idle : catalog exhausted (auto report)
-    AwaitingStageCheckin --> AwaitingProductChoice : "yes" → advance / complete
+    AwaitingStageChoice --> AwaitingStageCheckin : pick volume (low/medium/high)
+    AwaitingStageCheckin --> AwaitingStageCheckin : "yes" → advance to next stage
+    AwaitingStageCheckin --> AwaitingProductChoice : "yes" on high → completed
     AwaitingStageCheckin --> AwaitingProductChoice : "no" → not_tolerated
     AwaitingDefecation --> AwaitingDefecation : reminder tick
     AwaitingStageCheckin --> AwaitingStageCheckin : reminder tick (auto-prompts "are you OK?")
@@ -65,7 +67,11 @@ sequenceDiagram
     Bot-->>User: "Pick a food to trial:" + 10-button keyboard
 
     User->>Bot: Apple
-    Bot->>Backend: Put users (CurrentProduct=Apple, CurrentStage=low, state=AwaitingStageCheckin)
+    Bot->>Backend: Put users (CurrentProduct=Apple, state=AwaitingStageChoice)
+    Bot-->>User: "Recommended starting dose for Apple is 0.25 Apple. Pick the volume you want to start with:" + [0.25] [0.5] [1] keyboard
+
+    User->>Bot: 0.25
+    Bot->>Backend: Put users (CurrentStage=low, StageStartedAt=now, state=AwaitingStageCheckin)
     Bot-->>User: "Take 0.25 Apple. I'll check in around 30m."
 
     Note over Bot: ~30 min elapse, no reply
