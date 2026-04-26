@@ -156,3 +156,40 @@ func TestRun_StopsOnContextCancel(t *testing.T) {
 		t.Fatal("Run did not exit within 500ms after ctx cancel")
 	}
 }
+
+func TestNewWithCallback_DrivesScanFunc(t *testing.T) {
+	var mu sync.Mutex
+	var calls int
+	scan := func() {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+	}
+	w := reminder.NewWithCallback(scan, func() time.Duration { return 20 * time.Millisecond })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { w.Run(ctx); close(done) }()
+	time.Sleep(80 * time.Millisecond)
+	cancel()
+	<-done
+
+	mu.Lock()
+	got := calls
+	mu.Unlock()
+	if got < 1 {
+		t.Errorf("expected scan called at least once, got %d", got)
+	}
+	if got > 10 {
+		t.Errorf("scan called too many times: %d (interval respected?)", got)
+	}
+}
+
+func TestNewWithCallback_TickInvokesScanDirectly(t *testing.T) {
+	called := false
+	w := reminder.NewWithCallback(func() { called = true }, func() time.Duration { return time.Hour })
+	w.Tick()
+	if !called {
+		t.Error("expected scan to be invoked by Tick")
+	}
+}
