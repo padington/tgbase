@@ -23,6 +23,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
+          docker volume create tgbase_data 2>/dev/null || true
           docker stop tgbot 2>/dev/null || true
           docker rm tgbot 2>/dev/null || true
           docker run -d \
@@ -30,4 +31,6 @@ jobs:
             --restart unless-stopped \
             -e TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
             -e BOT_ENV=vps \
+            -e DATA_PATH=/data/state.json \
+            -v tgbase_data:/data \
             tgbase
