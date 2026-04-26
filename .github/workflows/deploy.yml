@@ -16,11 +16,13 @@ jobs:
         run: docker build -t tgbase .
 
       - name: Restart container
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         run: |
           docker stop tgbot 2>/dev/null || true
           docker rm tgbot 2>/dev/null || true
           docker run -d \
             --name tgbot \
             --restart unless-stopped \
-            -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+            -e TELEGRAM_BOT_TOKEN="$TELEGRAM_BOT_TOKEN" \
             tgbase
