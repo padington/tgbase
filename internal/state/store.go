@@ -1,6 +1,10 @@
 package state
 
-import "sync"
+import (
+	"log"
+	"sync"
+	"time"
+)
 
 // StateKind is the finite set of states a user can be in.
 type StateKind string
@@ -12,18 +16,40 @@ const (
 
 // UserData holds everything persisted per user.
 type UserData struct {
-	State        StateKind
-	HowamiAnswer int // 0=unset, 1/2/3
+	State        StateKind `json:"state"`
+	HowamiAnswer int       `json:"howami_answer"`
+	ChatID       int64     `json:"chat_id"`
+	EnteredAt    time.Time `json:"entered_at"`
+	ReminderSent bool      `json:"reminder_sent"`
 }
 
-// Store is a thread-safe in-memory map of userID → UserData.
+// Store is a thread-safe map of userID → UserData backed by a Persister.
 type Store struct {
-	mu   sync.Mutex
-	data map[int64]UserData
+	mu        sync.Mutex
+	data      map[int64]UserData
+	persister Persister
 }
 
-func NewStore() *Store {
-	return &Store{data: make(map[int64]UserData)}
+// NewStore loads existing state from the persister and returns a ready store.
+// Passing no persister (or nil) defaults to MemoryPersister{}; the variadic
+// shape is transitional so existing call sites continue to compile until bot
+// wiring is updated in a later commit.
+func NewStore(p ...Persister) *Store {
+	var persister Persister = MemoryPersister{}
+	if len(p) > 0 && p[0] != nil {
+		persister = p[0]
+	}
+	s := &Store{
+		data:      make(map[int64]UserData),
+		persister: persister,
+	}
+	loaded, err := persister.Load()
+	if err != nil {
+		log.Printf("state: load: %v", err)
+	} else if loaded != nil {
+		s.data = loaded
+	}
+	return s
 }
 
 // Get returns a copy of the UserData for userID.
@@ -38,9 +64,39 @@ func (s *Store) Get(userID int64) UserData {
 	return d
 }
 
-// Set stores d for userID (value copy — caller's struct is not aliased).
+// Set stores d for userID and triggers a persister save with a fresh snapshot.
 func (s *Store) Set(userID int64, d UserData) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.data[userID] = d
+	snap := snapshot(s.data)
+	s.mu.Unlock()
+	if err := s.persister.Save(snap); err != nil {
+		log.Printf("state: save: %v", err)
+	}
+}
+
+// AllAwaiting returns a snapshot of users currently in StateAwaitingHowamiAnswer.
+func (s *Store) AllAwaiting() map[int64]UserData {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[int64]UserData)
+	for id, d := range s.data {
+		if d.State == StateAwaitingHowamiAnswer {
+			out[id] = d
+		}
+	}
+	return out
+}
+
+// Close flushes pending writes and releases persister resources.
+func (s *Store) Close() error {
+	return s.persister.Close()
+}
+
+func snapshot(m map[int64]UserData) map[int64]UserData {
+	out := make(map[int64]UserData, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

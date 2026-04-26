@@ -8,7 +8,7 @@ import (
 )
 
 func TestGet_NewUser(t *testing.T) {
-	s := state.NewStore()
+	s := state.NewStore(state.MemoryPersister{})
 	d := s.Get(42)
 	if d.State != state.StateIdle {
 		t.Fatalf("expected StateIdle, got %q", d.State)
@@ -19,7 +19,7 @@ func TestGet_NewUser(t *testing.T) {
 }
 
 func TestSetAndGet_RoundTrip(t *testing.T) {
-	s := state.NewStore()
+	s := state.NewStore(state.MemoryPersister{})
 	s.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer, HowamiAnswer: 2})
 
 	d := s.Get(1)
@@ -32,20 +32,19 @@ func TestSetAndGet_RoundTrip(t *testing.T) {
 }
 
 func TestGet_IsolatedCopy(t *testing.T) {
-	s := state.NewStore()
+	s := state.NewStore(state.MemoryPersister{})
 	s.Set(1, state.UserData{State: state.StateIdle})
 
 	d := s.Get(1)
-	d.State = state.StateAwaitingHowamiAnswer // mutate the copy
+	d.State = state.StateAwaitingHowamiAnswer
 
-	// store must be unchanged
 	if s.Get(1).State != state.StateIdle {
 		t.Fatal("mutating returned value should not affect the store")
 	}
 }
 
 func TestStore_ConcurrentAccess(t *testing.T) {
-	s := state.NewStore()
+	s := state.NewStore(state.MemoryPersister{})
 	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
@@ -56,4 +55,84 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 		}(int64(i))
 	}
 	wg.Wait()
+}
+
+func TestStore_LoadsFromPersister(t *testing.T) {
+	p := &recordingPersister{
+		loadResult: map[int64]state.UserData{
+			7: {State: state.StateAwaitingHowamiAnswer, HowamiAnswer: 0},
+		},
+	}
+	s := state.NewStore(p)
+
+	if got := s.Get(7).State; got != state.StateAwaitingHowamiAnswer {
+		t.Errorf("expected loaded state to be StateAwaitingHowamiAnswer, got %q", got)
+	}
+}
+
+func TestStore_SetTriggersSaveSnapshot(t *testing.T) {
+	p := &recordingPersister{}
+	s := state.NewStore(p)
+	s.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer})
+
+	saves := p.getSaves()
+	if len(saves) != 1 {
+		t.Fatalf("expected 1 save, got %d", len(saves))
+	}
+	if saves[0][1].State != state.StateAwaitingHowamiAnswer {
+		t.Errorf("save snapshot missing the just-set value")
+	}
+
+	saves[0][1] = state.UserData{State: state.StateIdle}
+	if s.Get(1).State != state.StateAwaitingHowamiAnswer {
+		t.Error("mutating saved snapshot must not affect the store (snapshot is independent)")
+	}
+}
+
+func TestStore_AllAwaiting(t *testing.T) {
+	s := state.NewStore(state.MemoryPersister{})
+	s.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer, ChatID: 100})
+	s.Set(2, state.UserData{State: state.StateIdle})
+	s.Set(3, state.UserData{State: state.StateAwaitingHowamiAnswer, ChatID: 300})
+
+	got := s.AllAwaiting()
+	if len(got) != 2 {
+		t.Fatalf("expected 2 awaiting users, got %d", len(got))
+	}
+	if _, ok := got[1]; !ok {
+		t.Error("missing user 1")
+	}
+	if _, ok := got[3]; !ok {
+		t.Error("missing user 3")
+	}
+	if _, ok := got[2]; ok {
+		t.Error("user 2 (idle) should not be in AllAwaiting")
+	}
+}
+
+type recordingPersister struct {
+	mu         sync.Mutex
+	saves      []map[int64]state.UserData
+	loadResult map[int64]state.UserData
+}
+
+func (r *recordingPersister) Load() (map[int64]state.UserData, error) {
+	return r.loadResult, nil
+}
+
+func (r *recordingPersister) Save(m map[int64]state.UserData) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.saves = append(r.saves, m)
+	return nil
+}
+
+func (r *recordingPersister) Close() error { return nil }
+
+func (r *recordingPersister) getSaves() []map[int64]state.UserData {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]map[int64]state.UserData, len(r.saves))
+	copy(out, r.saves)
+	return out
 }
