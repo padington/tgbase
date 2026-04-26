@@ -34,7 +34,7 @@ func (StageChoicePhase) Setup(ctx Context) Outcome {
 			"name":        prod.DisplayName(ctx.Locale),
 			"recommended": prod.StageDescription(products.StageLow, ctx.Locale, ctx.Trans),
 		},
-		Buttons: buttons,
+		Keyboard: [][]string{buttons},
 	}
 }
 

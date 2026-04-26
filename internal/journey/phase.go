@@ -16,12 +16,16 @@ import (
 
 // Outcome describes how the runner should proceed after a phase callback.
 // An empty Outcome (zero value) is valid: stay put, no message, no mutation.
+//
+// Setting NextState to the user's current state is meaningful: the runner
+// will re-fire the owning phase's Setup. The category-scoped product picker
+// uses this to redraw a fresh keyboard after Prev/Next paging.
 type Outcome struct {
-	NextState state.StateKind         // empty = stay in current state
-	ReplyKey  string                  // i18n key for outgoing message; empty = silent
-	ReplyArgs map[string]any          // placeholder substitutions for ReplyKey
-	Buttons   []string                // already-resolved keyboard labels (one row)
-	Mutate    func(*state.UserData)   // optional mutation applied before persisting
+	NextState state.StateKind       // empty = stay in current state
+	ReplyKey  string                // i18n key for outgoing message; empty = silent
+	ReplyArgs map[string]any        // placeholder substitutions for ReplyKey
+	Keyboard  [][]string            // keyboard rows; each inner slice is one row
+	Mutate    func(*state.UserData) // optional mutation applied before persisting
 }
 
 // Context is the per-call dependency bag handed to Phase callbacks.

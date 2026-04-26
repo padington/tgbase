@@ -81,6 +81,8 @@ func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 	user.ReminderSent = false
 	user.CheckinAsked = false
 	user.OfferedProducts = nil
+	user.PickerCategory = ""
+	user.PickerPage = 0
 
 	r.store.Set(msg.From.ID, user)
 
@@ -161,7 +163,10 @@ func (r *Runner) applyOutcome(ctx Context, oc Outcome, chatID int64) {
 	if oc.Mutate != nil {
 		oc.Mutate(&user)
 	}
-	transitioned := oc.NextState != "" && oc.NextState != user.State
+	// Re-fire Setup whenever NextState is set, including same-state
+	// outcomes — that's how the picker refreshes its keyboard after
+	// Prev / Next paging.
+	transitioned := oc.NextState != ""
 	if oc.NextState != "" {
 		user.State = oc.NextState
 	}
@@ -170,8 +175,8 @@ func (r *Runner) applyOutcome(ctx Context, oc Outcome, chatID int64) {
 	if oc.ReplyKey != "" && chatID != 0 {
 		text := r.trans.T(oc.ReplyKey, ctx.Locale, oc.ReplyArgs)
 		out := tgbotapi.NewMessage(chatID, text)
-		if len(oc.Buttons) > 0 {
-			out.ReplyMarkup = buildKeyboard(oc.Buttons)
+		if len(oc.Keyboard) > 0 {
+			out.ReplyMarkup = buildKeyboard(oc.Keyboard)
 		}
 		if _, err := r.sender.Send(out); err != nil {
 			log.Printf("journey: send: %v", err)
@@ -199,12 +204,16 @@ func (r *Runner) detectLocale(lang string) i18n.Locale {
 	return i18n.Locale(r.settings.Get().DefaultLocale)
 }
 
-func buildKeyboard(labels []string) tgbotapi.ReplyKeyboardMarkup {
-	row := make([]tgbotapi.KeyboardButton, 0, len(labels))
-	for _, l := range labels {
-		row = append(row, tgbotapi.NewKeyboardButton(l))
+func buildKeyboard(rows [][]string) tgbotapi.ReplyKeyboardMarkup {
+	out := make([][]tgbotapi.KeyboardButton, 0, len(rows))
+	for _, row := range rows {
+		rb := make([]tgbotapi.KeyboardButton, 0, len(row))
+		for _, l := range row {
+			rb = append(rb, tgbotapi.NewKeyboardButton(l))
+		}
+		out = append(out, rb)
 	}
-	kb := tgbotapi.NewReplyKeyboard(row)
+	kb := tgbotapi.NewReplyKeyboard(out...)
 	kb.ResizeKeyboard = true
 	return kb
 }
