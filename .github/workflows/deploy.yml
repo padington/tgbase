@@ -6,23 +6,21 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd /opt/tgbase
-            git pull origin main
-            docker build -t tgbase .
-            docker stop tgbot 2>/dev/null || true
-            docker rm tgbot 2>/dev/null || true
-            docker run -d \
-              --name tgbot \
-              --restart unless-stopped \
-              -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
-              tgbase
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t tgbase .
+
+      - name: Restart container
+        run: |
+          docker stop tgbot 2>/dev/null || true
+          docker rm tgbot 2>/dev/null || true
+          docker run -d \
+            --name tgbot \
+            --restart unless-stopped \
+            -e TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} \
+            tgbase
