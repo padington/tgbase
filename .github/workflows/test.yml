@@ -21,4 +21,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run tests
-        run: docker run --rm -v "$PWD":/app -w /app golang:1.23-alpine go test ./...
+        run: |
+          docker run --rm \
+            -v "$PWD":/app -w /app \
+            -v go-mod-cache:/go/pkg/mod \
+            -v go-build-cache:/root/.cache/go-build \
+            golang:1.23-alpine go test ./...
