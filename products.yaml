@@ -1,0 +1,77 @@
+# Bundled into the Docker image at /products.yaml. On first boot the
+# Catalog seeds itself from this file. After that the backend (under
+# DATA_DIR) is the source of truth and this file is only a fresh-install
+# fallback.
+- name: Apple
+  fodmap: high
+  measure: pieces
+  stages: { low: 0.25, medium: 0.5, high: 1.0 }
+  note: Test on empty stomach; monitor 2h
+  name_localized:
+    ru: "Яблоко"
+  note_localized:
+    ru: "Тестировать натощак, наблюдать 2 ч"
+
+- name: Cashews
+  fodmap: high
+  measure: grams
+  stages: { low: 10, medium: 20, high: 30 }
+  name_localized:
+    ru: "Кешью"
+
+- name: Milk (cow)
+  fodmap: high
+  measure: ml
+  stages: { low: 50, medium: 100, high: 200 }
+  name_localized:
+    ru: "Молоко коровье"
+
+- name: Honey
+  fodmap: high
+  measure: spoons
+  stages: { low: 0.5, medium: 1, high: 2 }
+  name_localized:
+    ru: "Мёд"
+
+- name: Garlic
+  fodmap: high
+  measure: pieces
+  stages: { low: 0.5, medium: 1, high: 2 }
+  note: Use raw clove; cooked is gentler
+  name_localized:
+    ru: "Чеснок"
+
+- name: Onion
+  fodmap: high
+  measure: grams
+  stages: { low: 5, medium: 15, high: 30 }
+  name_localized:
+    ru: "Лук"
+
+- name: Wheat bread
+  fodmap: high
+  measure: grams
+  stages: { low: 20, medium: 40, high: 80 }
+  name_localized:
+    ru: "Пшеничный хлеб"
+
+- name: Beans (red kidney)
+  fodmap: high
+  measure: grams
+  stages: { low: 30, medium: 60, high: 100 }
+  name_localized:
+    ru: "Красная фасоль"
+
+- name: Mango
+  fodmap: high
+  measure: grams
+  stages: { low: 40, medium: 80, high: 160 }
+  name_localized:
+    ru: "Манго"
+
+- name: Asparagus
+  fodmap: high
+  measure: pieces
+  stages: { low: 1, medium: 3, high: 5 }
+  name_localized:
+    ru: "Спаржа"
