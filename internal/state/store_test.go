@@ -3,8 +3,11 @@ package state_test
 import (
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/padington/tgbase/internal/products"
 	"github.com/padington/tgbase/internal/state"
+	"github.com/padington/tgbase/internal/store"
 )
 
 func TestGet_NewUser(t *testing.T) {
@@ -107,6 +110,91 @@ func TestStore_AllAwaiting(t *testing.T) {
 	}
 	if _, ok := got[2]; ok {
 		t.Error("user 2 (idle) should not be in AllAwaiting")
+	}
+}
+
+func TestNewStoreFromBackend_RoundTrip(t *testing.T) {
+	backend := store.NewMemoryBackend()
+	s := state.NewStoreFromBackend(backend)
+	s.Set(7, state.UserData{
+		State:           state.StateAwaitingProductChoice,
+		DefecationState: state.DefecationNormal,
+		ChatID:          700,
+		Locale:          "ru",
+	})
+
+	s2 := state.NewStoreFromBackend(backend)
+	got := s2.Get(7)
+	if got.State != state.StateAwaitingProductChoice {
+		t.Errorf("state lost across reload: %q", got.State)
+	}
+	if got.DefecationState != state.DefecationNormal {
+		t.Errorf("defecation lost: %q", got.DefecationState)
+	}
+	if got.Locale != "ru" {
+		t.Errorf("locale lost: %q", got.Locale)
+	}
+}
+
+func TestStore_AllAwaitingDefecation(t *testing.T) {
+	s := state.NewStoreFromBackend(store.NewMemoryBackend())
+	s.Set(1, state.UserData{State: state.StateAwaitingDefecation, ChatID: 100})
+	s.Set(2, state.UserData{State: state.StateIdle})
+	s.Set(3, state.UserData{State: state.StateAwaitingProductChoice})
+	s.Set(4, state.UserData{State: state.StateAwaitingDefecation, ChatID: 400})
+
+	got := s.AllAwaitingDefecation()
+	if len(got) != 2 {
+		t.Fatalf("expected 2, got %d", len(got))
+	}
+	for _, want := range []int64{1, 4} {
+		if _, ok := got[want]; !ok {
+			t.Errorf("missing user %d", want)
+		}
+	}
+}
+
+func TestStore_AllAwaitingCheckin(t *testing.T) {
+	s := state.NewStoreFromBackend(store.NewMemoryBackend())
+	s.Set(1, state.UserData{State: state.StateAwaitingStageCheckin, CurrentProduct: "Apple", CurrentStage: products.StageLow})
+	s.Set(2, state.UserData{State: state.StateAwaitingDefecation})
+	s.Set(3, state.UserData{State: state.StateAwaitingStageCheckin, CurrentProduct: "Cashews", CurrentStage: products.StageMedium})
+
+	got := s.AllAwaitingCheckin()
+	if len(got) != 2 {
+		t.Fatalf("expected 2, got %d", len(got))
+	}
+	if got[1].CurrentStage != products.StageLow {
+		t.Errorf("user 1 stage: got %q", got[1].CurrentStage)
+	}
+	if got[3].CurrentStage != products.StageMedium {
+		t.Errorf("user 3 stage: got %q", got[3].CurrentStage)
+	}
+}
+
+func TestUserData_ProductsRoundTrip(t *testing.T) {
+	backend := store.NewMemoryBackend()
+	s := state.NewStoreFromBackend(backend)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	s.Set(1, state.UserData{
+		State: state.StateAwaitingProductChoice,
+		Products: map[string]state.ProductProgress{
+			"Apple":   {LastStage: products.StageHigh, Status: "completed", UpdatedAt: now},
+			"Cashews": {LastStage: products.StageLow, Status: "in_progress", UpdatedAt: now},
+		},
+	})
+
+	s2 := state.NewStoreFromBackend(backend)
+	got := s2.Get(1).Products
+	if len(got) != 2 {
+		t.Fatalf("expected 2 products, got %d", len(got))
+	}
+	if got["Apple"].Status != "completed" {
+		t.Errorf("apple status: %q", got["Apple"].Status)
+	}
+	if got["Cashews"].LastStage != products.StageLow {
+		t.Errorf("cashews stage: %q", got["Cashews"].LastStage)
 	}
 }
 

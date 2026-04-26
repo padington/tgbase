@@ -11,10 +11,49 @@ import (
 
 // Persister loads and saves the state map. Save may be asynchronous; callers
 // that need durability before exit must call Close.
+//
+// Deprecated: new code should use store.Backend with NewStoreFromBackend.
+// Kept here so existing call sites compile during the journey rollout.
 type Persister interface {
 	Load() (map[int64]UserData, error)
 	Save(map[int64]UserData) error
 	Close() error
+}
+
+// persisterBackendAdapter wraps a Persister so a Store can use it through the
+// new store.Backend interface. Only the "users" key is meaningful — anything
+// else is treated as absent.
+type persisterBackendAdapter struct {
+	p Persister
+}
+
+func (a *persisterBackendAdapter) Get(key string) ([]byte, error) {
+	if key != backendKey {
+		return nil, nil
+	}
+	m, err := a.p.Load()
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, nil
+	}
+	return json.Marshal(m)
+}
+
+func (a *persisterBackendAdapter) Put(key string, value []byte) error {
+	if key != backendKey {
+		return nil
+	}
+	var m map[int64]UserData
+	if err := json.Unmarshal(value, &m); err != nil {
+		return err
+	}
+	return a.p.Save(m)
+}
+
+func (a *persisterBackendAdapter) Close() error {
+	return a.p.Close()
 }
 
 // MemoryPersister is a no-op persister used in tests and when no DataPath is set.
