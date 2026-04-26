@@ -1,56 +1,82 @@
 # tgbase
 
-A Go-based Telegram bot platform. Receives updates via long polling.
+A Telegram bot that helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
 
 ## Commands
 
-| Command    | Response                                                       |
-|------------|----------------------------------------------------------------|
-| `/ping`    | `pong`                                                         |
-| `/whoami`  | env label, hostname, OS/arch of the instance                   |
-| `/menu`    | reply keyboard with `[Ping]` `[Whoami]` shortcuts              |
-| `/start`   | begins the "How are you? 1/2/3" survey flow (see below)        |
+| Command     | Response                                                                  |
+|-------------|---------------------------------------------------------------------------|
+| `/start`    | Begins or restarts the journey: defecation check → product choice → trial |
+| `/about`    | Short bot description (localized)                                         |
+| `/report`   | Per-user breakdown: completed / in-progress / not tolerated / interrupted |
+| `/abandon`  | Marks the current trial as interrupted; returns to product selection      |
+| `/ping`     | `pong` — health check                                                     |
+| `/whoami`   | env label, hostname, OS/arch                                              |
+| `/menu`     | reply keyboard with `[Ping]` `[Whoami]` shortcuts                         |
+
+## Architecture
+
+```
+internal/store      generic key-value Backend (FileBackend, MemoryBackend, DebouncedBackend)
+internal/state      per-user UserData on top of store.Backend (key="users")
+internal/products   FODMAP catalog with metadata, mutable at runtime (key="products")
+internal/settings   reminder/check-in tunables, mutable at runtime (key="settings")
+internal/i18n       per-locale UI strings loaded from i18n/<locale>.yaml
+internal/journey    Phase-based interaction framework + concrete phases
+internal/reminder   scan loop that delegates per-user nudges to journey.Runner
+internal/router     Telegram update dispatcher
+internal/bot        composition root: wires backend → typed stores → runner
+proto/              canonical schemas (state, products, settings, i18n)
+```
+
+`products.yaml`, `settings.yaml`, and `i18n/*.yaml` are bundled into the Docker image as first-boot seeds. After first boot the backend (under `DATA_DIR`) is the source of truth — admin commands can mutate products and settings at runtime without a redeploy.
 
 ## Flow
 
-### Survey state machine
+### State machine
 
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> AwaitingAnswer : /start
-    AwaitingAnswer --> Idle : valid answer (1, 2, 3)
-    AwaitingAnswer --> AwaitingAnswer : invalid input
-    AwaitingAnswer --> AwaitingAnswer : 1min reminder tick
-
-    note right of AwaitingAnswer
-      on entry: record ChatID, EnteredAt;
-      ReminderSent = false;
-      send "How are you? 1/2/3" + keyboard
-    end note
+    Idle --> AwaitingDefecation : /start (SetupPhase)
+    AwaitingDefecation --> AwaitingProductChoice : 1/2/3 → fluid/normal/issues
+    AwaitingProductChoice --> AwaitingStageCheckin : pick product
+    AwaitingProductChoice --> Idle : catalog exhausted (auto report)
+    AwaitingStageCheckin --> AwaitingProductChoice : "yes" → advance / complete
+    AwaitingStageCheckin --> AwaitingProductChoice : "no" → not_tolerated
+    AwaitingDefecation --> AwaitingDefecation : reminder tick
+    AwaitingStageCheckin --> AwaitingStageCheckin : reminder tick (auto-prompts "are you OK?")
 ```
 
-### Sequence — /start with reminder path
+### Sequence — happy path with reminder
 
 ```mermaid
 sequenceDiagram
     actor User
     participant Bot
-    participant Persister as FilePersister (debounced)
+    participant Backend as FileBackend (debounced)
 
     User->>Bot: /start
-    Bot->>Persister: Save (state=Awaiting, ChatID, EnteredAt)
-    Bot-->>User: "How are you? 1/2/3" + keyboard
-
-    Note over Bot: ~60s elapse, no reply
-
-    Bot->>Bot: reminder.Tick() — user qualifies
-    Bot-->>User: "Still there? Please answer 1, 2, or 3."
-    Bot->>Persister: Save (ReminderSent=true)
+    Bot->>Backend: Put users (state=AwaitingDefecation, ChatID, Locale)
+    Bot-->>User: "How are things today? 1/2/3" + keyboard
 
     User->>Bot: 2
-    Bot->>Persister: Save (state=Idle, HowamiAnswer=2)
-    Bot-->>User: "Got it — you answered 2. Thanks!"
+    Bot->>Backend: Put users (DefecationState=normal, state=AwaitingProductChoice)
+    Bot-->>User: "Pick a food to trial:" + 10-button keyboard
+
+    User->>Bot: Apple
+    Bot->>Backend: Put users (CurrentProduct=Apple, CurrentStage=low, state=AwaitingStageCheckin)
+    Bot-->>User: "Take 0.25 Apple. I'll check in around 30m."
+
+    Note over Bot: ~30 min elapse, no reply
+
+    Bot->>Bot: reminder.Worker → runner.Remind() → StageCheckinPhase.Remind
+    Bot-->>User: "How are you doing after 0.25 Apple? Reply yes or no."
+    Bot->>Backend: Put users (CheckinAsked=true)
+
+    User->>Bot: yes
+    Bot->>Backend: Put users (CurrentStage=medium, StageStartedAt=now)
+    Bot-->>User: "Now take 0.5 Apple."
 ```
 
 ## Prerequisites
@@ -141,22 +167,47 @@ docker logs -f tgbot
 
 ## Environment variables
 
-| Variable             | Required | Default   | Description                           |
-|----------------------|----------|-----------|---------------------------------------|
-| `TELEGRAM_BOT_TOKEN` | yes      | —         | Token from @BotFather                 |
-| `BOT_DEBUG`          | no       | `false`   | Log every Telegram API call           |
-| `BOT_ENV`            | no       | `unknown` | Label shown in `/whoami` (e.g. `vps`) |
+| Variable             | Required | Default            | Description                                                |
+|----------------------|----------|--------------------|------------------------------------------------------------|
+| `TELEGRAM_BOT_TOKEN` | yes      | —                  | Token from @BotFather                                      |
+| `BOT_DEBUG`          | no       | `false`            | Log every Telegram API call                                |
+| `BOT_ENV`            | no       | `unknown`          | Label shown in `/whoami` (e.g. `vps`)                      |
+| `DATA_DIR`           | no       | derived/in-memory  | Directory for backend JSON files. Empty → in-memory backend|
+| `CONFIG_PATH`        | no       | `/config.yaml`     | Boot-time config path (state flush interval, seed paths)   |
+
+## Runtime mutation
+
+Both `products` and `settings` live in the backend, not in the Docker image. After first boot:
+
+- Edit `$DATA_DIR/products.json` (or use a future admin command) → next time `/start` shows the list, the changes appear.
+- Edit `$DATA_DIR/settings.json` → reminder timing and default locale change without restart (intervals are sampled every tick).
+
+Bundled `products.yaml` / `settings.yaml` / `i18n/*.yaml` only seed the backend on first boot.
+
+## Localization
+
+UI strings live in `i18n/<locale>.yaml` baked into the image (`en.yaml`, `ru.yaml` ship by default). Product names + notes carry inline `name_localized` / `note_localized` maps so they can be translated alongside the catalog. Each user's locale is detected from `msg.From.LanguageCode` on first `/start` and persisted on `UserData.Locale`.
 
 ## Project layout
 
 ```
-cmd/bot/                   — entry point
-internal/bot/
-  bot.go                   — Bot struct, long-poll loop
-  handlers.go              — command handlers (/ping, /whoami)
-.github/workflows/
-  deploy.yml               — CI/CD deploy workflow
-Dockerfile                 — multi-stage production image
-.env.example               — environment variable template
-scripts/setup.sh           — one-time VPS setup helper
+cmd/bot/                  entry point
+internal/
+  bot/                    composition root
+  router/                 Telegram dispatcher
+  store/                  Backend interface + File/Memory/Debounced impls
+  state/                  per-user data on top of store
+  products/               catalog with FODMAP metadata
+  settings/               runtime-mutable timings + default locale
+  i18n/                   translator (loads i18n/*.yaml)
+  journey/                Phase framework + concrete diet flow phases
+  reminder/               scan loop, delegates to journey.Runner.Remind
+  flows/meta/             stateless commands (/ping, /whoami, /menu)
+proto/                    canonical .proto schemas
+i18n/                     bundled UI string yamls
+products.yaml             first-boot product catalog seed
+settings.yaml             first-boot settings seed
+config.yaml               boot-only paths + state flush interval
+.github/workflows/        CI (test.yml, deploy.yml)
+Dockerfile                multi-stage production image
 ```
