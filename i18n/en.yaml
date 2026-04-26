@@ -10,9 +10,15 @@ phase.defecation.prompt: "How are things today? 1 = fluid, 2 = normal, 3 = issue
 phase.defecation.invalid: "Please choose 1, 2, or 3."
 phase.defecation.acknowledged: "Got it. Let's pick a food to trial."
 
+phase.product.category.prompt: "Pick a category:"
+phase.product.category.invalid: "Please tap one of the suggested categories."
 phase.product.prompt: "Pick a food to trial:"
 phase.product.invalid: "Please tap one of the suggested foods."
 phase.product.exhausted: "You've trialed every food in the catalog. Send /report to see your progress."
+
+button.product.back: "⬅ Back"
+button.product.prev: "◀ Prev"
+button.product.next: "Next ▶"
 
 phase.stage_choice.prompt: "Recommended starting dose for {name} is {recommended}. Pick the volume you want to start with:"
 phase.stage_choice.invalid: "Please tap one of the suggested amounts."
