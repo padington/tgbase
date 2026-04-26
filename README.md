@@ -4,10 +4,54 @@ A Go-based Telegram bot platform. Receives updates via long polling.
 
 ## Commands
 
-| Command    | Response                                      |
-|------------|-----------------------------------------------|
-| `/ping`    | `pong`                                        |
-| `/whoami`  | env label, hostname, OS/arch of the instance  |
+| Command    | Response                                                       |
+|------------|----------------------------------------------------------------|
+| `/ping`    | `pong`                                                         |
+| `/whoami`  | env label, hostname, OS/arch of the instance                   |
+| `/menu`    | reply keyboard with `[Ping]` `[Whoami]` shortcuts              |
+| `/start`   | begins the "How are you? 1/2/3" survey flow (see below)        |
+
+## Flow
+
+### Survey state machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> AwaitingAnswer : /start
+    AwaitingAnswer --> Idle : valid answer (1, 2, 3)
+    AwaitingAnswer --> AwaitingAnswer : invalid input
+    AwaitingAnswer --> AwaitingAnswer : 1min reminder tick
+
+    note right of AwaitingAnswer
+      on entry: record ChatID, EnteredAt;
+      ReminderSent = false;
+      send "How are you? 1/2/3" + keyboard
+    end note
+```
+
+### Sequence — /start with reminder path
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Bot
+    participant Persister as FilePersister (debounced)
+
+    User->>Bot: /start
+    Bot->>Persister: Save (state=Awaiting, ChatID, EnteredAt)
+    Bot-->>User: "How are you? 1/2/3" + keyboard
+
+    Note over Bot: ~60s elapse, no reply
+
+    Bot->>Bot: reminder.Tick() — user qualifies
+    Bot-->>User: "Still there? Please answer 1, 2, or 3."
+    Bot->>Persister: Save (ReminderSent=true)
+
+    User->>Bot: 2
+    Bot->>Persister: Save (state=Idle, HowamiAnswer=2)
+    Bot-->>User: "Got it — you answered 2. Thanks!"
+```
 
 ## Prerequisites
 
