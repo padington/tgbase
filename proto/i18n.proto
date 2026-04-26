@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package tgbase.i18n.v1;
+
+option go_package = "github.com/padington/tgbase/internal/i18n/pb;pb";
+
+message LocaleBundle {
+  string locale = 1;
+  map<string, string> entries = 2;
+}
+
+message LocaleSet {
+  map<string, LocaleBundle> bundles = 1;  // locale code → bundle
+}

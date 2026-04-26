@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package tgbase.products.v1;
+
+option go_package = "github.com/padington/tgbase/internal/products/pb;pb";
+
+enum FodmapLevel {
+  FODMAP_UNSPECIFIED = 0;
+  FODMAP_LOW = 1;
+  FODMAP_HIGH = 2;
+}
+
+enum Measure {
+  MEASURE_UNSPECIFIED = 0;
+  MEASURE_PIECES = 1;
+  MEASURE_GRAMS = 2;
+  MEASURE_ML = 3;
+  MEASURE_SPOONS = 4;
+}
+
+enum Stage {
+  STAGE_UNSPECIFIED = 0;
+  STAGE_LOW = 1;
+  STAGE_MEDIUM = 2;
+  STAGE_HIGH = 3;
+}
+
+message Product {
+  string name = 1;
+  FodmapLevel fodmap = 2;
+  Measure measure = 3;
+  map<string, double> stages = 4;
+  string note = 5;
+  map<string, string> name_localized = 6;
+  map<string, string> note_localized = 7;
+}
+
+message Catalog {
+  repeated Product products = 1;
+}

@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package tgbase.settings.v1;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/padington/tgbase/internal/settings/pb;pb";
+
+message Settings {
+  google.protobuf.Duration defecation_reminder_after = 1;
+  google.protobuf.Duration checkin_interval = 2;
+  google.protobuf.Duration scan_interval = 3;
+  string default_locale = 4;
+}

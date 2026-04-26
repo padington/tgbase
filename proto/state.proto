@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package tgbase.state.v1;
+
+import "google/protobuf/timestamp.proto";
+import "products.proto";
+
+option go_package = "github.com/padington/tgbase/internal/state/pb;pb";
+
+enum StateKind {
+  STATE_UNSPECIFIED = 0;
+  STATE_IDLE = 1;
+  STATE_AWAITING_DEFECATION = 2;
+  STATE_AWAITING_PRODUCT_CHOICE = 3;
+  STATE_AWAITING_STAGE_CHECKIN = 4;
+}
+
+enum DefecationKind {
+  DEFECATION_UNSPECIFIED = 0;
+  DEFECATION_FLUID = 1;
+  DEFECATION_NORMAL = 2;
+  DEFECATION_ISSUES = 3;
+}
+
+message ProductProgress {
+  tgbase.products.v1.Stage last_stage = 1;
+  string status = 2;  // in_progress|completed|not_tolerated|interrupted
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+message UserData {
+  StateKind state = 1;
+  DefecationKind defecation_state = 2;
+  string current_product = 3;
+  tgbase.products.v1.Stage current_stage = 4;
+  google.protobuf.Timestamp stage_started_at = 5;
+  bool checkin_asked = 6;
+  repeated string offered_products = 7;
+  map<string, ProductProgress> products = 8;
+  int64 chat_id = 9;
+  google.protobuf.Timestamp entered_at = 10;
+  bool reminder_sent = 11;
+  string locale = 12;
+}
+
+message UserMap {
+  map<int64, UserData> users = 1;
+}
