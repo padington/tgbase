@@ -34,13 +34,16 @@ func (b *Bot) Run(ctx context.Context) error {
 	u.Timeout = b.cfg.Timeout
 
 	updates := b.api.GetUpdatesChan(u)
+	log.Printf("polling for updates (timeout=%ds)", b.cfg.Timeout)
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Println("shutdown signal received, stopping updates")
 			b.api.StopReceivingUpdates()
 			return nil
 		case update := <-updates:
+			log.Printf("update id=%d", update.UpdateID)
 			b.handleUpdate(update)
 		}
 	}

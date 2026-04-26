@@ -7,13 +7,24 @@ import (
 )
 
 func (b *Bot) handleUpdate(update tgbotapi.Update) {
-	if update.Message == nil || !update.Message.IsCommand() {
+	if update.Message == nil {
+		log.Printf("skipping non-message update id=%d", update.UpdateID)
+		return
+	}
+	if !update.Message.IsCommand() {
+		log.Printf("message from @%s (chat=%d): %q — not a command, ignoring",
+			update.Message.From.UserName, update.Message.Chat.ID, update.Message.Text)
 		return
 	}
 
-	switch update.Message.Command() {
+	cmd := update.Message.Command()
+	log.Printf("command /%s from @%s (chat=%d)", cmd, update.Message.From.UserName, update.Message.Chat.ID)
+
+	switch cmd {
 	case "ping":
 		b.reply(update.Message, "pong")
+	default:
+		log.Printf("unknown command: /%s", cmd)
 	}
 }
 
@@ -21,6 +32,8 @@ func (b *Bot) reply(msg *tgbotapi.Message, text string) {
 	out := tgbotapi.NewMessage(msg.Chat.ID, text)
 	out.ReplyToMessageID = msg.MessageID
 	if _, err := b.api.Send(out); err != nil {
-		log.Printf("send reply: %v", err)
+		log.Printf("send reply to chat=%d: %v", msg.Chat.ID, err)
+		return
 	}
+	log.Printf("replied to @%s (chat=%d): %q", msg.From.UserName, msg.Chat.ID, text)
 }
