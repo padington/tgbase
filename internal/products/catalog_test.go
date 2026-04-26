@@ -10,20 +10,37 @@ import (
 	"github.com/padington/tgbase/internal/store"
 )
 
-const seedYAML = `- name: Apple
-  fodmap: high
-  measure: pieces
-  stages: { low: 0.25, medium: 0.5, high: 1.0 }
-  name_localized:
-    ru: "Яблоко"
-- name: Cashews
-  fodmap: high
-  measure: grams
-  stages: { low: 10, medium: 20, high: 30 }
-- name: Honey
-  fodmap: high
-  measure: spoons
-  stages: { low: 0.5, medium: 1, high: 2 }
+const seedYAML = `categories:
+  - id: fruits
+    emoji: "🍎"
+    name_localized: { en: Fruits, ru: Фрукты }
+  - id: legumes
+    emoji: "🥜"
+    name_localized: { en: Legumes, ru: Бобовые }
+  - id: sweets
+    emoji: "🍯"
+    name_localized: { en: Sweets, ru: Сладкое }
+
+products:
+  - name: Apple
+    category: fruits
+    emoji: "🍎"
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.25, medium: 0.5, high: 1.0 }
+    name_localized:
+      ru: "Яблоко"
+  - name: Cashews
+    category: legumes
+    fodmap: high
+    measure: grams
+    stages: { low: 10, medium: 20, high: 30 }
+  - name: Honey
+    category: sweets
+    emoji: "🍯"
+    fodmap: high
+    measure: spoons
+    stages: { low: 0.5, medium: 1, high: 2 }
 `
 
 func writeSeed(t *testing.T, content string) string {
@@ -53,6 +70,9 @@ func TestNew_SeedsFromYAMLWhenBackendEmpty(t *testing.T) {
 	if len(cat.All()) != 3 {
 		t.Errorf("expected 3 seeded products, got %d", len(cat.All()))
 	}
+	if len(cat.Categories()) != 3 {
+		t.Errorf("expected 3 seeded categories, got %d", len(cat.Categories()))
+	}
 
 	raw, _ := backend.Get("products")
 	if raw == nil {
@@ -63,7 +83,7 @@ func TestNew_SeedsFromYAMLWhenBackendEmpty(t *testing.T) {
 func TestNew_PrefersBackendOverYAML(t *testing.T) {
 	seed := writeSeed(t, seedYAML)
 	backend := store.NewMemoryBackend()
-	_ = backend.Put("products", []byte(`[{"name":"OnlyOne","fodmap":"low","measure":"pieces","stages":{"low":1,"medium":2,"high":3}}]`))
+	_ = backend.Put("products", []byte(`{"products":[{"name":"OnlyOne","fodmap":"low","measure":"pieces","stages":{"low":1,"medium":2,"high":3}}]}`))
 
 	cat, err := products.New(backend, seed)
 	if err != nil {
@@ -72,6 +92,22 @@ func TestNew_PrefersBackendOverYAML(t *testing.T) {
 	all := cat.All()
 	if len(all) != 1 || all[0].Name != "OnlyOne" {
 		t.Errorf("backend value should win over yaml seed, got %+v", all)
+	}
+}
+
+func TestNew_AcceptsLegacyFlatArray(t *testing.T) {
+	seed := writeSeed(t, seedYAML)
+	backend := store.NewMemoryBackend()
+	// Pre-existing deployments wrote a flat []Product array; ensure we
+	// can still load that without forcing a migration step.
+	_ = backend.Put("products", []byte(`[{"name":"LegacyApple","fodmap":"high","measure":"pieces","stages":{"low":0.25}}]`))
+
+	cat, err := products.New(backend, seed)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if got := cat.All(); len(got) != 1 || got[0].Name != "LegacyApple" {
+		t.Errorf("legacy array not accepted, got %+v", got)
 	}
 }
 
@@ -110,6 +146,103 @@ func TestSample_CapsAtAvailable(t *testing.T) {
 	}
 }
 
+func TestCategoryByID_KnownAndUnknown(t *testing.T) {
+	seed := writeSeed(t, seedYAML)
+	cat, _ := products.New(store.NewMemoryBackend(), seed)
+
+	got, ok := cat.CategoryByID("fruits")
+	if !ok || got.Emoji != "🍎" {
+		t.Errorf("fruits lookup: got %+v ok=%v", got, ok)
+	}
+	if _, ok := cat.CategoryByID("nope"); ok {
+		t.Error("unknown id should return ok=false")
+	}
+}
+
+func TestByCategory_FiltersAndSorts(t *testing.T) {
+	seed := writeSeed(t, seedYAML+`  - name: Pear
+    category: fruits
+    fodmap: low
+    measure: pieces
+    stages: { low: 0.25, medium: 0.5, high: 1.0 }
+    name_localized:
+      ru: "Груша"
+`)
+	cat, _ := products.New(store.NewMemoryBackend(), seed)
+
+	got := cat.ByCategory("fruits", nil, "en")
+	if len(got) != 2 {
+		t.Fatalf("expected 2 fruits, got %d", len(got))
+	}
+	if got[0].Name != "Apple" || got[1].Name != "Pear" {
+		t.Errorf("expected alphabetical Apple,Pear; got %s,%s", got[0].Name, got[1].Name)
+	}
+
+	got = cat.ByCategory("fruits", map[string]bool{"Apple": true}, "en")
+	if len(got) != 1 || got[0].Name != "Pear" {
+		t.Errorf("exclude not honored: %+v", got)
+	}
+
+	// Russian locale sorts by Russian display name (Груша < Яблоко
+	// alphabetically in Cyrillic, so Pear comes first).
+	got = cat.ByCategory("fruits", nil, "ru")
+	if got[0].Name != "Pear" {
+		t.Errorf("ru sort: expected Pear first (Груша), got %s", got[0].Name)
+	}
+}
+
+func TestByCategory_UncategorizedBucket(t *testing.T) {
+	seed := writeSeed(t, seedYAML+`  - name: Mystery
+    fodmap: high
+    measure: pieces
+    stages: { low: 1, medium: 2, high: 3 }
+`)
+	cat, _ := products.New(store.NewMemoryBackend(), seed)
+
+	got := cat.ByCategory(products.UncategorizedID, nil, "en")
+	if len(got) != 1 || got[0].Name != "Mystery" {
+		t.Errorf("uncategorized bucket: got %+v", got)
+	}
+}
+
+func TestAvailableCategories_OmitsEmpty(t *testing.T) {
+	seed := writeSeed(t, seedYAML)
+	cat, _ := products.New(store.NewMemoryBackend(), seed)
+
+	got := cat.AvailableCategories(nil)
+	wantIn := map[string]bool{"fruits": true, "legumes": true, "sweets": true}
+	if len(got) != len(wantIn) {
+		t.Fatalf("expected %d, got %d (%v)", len(wantIn), len(got), got)
+	}
+	for _, id := range got {
+		if !wantIn[id] {
+			t.Errorf("unexpected id %q", id)
+		}
+	}
+
+	// Exclude every fruit → fruits should drop out.
+	got = cat.AvailableCategories(map[string]bool{"Apple": true})
+	for _, id := range got {
+		if id == "fruits" {
+			t.Error("fruits should be empty after excluding Apple")
+		}
+	}
+}
+
+func TestAvailableCategories_AppendsUncategorized(t *testing.T) {
+	seed := writeSeed(t, seedYAML+`  - name: Mystery
+    fodmap: high
+    measure: pieces
+    stages: { low: 1, medium: 2, high: 3 }
+`)
+	cat, _ := products.New(store.NewMemoryBackend(), seed)
+
+	got := cat.AvailableCategories(nil)
+	if got[len(got)-1] != products.UncategorizedID {
+		t.Errorf("expected uncategorized appended last, got %v", got)
+	}
+}
+
 func TestAdd_NewProductPersists(t *testing.T) {
 	seed := writeSeed(t, seedYAML)
 	backend := store.NewMemoryBackend()
@@ -126,6 +259,9 @@ func TestAdd_NewProductPersists(t *testing.T) {
 	cat2, _ := products.New(backend, seed)
 	if _, ok := cat2.Find("Pear"); !ok {
 		t.Error("Pear did not persist to backend")
+	}
+	if len(cat2.Categories()) != 3 {
+		t.Errorf("categories should round-trip through persist, got %d", len(cat2.Categories()))
 	}
 }
 
@@ -204,6 +340,16 @@ func TestProduct_DisplayNameFallback(t *testing.T) {
 	}
 }
 
+func TestCategory_DisplayNameFallback(t *testing.T) {
+	c := products.Category{ID: "fruits", NameLocalized: map[string]string{"ru": "Фрукты"}}
+	if got := c.DisplayName("ru"); got != "Фрукты" {
+		t.Errorf("ru: got %q", got)
+	}
+	if got := c.DisplayName("fr"); got != "fruits" {
+		t.Errorf("fallback to id: got %q", got)
+	}
+}
+
 func TestProduct_StageDescription(t *testing.T) {
 	dir := t.TempDir()
 	writeI18n(t, dir, "en", "product.measure_template.pieces: \"{value} {name}\"\n")
@@ -214,9 +360,9 @@ func TestProduct_StageDescription(t *testing.T) {
 	}
 
 	p := products.Product{
-		Name:    "Apple",
-		Measure: products.MeasurePieces,
-		Stages:  map[products.Stage]float64{products.StageLow: 0.25},
+		Name:          "Apple",
+		Measure:       products.MeasurePieces,
+		Stages:        map[products.Stage]float64{products.StageLow: 0.25},
 		NameLocalized: map[string]string{"ru": "Яблоко"},
 	}
 	if got := p.StageDescription(products.StageLow, "en", tr); got != "0.25 Apple" {
