@@ -3,6 +3,15 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - '!**/*_test.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'config.yaml'
+      - 'Dockerfile'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 jobs:
