@@ -1,55 +1,113 @@
 package journey
 
 import (
+	"strings"
+
 	"github.com/padington/tgbase/internal/products"
 	"github.com/padington/tgbase/internal/state"
 )
 
-// ProductChoicePhase owns StateAwaitingProductChoice. Setup samples up to
-// 10 products the user hasn't completed or rejected and offers them as
-// keyboard buttons; Collect resolves the user's tap back to a canonical
-// product name and starts a stage trial. No reminder.
-type ProductChoicePhase struct {
-	sampleSize int
-}
+const (
+	productGridCols = 3
+	productGridRows = 4
+	productPageSize = productGridCols * productGridRows
+)
 
-func NewProductChoicePhase() *ProductChoicePhase {
-	return &ProductChoicePhase{sampleSize: 10}
-}
+// ProductChoicePhase owns StateAwaitingProductChoice. Setup pages through
+// the user's selected category (PickerCategory) in deterministic
+// alphabetical order, showing up to productPageSize products plus a
+// Back / Prev / Next nav row. Collect routes nav-row taps in-place and
+// resolves product taps to a stage trial. No reminder.
+type ProductChoicePhase struct{}
+
+func NewProductChoicePhase() *ProductChoicePhase { return &ProductChoicePhase{} }
 
 func (ProductChoicePhase) State() state.StateKind { return state.StateAwaitingProductChoice }
 
-func (p ProductChoicePhase) Setup(ctx Context) Outcome {
-	exclude := finishedProducts(ctx.User.Products)
-	sample := ctx.Catalog.Sample(exclude, p.sampleSize)
+func (ProductChoicePhase) Setup(ctx Context) Outcome {
+	if ctx.User.PickerCategory == "" {
+		return Outcome{NextState: state.StateAwaitingProductCategory}
+	}
 
-	if len(sample) == 0 {
+	exclude := finishedProducts(ctx.User.Products)
+	available := ctx.Catalog.ByCategory(ctx.User.PickerCategory, exclude, ctx.Locale)
+	if len(available) == 0 {
 		return Outcome{
-			NextState: state.StateIdle,
-			ReplyKey:  "phase.product.exhausted",
+			NextState: state.StateAwaitingProductCategory,
 			Mutate: func(u *state.UserData) {
+				u.PickerCategory = ""
+				u.PickerPage = 0
 				u.OfferedProducts = nil
 			},
 		}
 	}
 
-	names := make([]string, 0, len(sample))
-	labels := make([]string, 0, len(sample))
-	for _, prod := range sample {
-		names = append(names, prod.Name)
-		labels = append(labels, prod.DisplayName(ctx.Locale))
+	pageCount := (len(available) + productPageSize - 1) / productPageSize
+	page := ctx.User.PickerPage
+	if page < 0 || page >= pageCount {
+		page = 0
 	}
+	start := page * productPageSize
+	end := start + productPageSize
+	if end > len(available) {
+		end = len(available)
+	}
+	slice := available[start:end]
 
+	names := make([]string, 0, len(slice))
+	keyboard := make([][]string, 0, productGridRows+1)
+	var row []string
+	for i, prod := range slice {
+		names = append(names, prod.Name)
+		row = append(row, productLabel(ctx, prod))
+		if (i+1)%productGridCols == 0 || i == len(slice)-1 {
+			keyboard = append(keyboard, row)
+			row = nil
+		}
+	}
+	keyboard = append(keyboard, navRow(ctx, page, pageCount))
+
+	clampedPage := page
 	return Outcome{
 		ReplyKey: "phase.product.prompt",
-		Buttons:  labels,
+		Keyboard: keyboard,
 		Mutate: func(u *state.UserData) {
 			u.OfferedProducts = names
+			u.PickerPage = clampedPage
 		},
 	}
 }
 
-func (p ProductChoicePhase) Collect(ctx Context, input string) Outcome {
+func (ProductChoicePhase) Collect(ctx Context, input string) Outcome {
+	trimmed := strings.TrimSpace(input)
+	switch trimmed {
+	case ctx.Trans.T("button.product.back", ctx.Locale, nil):
+		return Outcome{
+			NextState: state.StateAwaitingProductCategory,
+			Mutate: func(u *state.UserData) {
+				u.PickerCategory = ""
+				u.PickerPage = 0
+				u.OfferedProducts = nil
+			},
+		}
+	case ctx.Trans.T("button.product.prev", ctx.Locale, nil):
+		return Outcome{
+			NextState: state.StateAwaitingProductChoice,
+			Mutate: func(u *state.UserData) {
+				if u.PickerPage > 0 {
+					u.PickerPage--
+				}
+			},
+		}
+	case ctx.Trans.T("button.product.next", ctx.Locale, nil):
+		return Outcome{
+			NextState: state.StateAwaitingProductChoice,
+			Mutate: func(u *state.UserData) {
+				u.PickerPage++
+			},
+		}
+	}
+
 	picked, ok := matchOffered(ctx, input)
 	if !ok {
 		return Outcome{ReplyKey: "phase.product.invalid"}
@@ -65,6 +123,36 @@ func (p ProductChoicePhase) Collect(ctx Context, input string) Outcome {
 }
 
 func (ProductChoicePhase) Remind(ctx Context) Outcome { return Outcome{} }
+
+// productLabel renders "<emoji> <localized name>". Falls back to the
+// product's category emoji when the product has none of its own; falls
+// back to plain name when neither is set.
+func productLabel(ctx Context, p products.Product) string {
+	name := p.DisplayName(ctx.Locale)
+	emoji := p.Emoji
+	if emoji == "" {
+		if cat, ok := ctx.Catalog.CategoryByID(p.Category); ok {
+			emoji = cat.Emoji
+		}
+	}
+	if emoji != "" {
+		return emoji + " " + name
+	}
+	return name
+}
+
+// navRow builds the Back / Prev / Next row beneath the product grid.
+// Prev hides on page 0; Next hides on the last page.
+func navRow(ctx Context, page, pageCount int) []string {
+	row := []string{ctx.Trans.T("button.product.back", ctx.Locale, nil)}
+	if page > 0 {
+		row = append(row, ctx.Trans.T("button.product.prev", ctx.Locale, nil))
+	}
+	if page+1 < pageCount {
+		row = append(row, ctx.Trans.T("button.product.next", ctx.Locale, nil))
+	}
+	return row
+}
 
 func finishedProducts(progress map[string]state.ProductProgress) map[string]bool {
 	out := make(map[string]bool)
@@ -82,7 +170,7 @@ func matchOffered(ctx Context, input string) (products.Product, bool) {
 		if !ok {
 			continue
 		}
-		if input == prod.Name || input == prod.DisplayName(ctx.Locale) {
+		if input == prod.Name || input == prod.DisplayName(ctx.Locale) || input == productLabel(ctx, prod) {
 			return prod, true
 		}
 	}

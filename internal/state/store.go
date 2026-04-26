@@ -14,12 +14,13 @@ import (
 type StateKind string
 
 const (
-	StateIdle                  StateKind = "idle"
-	StateAwaitingHowamiAnswer  StateKind = "awaiting_howami_answer" // legacy — survey flow, scheduled for removal
-	StateAwaitingDefecation    StateKind = "awaiting_defecation"
-	StateAwaitingProductChoice StateKind = "awaiting_product_choice"
-	StateAwaitingStageChoice   StateKind = "awaiting_stage_choice"
-	StateAwaitingStageCheckin  StateKind = "awaiting_stage_checkin"
+	StateIdle                    StateKind = "idle"
+	StateAwaitingHowamiAnswer    StateKind = "awaiting_howami_answer" // legacy — survey flow, scheduled for removal
+	StateAwaitingDefecation      StateKind = "awaiting_defecation"
+	StateAwaitingProductCategory StateKind = "awaiting_product_category"
+	StateAwaitingProductChoice   StateKind = "awaiting_product_choice"
+	StateAwaitingStageChoice     StateKind = "awaiting_stage_choice"
+	StateAwaitingStageCheckin    StateKind = "awaiting_stage_checkin"
 )
 
 // DefecationKind captures the user's reply to the defecation question.
@@ -50,6 +51,8 @@ type UserData struct {
 	StageStartedAt  time.Time                  `json:"stage_started_at,omitempty"`
 	CheckinAsked    bool                       `json:"checkin_asked,omitempty"`
 	OfferedProducts []string                   `json:"offered_products,omitempty"`
+	PickerCategory  string                     `json:"picker_category,omitempty"`
+	PickerPage      int                        `json:"picker_page,omitempty"`
 	Products        map[string]ProductProgress `json:"products,omitempty"`
 	Locale          string                     `json:"locale,omitempty"`
 

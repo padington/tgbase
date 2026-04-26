@@ -16,7 +16,7 @@ func (DefecationPhase) State() state.StateKind { return state.StateAwaitingDefec
 func (DefecationPhase) Setup(ctx Context) Outcome {
 	return Outcome{
 		ReplyKey: "phase.defecation.prompt",
-		Buttons:  []string{"1", "2", "3"},
+		Keyboard: [][]string{{"1", "2", "3"}},
 	}
 }
 
@@ -33,7 +33,7 @@ func (DefecationPhase) Collect(ctx Context, input string) Outcome {
 		return Outcome{ReplyKey: "phase.defecation.invalid"}
 	}
 	return Outcome{
-		NextState: state.StateAwaitingProductChoice,
+		NextState: state.StateAwaitingProductCategory,
 		Mutate: func(u *state.UserData) {
 			u.DefecationState = kind
 			u.ReminderSent = false

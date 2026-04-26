@@ -130,6 +130,7 @@ default_locale: en
 
 	runner := journey.New(stateStore, sender, cat, settingsStore, trans)
 	runner.Register(journey.NewDefecationPhase())
+	runner.Register(journey.NewProductCategoryPhase())
 	runner.Register(journey.NewProductChoicePhase())
 	runner.Register(journey.NewStageChoicePhase())
 	runner.Register(journey.NewStageCheckinPhase())
@@ -557,6 +558,250 @@ func TestRemind_DoesNotDoubleNudge(t *testing.T) {
 	runner.Remind()
 	if got := len(sender.snapshot()); got != 0 {
 		t.Errorf("expected 0 nudges (already reminded), got %d", got)
+	}
+}
+
+// setupWithCategories returns a runner whose seed declares two
+// categories (fruits, legumes) so the category-picker actually renders
+// instead of auto-skipping. Used by the tests below that exercise the
+// category step + pagination.
+func setupWithCategories(t *testing.T) (*journey.Runner, *state.Store, *mockSender) {
+	t.Helper()
+	dir := t.TempDir()
+
+	i18nDir := filepath.Join(dir, "i18n")
+	if err := os.Mkdir(i18nDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(i18nDir, "en.yaml"), []byte(`phase.defecation.prompt: "D?"
+phase.defecation.invalid: "1/2/3"
+phase.defecation.reminder: "still?"
+phase.product.category.prompt: "Pick a category:"
+phase.product.category.invalid: "Tap a category."
+phase.product.prompt: "Pick a food:"
+phase.product.invalid: "Tap a food."
+phase.product.exhausted: "All done."
+phase.stage_choice.prompt: "Volume for {name}? recommended {recommended}"
+phase.stage_choice.invalid: "Tap an amount."
+phase.stage.prompt: "Take {description}. Check in {checkin}."
+phase.stage.next: "Now take {description}."
+phase.stage.checkin: "OK after {description}?"
+phase.stage.checkin_invalid: "yes/no"
+phase.stage.completed: "{name} done!"
+phase.stage.not_tolerated: "{name} skipped."
+button.product.back: "Back"
+button.product.prev: "Prev"
+button.product.next: "Next"
+button.yes: "yes"
+button.no: "no"
+product.measure_template.pieces: "{value} {name}"
+product.measure_template.grams: "{value}g {name}"
+product.amount_template.pieces: "{value}"
+product.amount_template.grams: "{value}g"
+about: "info"
+cmd.report.empty: "nothing"
+cmd.report.heading: "Progress:"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	trans, err := i18n.Load(i18nDir, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	prodSeed := filepath.Join(dir, "products.yaml")
+	// 14 fruits exercises pagination at productPageSize=12; legumes
+	// stays small so the multi-category step shows two buttons.
+	if err := os.WriteFile(prodSeed, []byte(`categories:
+  - id: fruits
+    emoji: "F"
+    name_localized: { en: Fruits }
+  - id: legumes
+    emoji: "L"
+    name_localized: { en: Legumes }
+
+products:
+  - { name: Apple,      category: fruits, emoji: "A", fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Apricot,    category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Banana,     category: fruits,             fodmap: low,  measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Blackberry, category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Cherry,     category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Date,       category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Fig,        category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Grape,      category: fruits,             fodmap: low,  measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Kiwi,       category: fruits,             fodmap: low,  measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Lemon,      category: fruits,             fodmap: low,  measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Mango,      category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Nectarine,  category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Orange,     category: fruits,             fodmap: low,  measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Pear,       category: fruits,             fodmap: high, measure: pieces, stages: { low: 1, medium: 2, high: 3 } }
+  - { name: Cashew,     category: legumes,            fodmap: high, measure: grams,  stages: { low: 10, medium: 20, high: 30 } }
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	settingsSeed := filepath.Join(dir, "settings.yaml")
+	if err := os.WriteFile(settingsSeed, []byte(`defecation_reminder_after: 1m
+checkin_interval: 30m
+scan_interval: 10s
+default_locale: en
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	backend := store.NewMemoryBackend()
+	cat, err := products.New(backend, prodSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settingsStore, err := settings.New(backend, settingsSeed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateStore := state.NewStoreFromBackend(backend)
+	sender := &mockSender{}
+
+	runner := journey.New(stateStore, sender, cat, settingsStore, trans)
+	runner.Register(journey.NewDefecationPhase())
+	runner.Register(journey.NewProductCategoryPhase())
+	runner.Register(journey.NewProductChoicePhase())
+	runner.Register(journey.NewStageChoicePhase())
+	runner.Register(journey.NewStageCheckinPhase())
+
+	return runner, stateStore, sender
+}
+
+func TestHandleText_DefecationToCategoryWhenMultipleCategories(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingProductCategory {
+		t.Errorf("expected AwaitingProductCategory, got %q", d.State)
+	}
+	if got := sender.lastText(); got != "Pick a category:" {
+		t.Errorf("expected category prompt, got %q", got)
+	}
+}
+
+func TestHandleText_PickCategoryEntersChoiceWithPickerCategorySet(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingProductChoice {
+		t.Errorf("expected AwaitingProductChoice, got %q", d.State)
+	}
+	if d.PickerCategory != "fruits" {
+		t.Errorf("PickerCategory: got %q", d.PickerCategory)
+	}
+	if d.PickerPage != 0 {
+		t.Errorf("PickerPage: got %d", d.PickerPage)
+	}
+	// Page size = 12, but fruits has 14 entries → first page lists 12.
+	if got := len(d.OfferedProducts); got != 12 {
+		t.Errorf("OfferedProducts size: got %d", got)
+	}
+}
+
+func TestHandleText_CategoryInvalidStays(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+
+	runner.HandleText(sender, newMsg(1, "blah"))
+
+	if got := store.Get(1).State; got != state.StateAwaitingProductCategory {
+		t.Errorf("expected to stay in category, got %q", got)
+	}
+}
+
+func TestHandleText_NextPagingAdvancesAndShrinksOfferedTail(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+
+	runner.HandleText(sender, newMsg(1, "Next"))
+
+	d := store.Get(1)
+	if d.PickerPage != 1 {
+		t.Errorf("PickerPage: got %d", d.PickerPage)
+	}
+	// 14 fruits - 12 first page = 2 on second page.
+	if got := len(d.OfferedProducts); got != 2 {
+		t.Errorf("OfferedProducts size on page 2: got %d", got)
+	}
+}
+
+func TestHandleText_PrevPagingDecrements(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+	runner.HandleText(sender, newMsg(1, "Next"))
+
+	runner.HandleText(sender, newMsg(1, "Prev"))
+
+	if got := store.Get(1).PickerPage; got != 0 {
+		t.Errorf("PickerPage: got %d", got)
+	}
+}
+
+func TestHandleText_BackReturnsToCategory(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+
+	runner.HandleText(sender, newMsg(1, "Back"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingProductCategory {
+		t.Errorf("expected category state after Back, got %q", d.State)
+	}
+	if d.PickerCategory != "" {
+		t.Errorf("PickerCategory should clear after Back, got %q", d.PickerCategory)
+	}
+}
+
+func TestHandleText_PickProductFromCategoryFlowsToStageChoice(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+
+	// Per-product emoji on Apple is "A"; the rendered button label is
+	// "A Apple". Tap the rendered label so we exercise the productLabel
+	// match path.
+	runner.HandleText(sender, newMsg(1, "A Apple"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingStageChoice {
+		t.Errorf("expected AwaitingStageChoice, got %q", d.State)
+	}
+	if d.CurrentProduct != "Apple" {
+		t.Errorf("CurrentProduct: got %q", d.CurrentProduct)
+	}
+}
+
+func TestHandleText_ProductLabelFallsBackToCategoryEmoji(t *testing.T) {
+	// Banana has no per-product emoji; should fall back to the category
+	// emoji ("L" for legumes is wrong; banana is in fruits with emoji
+	// "F" — verify "F Banana" matches).
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+
+	runner.HandleText(sender, newMsg(1, "F Banana"))
+
+	if got := store.Get(1).CurrentProduct; got != "Banana" {
+		t.Errorf("CurrentProduct: got %q", got)
 	}
 }
 

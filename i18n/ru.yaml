@@ -10,9 +10,15 @@ phase.defecation.prompt: "Как сегодня обстоят дела? 1 = ж�
 phase.defecation.invalid: "Пожалуйста, выбери 1, 2 или 3."
 phase.defecation.acknowledged: "Понял. Давай выберем продукт для теста."
 
+phase.product.category.prompt: "Выбери категорию:"
+phase.product.category.invalid: "Нажми на одну из предложенных категорий."
 phase.product.prompt: "Выбери продукт для теста:"
 phase.product.invalid: "Нажми на один из предложенных продуктов."
 phase.product.exhausted: "Ты протестировал(а) все продукты в каталоге. Отправь /report, чтобы увидеть прогресс."
+
+button.product.back: "⬅ Назад"
+button.product.prev: "◀ Пред"
+button.product.next: "След ▶"
 
 phase.stage_choice.prompt: "Рекомендуемая начальная доза для {name} — {recommended}. Выбери, с какого объёма начать:"
 phase.stage_choice.invalid: "Пожалуйста, нажми на один из предложенных объёмов."
