@@ -14,6 +14,9 @@ phase.product.prompt: "Pick a food to trial:"
 phase.product.invalid: "Please tap one of the suggested foods."
 phase.product.exhausted: "You've trialed every food in the catalog. Send /report to see your progress."
 
+phase.stage_choice.prompt: "Recommended starting dose for {name} is {recommended}. Pick the volume you want to start with:"
+phase.stage_choice.invalid: "Please tap one of the suggested amounts."
+
 phase.stage.prompt: "Take {description}. I'll check in around {checkin} from now."
 phase.stage.checkin: "How are you doing after {description}? Reply yes or no."
 phase.stage.checkin_invalid: "Please reply yes or no."
@@ -40,3 +43,8 @@ product.measure_template.pieces: "{value} {name}"
 product.measure_template.grams:  "{value}g {name}"
 product.measure_template.ml:     "{value}ml {name}"
 product.measure_template.spoons: "{value} tbsp {name}"
+
+product.amount_template.pieces: "{value}"
+product.amount_template.grams:  "{value}g"
+product.amount_template.ml:     "{value}ml"
+product.amount_template.spoons: "{value} tbsp"

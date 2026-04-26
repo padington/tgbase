@@ -14,6 +14,9 @@ phase.product.prompt: "Выбери продукт для теста:"
 phase.product.invalid: "Нажми на один из предложенных продуктов."
 phase.product.exhausted: "Ты протестировал(а) все продукты в каталоге. Отправь /report, чтобы увидеть прогресс."
 
+phase.stage_choice.prompt: "Рекомендуемая начальная доза для {name} — {recommended}. Выбери, с какого объёма начать:"
+phase.stage_choice.invalid: "Пожалуйста, нажми на один из предложенных объёмов."
+
 phase.stage.prompt: "Съешь {description}. Проверю через {checkin}."
 phase.stage.checkin: "Как самочувствие после {description}? Ответь да или нет."
 phase.stage.checkin_invalid: "Пожалуйста, ответь да или нет."
@@ -40,3 +43,8 @@ product.measure_template.pieces: "{value} {name}"
 product.measure_template.grams:  "{value}г {name}"
 product.measure_template.ml:     "{value}мл {name}"
 product.measure_template.spoons: "{value} ст.л. {name}"
+
+product.amount_template.pieces: "{value}"
+product.amount_template.grams:  "{value}г"
+product.amount_template.ml:     "{value}мл"
+product.amount_template.spoons: "{value} ст.л."
