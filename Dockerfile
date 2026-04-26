@@ -14,5 +14,8 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /app/bot /bot
+COPY config.yaml /config.yaml
+
+ENV CONFIG_PATH=/config.yaml
 
 ENTRYPOINT ["/bot"]
