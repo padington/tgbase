@@ -31,6 +31,7 @@ const (
 	StateKind_STATE_AWAITING_DEFECATION     StateKind = 2
 	StateKind_STATE_AWAITING_PRODUCT_CHOICE StateKind = 3
 	StateKind_STATE_AWAITING_STAGE_CHECKIN  StateKind = 4
+	StateKind_STATE_AWAITING_STAGE_CHOICE   StateKind = 5
 )
 
 // Enum value maps for StateKind.
@@ -41,6 +42,7 @@ var (
 		2: "STATE_AWAITING_DEFECATION",
 		3: "STATE_AWAITING_PRODUCT_CHOICE",
 		4: "STATE_AWAITING_STAGE_CHECKIN",
+		5: "STATE_AWAITING_STAGE_CHOICE",
 	}
 	StateKind_value = map[string]int32{
 		"STATE_UNSPECIFIED":             0,
@@ -48,6 +50,7 @@ var (
 		"STATE_AWAITING_DEFECATION":     2,
 		"STATE_AWAITING_PRODUCT_CHOICE": 3,
 		"STATE_AWAITING_STAGE_CHECKIN":  4,
+		"STATE_AWAITING_STAGE_CHOICE":   5,
 	}
 )
 
@@ -400,14 +403,15 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x96\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\xb7\x01\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"STATE_IDLE\x10\x01\x12\x1d\n" +
 	"\x19STATE_AWAITING_DEFECATION\x10\x02\x12!\n" +
 	"\x1dSTATE_AWAITING_PRODUCT_CHOICE\x10\x03\x12 \n" +
-	"\x1cSTATE_AWAITING_STAGE_CHECKIN\x10\x04*p\n" +
+	"\x1cSTATE_AWAITING_STAGE_CHECKIN\x10\x04\x12\x1f\n" +
+	"\x1bSTATE_AWAITING_STAGE_CHOICE\x10\x05*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
