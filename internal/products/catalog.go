@@ -94,6 +94,15 @@ func (p Product) StageDescription(s Stage, locale i18n.Locale, t i18n.Translator
 	})
 }
 
+// AmountLabel renders just the amount + unit (e.g. "10g", "0.25") via the
+// "product.amount_template.<measure>" i18n template. Used for compact
+// stage-pick buttons where the product name is already in the prompt.
+func (p Product) AmountLabel(s Stage, locale i18n.Locale, t i18n.Translator) string {
+	return t.T("product.amount_template."+string(p.Measure), locale, map[string]any{
+		"value": p.Stages[s],
+	})
+}
+
 // Catalog wraps a store.Backend with typed access to a list of products.
 // Methods are safe for concurrent use.
 type Catalog struct {

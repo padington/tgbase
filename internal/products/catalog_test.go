@@ -226,3 +226,34 @@ func TestProduct_StageDescription(t *testing.T) {
 		t.Errorf("ru: got %q", got)
 	}
 }
+
+func TestProduct_AmountLabel(t *testing.T) {
+	dir := t.TempDir()
+	writeI18n(t, dir, "en", "product.amount_template.grams: \"{value}g\"\nproduct.amount_template.pieces: \"{value}\"\n")
+	writeI18n(t, dir, "ru", "product.amount_template.grams: \"{value}г\"\nproduct.amount_template.pieces: \"{value}\"\n")
+	tr, err := i18n.Load(dir, "en")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cashews := products.Product{
+		Name:    "Cashews",
+		Measure: products.MeasureGrams,
+		Stages:  map[products.Stage]float64{products.StageLow: 10, products.StageMedium: 20, products.StageHigh: 30},
+	}
+	if got := cashews.AmountLabel(products.StageLow, "en", tr); got != "10g" {
+		t.Errorf("en low: got %q", got)
+	}
+	if got := cashews.AmountLabel(products.StageHigh, "ru", tr); got != "30г" {
+		t.Errorf("ru high: got %q", got)
+	}
+
+	apple := products.Product{
+		Name:    "Apple",
+		Measure: products.MeasurePieces,
+		Stages:  map[products.Stage]float64{products.StageMedium: 0.5},
+	}
+	if got := apple.AmountLabel(products.StageMedium, "en", tr); got != "0.5" {
+		t.Errorf("pieces: got %q", got)
+	}
+}
