@@ -4,31 +4,50 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
 	"github.com/padington/tgbase/internal/flows/meta"
-	"github.com/padington/tgbase/internal/flows/survey"
+	"github.com/padington/tgbase/internal/i18n"
+	"github.com/padington/tgbase/internal/journey"
+	"github.com/padington/tgbase/internal/products"
 	"github.com/padington/tgbase/internal/reminder"
 	"github.com/padington/tgbase/internal/router"
+	"github.com/padington/tgbase/internal/settings"
 	"github.com/padington/tgbase/internal/state"
+	"github.com/padington/tgbase/internal/store"
 )
 
 type Config struct {
-	Token              string
-	Debug              bool
-	Timeout            int
-	Env                string
-	DataPath           string
+	Token   string
+	Debug   bool
+	Timeout int
+	Env     string
+
+	// DataDir is the directory holding the backend's per-key JSON files.
+	// If empty, DataPath's parent dir is used; if both are empty, the bot
+	// runs with an in-memory backend.
+	DataDir            string
 	StateFlushInterval time.Duration
-	Reminder           reminder.Config
+	ProductsSeedPath   string
+	SettingsSeedPath   string
+	I18nDir            string
+
+	// DataPath is the legacy single-file persistence path. Kept so main.go
+	// continues compiling while it transitions to DataDir.
+	DataPath string
+	Reminder reminder.Config // legacy, no longer consulted
 }
 
 type Bot struct {
 	api      *tgbotapi.BotAPI
 	cfg      Config
 	router   *router.Router
-	store    *state.Store
+	backend  store.Backend
+	state    *state.Store
+	runner   *journey.Runner
 	reminder *reminder.Worker
 }
 
@@ -40,8 +59,38 @@ func New(cfg Config) (*Bot, error) {
 	api.Debug = cfg.Debug
 	log.Printf("authorised as @%s", api.Self.UserName)
 
-	persister := buildPersister(cfg)
-	store := state.NewStore(persister)
+	backend, err := buildBackend(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	trans, err := i18n.Load(cfg.I18nDir, "en")
+	if err != nil {
+		return nil, fmt.Errorf("load i18n from %s: %w", cfg.I18nDir, err)
+	}
+
+	catalog, err := products.New(backend, cfg.ProductsSeedPath)
+	if err != nil {
+		return nil, fmt.Errorf("load products: %w", err)
+	}
+
+	settingsStore, err := settings.New(backend, cfg.SettingsSeedPath)
+	if err != nil {
+		return nil, fmt.Errorf("load settings: %w", err)
+	}
+
+	stateStore := state.NewStoreFromBackend(backend)
+
+	runner := journey.New(stateStore, api, catalog, settingsStore, trans)
+	runner.Register(journey.NewDefecationPhase())
+	runner.Register(journey.NewProductChoicePhase())
+	runner.Register(journey.NewStageCheckinPhase())
+
+	worker := reminder.NewWithCallback(
+		runner.Remind,
+		func() time.Duration { return settingsStore.Get().ScanInterval },
+	)
+
 	r := router.New(api)
 
 	r.HandleCommand("ping", meta.Ping())
@@ -50,18 +99,33 @@ func New(cfg Config) (*Bot, error) {
 	r.HandleText(exactText("Ping"), meta.Ping())
 	r.HandleText(exactText("Whoami"), meta.Whoami(cfg.Env))
 
-	r.HandleCommand("start", survey.Start(store))
-	r.HandleText(survey.AnswerPredicate(store), survey.AnswerHandler(store))
+	r.HandleCommand("start", runner.HandleStart)
+	r.HandleCommand("about", runner.HandleAbout)
+	r.HandleCommand("report", runner.HandleReport)
+	r.HandleCommand("abandon", runner.HandleAbandon)
 
-	worker := reminder.New(store, api, cfg.Reminder)
+	r.HandleText(func(msg *tgbotapi.Message) bool {
+		if msg.From == nil {
+			return false
+		}
+		return runner.IsJourneyState(msg.From.ID)
+	}, runner.HandleText)
 
-	return &Bot{api: api, cfg: cfg, router: r, store: store, reminder: worker}, nil
+	return &Bot{
+		api:      api,
+		cfg:      cfg,
+		router:   r,
+		backend:  backend,
+		state:    stateStore,
+		runner:   runner,
+		reminder: worker,
+	}, nil
 }
 
 func (b *Bot) Run(ctx context.Context) error {
 	defer func() {
-		if err := b.store.Close(); err != nil {
-			log.Printf("bot: store close: %v", err)
+		if err := b.backend.Close(); err != nil {
+			log.Printf("bot: backend close: %v", err)
 		}
 	}()
 
@@ -86,17 +150,25 @@ func (b *Bot) Run(ctx context.Context) error {
 	}
 }
 
-func buildPersister(cfg Config) state.Persister {
-	if cfg.DataPath == "" {
-		log.Println("bot: no DataPath configured, using in-memory state")
-		return state.MemoryPersister{}
+func buildBackend(cfg Config) (store.Backend, error) {
+	dir := cfg.DataDir
+	if dir == "" && cfg.DataPath != "" {
+		dir = filepath.Dir(cfg.DataPath)
 	}
-	log.Printf("bot: persisting state to %s (flush interval %s)", cfg.DataPath, cfg.StateFlushInterval)
-	file := state.NewFilePersister(cfg.DataPath)
+	if dir == "" {
+		log.Println("bot: no DataDir/DataPath configured, using in-memory backend")
+		return store.NewMemoryBackend(), nil
+	}
+	file, err := store.NewFileBackend(dir)
+	if err != nil {
+		return nil, fmt.Errorf("file backend: %w", err)
+	}
 	if cfg.StateFlushInterval <= 0 {
-		return file
+		log.Printf("bot: persisting to %s (synchronous)", dir)
+		return file, nil
 	}
-	return state.NewDebouncedPersister(file, cfg.StateFlushInterval)
+	log.Printf("bot: persisting to %s (flush interval %s)", dir, cfg.StateFlushInterval)
+	return store.NewDebouncedBackend(file, cfg.StateFlushInterval), nil
 }
 
 func exactText(s string) router.TextPredicate {
