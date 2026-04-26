@@ -15,8 +15,7 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		return
 	}
 	if !update.Message.IsCommand() {
-		log.Printf("message from @%s (chat=%d): %q — not a command, ignoring",
-			update.Message.From.UserName, update.Message.Chat.ID, update.Message.Text)
+		b.handleText(update.Message)
 		return
 	}
 
@@ -28,8 +27,36 @@ func (b *Bot) handleUpdate(update tgbotapi.Update) {
 		b.reply(update.Message, "pong")
 	case "whoami":
 		b.reply(update.Message, b.whoami())
+	case "menu":
+		b.sendMenu(update.Message)
 	default:
 		log.Printf("unknown command: /%s", cmd)
+	}
+}
+
+func (b *Bot) handleText(msg *tgbotapi.Message) {
+	switch msg.Text {
+	case "Ping":
+		b.reply(msg, "pong")
+	case "Whoami":
+		b.reply(msg, b.whoami())
+	default:
+		log.Printf("unhandled text from @%s: %q", msg.From.UserName, msg.Text)
+	}
+}
+
+func (b *Bot) sendMenu(msg *tgbotapi.Message) {
+	keyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Ping"),
+			tgbotapi.NewKeyboardButton("Whoami"),
+		),
+	)
+	keyboard.ResizeKeyboard = true
+	out := tgbotapi.NewMessage(msg.Chat.ID, "Choose an action:")
+	out.ReplyMarkup = keyboard
+	if _, err := b.api.Send(out); err != nil {
+		log.Printf("send menu to chat=%d: %v", msg.Chat.ID, err)
 	}
 }
 
