@@ -39,7 +39,7 @@ func chatID(c tgbotapi.Chattable) int64 {
 }
 
 func TestTick_NudgesStaleAwaitingUser(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(7, state.UserData{
 		State:     state.StateAwaitingHowamiAnswer,
 		ChatID:    700,
@@ -63,7 +63,7 @@ func TestTick_NudgesStaleAwaitingUser(t *testing.T) {
 }
 
 func TestTick_SkipsRecentUser(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{
 		State:     state.StateAwaitingHowamiAnswer,
 		ChatID:    100,
@@ -83,7 +83,7 @@ func TestTick_SkipsRecentUser(t *testing.T) {
 }
 
 func TestTick_SkipsAlreadyReminded(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{
 		State:        state.StateAwaitingHowamiAnswer,
 		ChatID:       100,
@@ -101,7 +101,7 @@ func TestTick_SkipsAlreadyReminded(t *testing.T) {
 }
 
 func TestTick_SkipsIdleUser(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{
 		State:     state.StateIdle,
 		ChatID:    100,
@@ -118,7 +118,7 @@ func TestTick_SkipsIdleUser(t *testing.T) {
 }
 
 func TestTick_NudgesOnlyStaleSubset(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	store.Set(1, state.UserData{State: state.StateAwaitingHowamiAnswer, ChatID: 100, EnteredAt: time.Now().Add(-1 * time.Hour)})
 	store.Set(2, state.UserData{State: state.StateAwaitingHowamiAnswer, ChatID: 200, EnteredAt: time.Now()})
 	store.Set(3, state.UserData{State: state.StateIdle, ChatID: 300})
@@ -138,7 +138,7 @@ func TestTick_NudgesOnlyStaleSubset(t *testing.T) {
 }
 
 func TestRun_StopsOnContextCancel(t *testing.T) {
-	store := state.NewStore()
+	store := state.NewStore(state.MemoryPersister{})
 	sender := &mockSender{}
 	w := reminder.New(store, sender, reminder.Config{ScanInterval: 10 * time.Millisecond, ReminderAfter: 1 * time.Hour})
 
