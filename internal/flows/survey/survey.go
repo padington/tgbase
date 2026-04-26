@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/padington/tgbase/internal/router"
@@ -15,6 +16,9 @@ func Start(store *state.Store) router.HandlerFunc {
 	return func(sender router.Sender, msg *tgbotapi.Message) {
 		d := store.Get(msg.From.ID)
 		d.State = state.StateAwaitingHowamiAnswer
+		d.ChatID = msg.Chat.ID
+		d.EnteredAt = time.Now()
+		d.ReminderSent = false
 		store.Set(msg.From.ID, d)
 
 		keyboard := tgbotapi.NewReplyKeyboard(

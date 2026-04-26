@@ -2,6 +2,7 @@ package survey_test
 
 import (
 	"testing"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/padington/tgbase/internal/flows/survey"
@@ -35,11 +36,24 @@ func TestStart_SetsStateAndSendsKeyboard(t *testing.T) {
 	store := state.NewStore()
 	s := &mockSender{}
 
+	before := time.Now()
 	survey.Start(store)(s, newMsg(1, "/start"))
+	after := time.Now()
 
-	if store.Get(1).State != state.StateAwaitingHowamiAnswer {
+	d := store.Get(1)
+	if d.State != state.StateAwaitingHowamiAnswer {
 		t.Fatal("expected StateAwaitingHowamiAnswer after /start")
 	}
+	if d.ChatID != 100 {
+		t.Errorf("expected ChatID=100, got %d", d.ChatID)
+	}
+	if d.EnteredAt.Before(before) || d.EnteredAt.After(after) {
+		t.Errorf("EnteredAt %v outside expected window [%v, %v]", d.EnteredAt, before, after)
+	}
+	if d.ReminderSent {
+		t.Error("expected ReminderSent=false on fresh /start")
+	}
+
 	if len(s.sent) != 1 {
 		t.Fatalf("expected 1 send, got %d", len(s.sent))
 	}
@@ -53,6 +67,26 @@ func TestStart_SetsStateAndSendsKeyboard(t *testing.T) {
 	}
 	if len(kb.Keyboard[0]) != 3 {
 		t.Fatalf("expected 3 buttons, got %d", len(kb.Keyboard[0]))
+	}
+}
+
+func TestStart_ResetsReminderSentOnRestart(t *testing.T) {
+	store := state.NewStore()
+	store.Set(1, state.UserData{
+		State:        state.StateIdle,
+		ReminderSent: true,
+		EnteredAt:    time.Now().Add(-1 * time.Hour),
+	})
+	s := &mockSender{}
+
+	survey.Start(store)(s, newMsg(1, "/start"))
+
+	d := store.Get(1)
+	if d.ReminderSent {
+		t.Error("expected ReminderSent to reset to false on /start")
+	}
+	if time.Since(d.EnteredAt) > time.Second {
+		t.Errorf("expected EnteredAt to be refreshed, got %v ago", time.Since(d.EnteredAt))
 	}
 }
 
