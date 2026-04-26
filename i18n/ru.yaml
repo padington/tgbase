@@ -1,0 +1,42 @@
+# Русские строки интерфейса. Загружаются через internal/i18n при старте.
+# Ключи разделены точкой; подстановки используют синтаксис {имя}.
+
+about: "Я помощник по диете low-FODMAP. Помогу тебе постепенно вводить продукты с высоким FODMAP — по одному, в трёх возрастающих объёмах, и буду помнить, что ты переносишь."
+
+phase.setup.welcome: "Привет! Я помогу постепенно вводить продукты с высоким FODMAP — по одному, в трёх возрастающих объёмах. Давай для начала разберёмся, как у тебя дела."
+phase.setup.resume: "С возвращением. Ты тестировал(а) {product} в объёме {stage} — продолжим."
+
+phase.defecation.prompt: "Как сегодня обстоят дела? 1 = жидкий, 2 = нормальный, 3 = есть проблемы."
+phase.defecation.invalid: "Пожалуйста, выбери 1, 2 или 3."
+phase.defecation.acknowledged: "Понял. Давай выберем продукт для теста."
+
+phase.product.prompt: "Выбери продукт для теста:"
+phase.product.invalid: "Нажми на один из предложенных продуктов."
+phase.product.exhausted: "Ты протестировал(а) все продукты в каталоге. Отправь /report, чтобы увидеть прогресс."
+
+phase.stage.prompt: "Съешь {description}. Проверю через {checkin}."
+phase.stage.checkin: "Как самочувствие после {description}? Ответь да или нет."
+phase.stage.checkin_invalid: "Пожалуйста, ответь да или нет."
+phase.stage.next: "Отлично. Теперь съешь {description}."
+phase.stage.completed: "{name} полностью введён в рацион! Выбери следующий продукт:"
+phase.stage.not_tolerated: "Понял — помечаю {name} как непереносимый. Выбери другой:"
+
+cmd.abandon.confirmed: "Тест {name} прерван. Когда будешь готов(а), выбери другой продукт или отправь /start."
+cmd.abandon.no_active: "Нет активного теста для прерывания."
+
+cmd.report.heading: "Твой прогресс на данный момент:"
+cmd.report.completed: "Введено: {names}"
+cmd.report.in_progress: "В процессе: {name} ({stage})"
+cmd.report.not_tolerated: "Непереносимые: {names}"
+cmd.report.interrupted: "Прерванные: {names}"
+cmd.report.empty: "Пока ничего не отслеживается. Отправь /start, чтобы начать."
+
+button.menu.ping: "Пинг"
+button.menu.whoami: "Кто я"
+button.yes: "да"
+button.no: "нет"
+
+product.measure_template.pieces: "{value} {name}"
+product.measure_template.grams:  "{value}г {name}"
+product.measure_template.ml:     "{value}мл {name}"
+product.measure_template.spoons: "{value} ст.л. {name}"

@@ -1,0 +1,42 @@
+# UI strings for the bot. Loaded by internal/i18n at startup.
+# Keys are dot-namespaced; placeholders use {name} syntax.
+
+about: "I'm a low-FODMAP companion. I'll guide you through reintroducing foods one at a time, in three escalating volumes, and remember what you tolerated."
+
+phase.setup.welcome: "Hi! I help people on the low-FODMAP diet reintroduce high-FODMAP foods systematically — one food at a time, three volumes each. Let's see where you're at first."
+phase.setup.resume: "Welcome back. You were trialing {product} at {stage} volume — let's continue."
+
+phase.defecation.prompt: "How are things today? 1 = fluid, 2 = normal, 3 = issues."
+phase.defecation.invalid: "Please choose 1, 2, or 3."
+phase.defecation.acknowledged: "Got it. Let's pick a food to trial."
+
+phase.product.prompt: "Pick a food to trial:"
+phase.product.invalid: "Please tap one of the suggested foods."
+phase.product.exhausted: "You've trialed every food in the catalog. Send /report to see your progress."
+
+phase.stage.prompt: "Take {description}. I'll check in around {checkin} from now."
+phase.stage.checkin: "How are you doing after {description}? Reply yes or no."
+phase.stage.checkin_invalid: "Please reply yes or no."
+phase.stage.next: "Great. Now take {description}."
+phase.stage.completed: "{name} is fully integrated! Pick the next food:"
+phase.stage.not_tolerated: "Got it — marking {name} as not tolerated. Pick another:"
+
+cmd.abandon.confirmed: "Trial of {name} marked as interrupted. Pick another food when you're ready, or send /start."
+cmd.abandon.no_active: "No active trial to abandon."
+
+cmd.report.heading: "Your progress so far:"
+cmd.report.completed: "Completed: {names}"
+cmd.report.in_progress: "In progress: {name} ({stage})"
+cmd.report.not_tolerated: "Not tolerated: {names}"
+cmd.report.interrupted: "Interrupted: {names}"
+cmd.report.empty: "Nothing tracked yet. Send /start to begin."
+
+button.menu.ping: "Ping"
+button.menu.whoami: "Whoami"
+button.yes: "yes"
+button.no: "no"
+
+product.measure_template.pieces: "{value} {name}"
+product.measure_template.grams:  "{value}g {name}"
+product.measure_template.ml:     "{value}ml {name}"
+product.measure_template.spoons: "{value} tbsp {name}"
