@@ -136,6 +136,28 @@ func TestNewStoreFromBackend_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestUserData_PickerFieldsRoundTrip(t *testing.T) {
+	backend := store.NewMemoryBackend()
+	s := state.NewStoreFromBackend(backend)
+	s.Set(9, state.UserData{
+		State:          state.StateAwaitingProductCategory,
+		PickerCategory: "fruits",
+		PickerPage:     2,
+	})
+
+	s2 := state.NewStoreFromBackend(backend)
+	got := s2.Get(9)
+	if got.State != state.StateAwaitingProductCategory {
+		t.Errorf("state: got %q", got.State)
+	}
+	if got.PickerCategory != "fruits" {
+		t.Errorf("picker category: got %q", got.PickerCategory)
+	}
+	if got.PickerPage != 2 {
+		t.Errorf("picker page: got %d", got.PickerPage)
+	}
+}
+
 func TestStore_AllAwaitingDefecation(t *testing.T) {
 	s := state.NewStoreFromBackend(store.NewMemoryBackend())
 	s.Set(1, state.UserData{State: state.StateAwaitingDefecation, ChatID: 100})
