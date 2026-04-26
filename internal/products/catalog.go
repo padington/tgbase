@@ -4,10 +4,12 @@
 package products
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -59,6 +61,23 @@ func NextStage(s Stage) (Stage, bool) {
 	}
 }
 
+// Category is a browsable bucket declared in products.yaml. Products
+// reference a category by ID. Unknown / missing IDs surface as a synthetic
+// "uncategorized" group at the end of the picker.
+type Category struct {
+	ID            string            `yaml:"id" json:"id"`
+	Emoji         string            `yaml:"emoji,omitempty" json:"emoji,omitempty"`
+	NameLocalized map[string]string `yaml:"name_localized,omitempty" json:"name_localized,omitempty"`
+}
+
+// DisplayName returns the localized category name, falling back to ID.
+func (c Category) DisplayName(locale i18n.Locale) string {
+	if v, ok := c.NameLocalized[string(locale)]; ok && v != "" {
+		return v
+	}
+	return c.ID
+}
+
 type Product struct {
 	Name          string            `yaml:"name" json:"name"`
 	Fodmap        FodmapLevel       `yaml:"fodmap" json:"fodmap"`
@@ -67,6 +86,8 @@ type Product struct {
 	Note          string            `yaml:"note,omitempty" json:"note,omitempty"`
 	NameLocalized map[string]string `yaml:"name_localized,omitempty" json:"name_localized,omitempty"`
 	NoteLocalized map[string]string `yaml:"note_localized,omitempty" json:"note_localized,omitempty"`
+	Category      string            `yaml:"category,omitempty" json:"category,omitempty"`
+	Emoji         string            `yaml:"emoji,omitempty" json:"emoji,omitempty"`
 }
 
 // DisplayName returns the localized name for locale, falling back to Name.
@@ -103,13 +124,25 @@ func (p Product) AmountLabel(s Stage, locale i18n.Locale, t i18n.Translator) str
 	})
 }
 
-// Catalog wraps a store.Backend with typed access to a list of products.
-// Methods are safe for concurrent use.
+// UncategorizedID is the synthetic category bucket for products whose
+// declared Category does not match any known Category.ID. Surfaces only
+// when the catalog actually has stragglers.
+const UncategorizedID = "uncategorized"
+
+// catalogData is the persisted JSON / seed YAML shape.
+type catalogData struct {
+	Categories []Category `yaml:"categories,omitempty" json:"categories,omitempty"`
+	Products   []Product  `yaml:"products" json:"products"`
+}
+
+// Catalog wraps a store.Backend with typed access to the category +
+// product lists. Methods are safe for concurrent use.
 type Catalog struct {
-	mu      sync.Mutex
-	backend store.Backend
-	cache   []Product
-	rng     *rand.Rand
+	mu         sync.Mutex
+	backend    store.Backend
+	categories []Category
+	products   []Product
+	rng        *rand.Rand
 }
 
 const backendKey = "products"
@@ -134,31 +167,69 @@ func (c *Catalog) load(seedPath string) error {
 		return fmt.Errorf("backend get %q: %w", backendKey, err)
 	}
 	if raw != nil {
-		var loaded []Product
-		if err := json.Unmarshal(raw, &loaded); err != nil {
+		cats, prods, err := parseStored(raw)
+		if err != nil {
 			return fmt.Errorf("parse backend products: %w", err)
 		}
-		c.cache = loaded
+		c.categories = cats
+		c.products = prods
 		return nil
 	}
 	if seedPath == "" {
-		c.cache = []Product{}
+		c.products = []Product{}
 		return nil
 	}
 	data, err := os.ReadFile(seedPath)
 	if err != nil {
 		return fmt.Errorf("read seed %s: %w", seedPath, err)
 	}
-	var seeded []Product
-	if err := yaml.Unmarshal(data, &seeded); err != nil {
+	cats, prods, err := parseSeedYAML(data)
+	if err != nil {
 		return fmt.Errorf("parse seed %s: %w", seedPath, err)
 	}
-	c.cache = seeded
+	c.categories = cats
+	c.products = prods
 	return c.persistLocked()
 }
 
+// parseSeedYAML decodes either the new wrapper shape or a bare list of
+// products. Test fixtures and pre-categories deployments use the bare
+// list, so we keep accepting it.
+func parseSeedYAML(data []byte) ([]Category, []Product, error) {
+	var wrapped catalogData
+	if err := yaml.Unmarshal(data, &wrapped); err == nil && (len(wrapped.Products) > 0 || len(wrapped.Categories) > 0) {
+		return wrapped.Categories, wrapped.Products, nil
+	}
+	var legacy []Product
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return nil, nil, err
+	}
+	return nil, legacy, nil
+}
+
+// parseStored decodes either the new wrapper shape or the legacy flat
+// []Product array (so already-deployed backends keep working).
+func parseStored(raw []byte) ([]Category, []Product, error) {
+	trimmed := bytes.TrimLeft(raw, " \t\r\n")
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var legacy []Product
+		if err := json.Unmarshal(raw, &legacy); err != nil {
+			return nil, nil, err
+		}
+		return nil, legacy, nil
+	}
+	var loaded catalogData
+	if err := json.Unmarshal(raw, &loaded); err != nil {
+		return nil, nil, err
+	}
+	return loaded.Categories, loaded.Products, nil
+}
+
 func (c *Catalog) persistLocked() error {
-	raw, err := json.Marshal(c.cache)
+	raw, err := json.Marshal(catalogData{
+		Categories: c.categories,
+		Products:   c.products,
+	})
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -168,15 +239,15 @@ func (c *Catalog) persistLocked() error {
 func (c *Catalog) All() []Product {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]Product, len(c.cache))
-	copy(out, c.cache)
+	out := make([]Product, len(c.products))
+	copy(out, c.products)
 	return out
 }
 
 func (c *Catalog) Find(name string) (Product, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for _, p := range c.cache {
+	for _, p := range c.products {
 		if p.Name == name {
 			return p, true
 		}
@@ -184,11 +255,101 @@ func (c *Catalog) Find(name string) (Product, bool) {
 	return Product{}, false
 }
 
+// Categories returns a copy of the declared categories in declaration
+// order. Does not include the synthetic uncategorized bucket.
+func (c *Catalog) Categories() []Category {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]Category, len(c.categories))
+	copy(out, c.categories)
+	return out
+}
+
+// CategoryByID returns the declared category with id, or false. The
+// synthetic uncategorized id is NOT returned here — callers should
+// special-case it.
+func (c *Catalog) CategoryByID(id string) (Category, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, cat := range c.categories {
+		if cat.ID == id {
+			return cat, true
+		}
+	}
+	return Category{}, false
+}
+
+// ByCategory returns products in the given category id (or uncategorized,
+// for products whose Category doesn't match any declared category) that
+// are not in exclude, sorted alphabetically by their localized display
+// name. Deterministic and paging-friendly.
+func (c *Catalog) ByCategory(id string, exclude map[string]bool, locale i18n.Locale) []Product {
+	c.mu.Lock()
+	known := make(map[string]bool, len(c.categories))
+	for _, cat := range c.categories {
+		known[cat.ID] = true
+	}
+	out := make([]Product, 0, len(c.products))
+	for _, p := range c.products {
+		if exclude[p.Name] {
+			continue
+		}
+		productCat := p.Category
+		if !known[productCat] {
+			productCat = UncategorizedID
+		}
+		if productCat == id {
+			out = append(out, p)
+		}
+	}
+	c.mu.Unlock()
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].DisplayName(locale) < out[j].DisplayName(locale)
+	})
+	return out
+}
+
+// AvailableCategories returns category IDs with at least one product not
+// in exclude, in declaration order. The synthetic uncategorized id is
+// appended last when there are uncategorized leftovers.
+func (c *Catalog) AvailableCategories(exclude map[string]bool) []string {
+	c.mu.Lock()
+	known := make(map[string]bool, len(c.categories))
+	for _, cat := range c.categories {
+		known[cat.ID] = true
+	}
+	counts := make(map[string]int)
+	uncategorized := 0
+	for _, p := range c.products {
+		if exclude[p.Name] {
+			continue
+		}
+		if known[p.Category] {
+			counts[p.Category]++
+		} else {
+			uncategorized++
+		}
+	}
+	c.mu.Unlock()
+
+	out := make([]string, 0, len(c.categories)+1)
+	for _, cat := range c.categories {
+		if counts[cat.ID] > 0 {
+			out = append(out, cat.ID)
+		}
+	}
+	if uncategorized > 0 {
+		out = append(out, UncategorizedID)
+	}
+	return out
+}
+
 // Sample returns up to n products not in exclude, in random order.
 func (c *Catalog) Sample(exclude map[string]bool, n int) []Product {
 	c.mu.Lock()
-	available := make([]Product, 0, len(c.cache))
-	for _, p := range c.cache {
+	available := make([]Product, 0, len(c.products))
+	for _, p := range c.products {
 		if !exclude[p.Name] {
 			available = append(available, p)
 		}
@@ -208,13 +369,13 @@ func (c *Catalog) Sample(exclude map[string]bool, n int) []Product {
 func (c *Catalog) Add(p Product) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for i, existing := range c.cache {
+	for i, existing := range c.products {
 		if existing.Name == p.Name {
-			c.cache[i] = p
+			c.products[i] = p
 			return c.persistLocked()
 		}
 	}
-	c.cache = append(c.cache, p)
+	c.products = append(c.products, p)
 	return c.persistLocked()
 }
 
@@ -222,9 +383,9 @@ func (c *Catalog) Add(p Product) error {
 func (c *Catalog) Remove(name string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for i, p := range c.cache {
+	for i, p := range c.products {
 		if p.Name == name {
-			c.cache = append(c.cache[:i], c.cache[i+1:]...)
+			c.products = append(c.products[:i], c.products[i+1:]...)
 			return c.persistLocked()
 		}
 	}

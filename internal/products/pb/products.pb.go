@@ -186,6 +186,8 @@ type Product struct {
 	Note          string                 `protobuf:"bytes,5,opt,name=note,proto3" json:"note,omitempty"`
 	NameLocalized map[string]string      `protobuf:"bytes,6,rep,name=name_localized,json=nameLocalized,proto3" json:"name_localized,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	NoteLocalized map[string]string      `protobuf:"bytes,7,rep,name=note_localized,json=noteLocalized,proto3" json:"note_localized,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Category      string                 `protobuf:"bytes,8,opt,name=category,proto3" json:"category,omitempty"`
+	Emoji         string                 `protobuf:"bytes,9,opt,name=emoji,proto3" json:"emoji,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -269,16 +271,94 @@ func (x *Product) GetNoteLocalized() map[string]string {
 	return nil
 }
 
+func (x *Product) GetCategory() string {
+	if x != nil {
+		return x.Category
+	}
+	return ""
+}
+
+func (x *Product) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+// Category is a runtime-mutable bucket products can be browsed by.
+// Definitions live in the same backend value as the catalog (see Catalog
+// below), so admins can add or rename categories without a redeploy.
+type Category struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Emoji         string                 `protobuf:"bytes,2,opt,name=emoji,proto3" json:"emoji,omitempty"`
+	NameLocalized map[string]string      `protobuf:"bytes,3,rep,name=name_localized,json=nameLocalized,proto3" json:"name_localized,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Category) Reset() {
+	*x = Category{}
+	mi := &file_products_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Category) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Category) ProtoMessage() {}
+
+func (x *Category) ProtoReflect() protoreflect.Message {
+	mi := &file_products_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Category.ProtoReflect.Descriptor instead.
+func (*Category) Descriptor() ([]byte, []int) {
+	return file_products_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Category) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Category) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+func (x *Category) GetNameLocalized() map[string]string {
+	if x != nil {
+		return x.NameLocalized
+	}
+	return nil
+}
+
 type Catalog struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Products      []*Product             `protobuf:"bytes,1,rep,name=products,proto3" json:"products,omitempty"`
+	Categories    []*Category            `protobuf:"bytes,2,rep,name=categories,proto3" json:"categories,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Catalog) Reset() {
 	*x = Catalog{}
-	mi := &file_products_proto_msgTypes[1]
+	mi := &file_products_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -290,7 +370,7 @@ func (x *Catalog) String() string {
 func (*Catalog) ProtoMessage() {}
 
 func (x *Catalog) ProtoReflect() protoreflect.Message {
-	mi := &file_products_proto_msgTypes[1]
+	mi := &file_products_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -303,7 +383,7 @@ func (x *Catalog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Catalog.ProtoReflect.Descriptor instead.
 func (*Catalog) Descriptor() ([]byte, []int) {
-	return file_products_proto_rawDescGZIP(), []int{1}
+	return file_products_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Catalog) GetProducts() []*Product {
@@ -313,11 +393,18 @@ func (x *Catalog) GetProducts() []*Product {
 	return nil
 }
 
+func (x *Catalog) GetCategories() []*Category {
+	if x != nil {
+		return x.Categories
+	}
+	return nil
+}
+
 var File_products_proto protoreflect.FileDescriptor
 
 const file_products_proto_rawDesc = "" +
 	"\n" +
-	"\x0eproducts.proto\x12\x12tgbase.products.v1\"\xcf\x04\n" +
+	"\x0eproducts.proto\x12\x12tgbase.products.v1\"\x81\x05\n" +
 	"\aProduct\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x127\n" +
 	"\x06fodmap\x18\x02 \x01(\x0e2\x1f.tgbase.products.v1.FodmapLevelR\x06fodmap\x125\n" +
@@ -325,7 +412,9 @@ const file_products_proto_rawDesc = "" +
 	"\x06stages\x18\x04 \x03(\v2'.tgbase.products.v1.Product.StagesEntryR\x06stages\x12\x12\n" +
 	"\x04note\x18\x05 \x01(\tR\x04note\x12U\n" +
 	"\x0ename_localized\x18\x06 \x03(\v2..tgbase.products.v1.Product.NameLocalizedEntryR\rnameLocalized\x12U\n" +
-	"\x0enote_localized\x18\a \x03(\v2..tgbase.products.v1.Product.NoteLocalizedEntryR\rnoteLocalized\x1a9\n" +
+	"\x0enote_localized\x18\a \x03(\v2..tgbase.products.v1.Product.NoteLocalizedEntryR\rnoteLocalized\x12\x1a\n" +
+	"\bcategory\x18\b \x01(\tR\bcategory\x12\x14\n" +
+	"\x05emoji\x18\t \x01(\tR\x05emoji\x1a9\n" +
 	"\vStagesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value:\x028\x01\x1a@\n" +
@@ -334,9 +423,19 @@ const file_products_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a@\n" +
 	"\x12NoteLocalizedEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"B\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xca\x01\n" +
+	"\bCategory\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05emoji\x18\x02 \x01(\tR\x05emoji\x12V\n" +
+	"\x0ename_localized\x18\x03 \x03(\v2/.tgbase.products.v1.Category.NameLocalizedEntryR\rnameLocalized\x1a@\n" +
+	"\x12NameLocalizedEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x80\x01\n" +
 	"\aCatalog\x127\n" +
-	"\bproducts\x18\x01 \x03(\v2\x1b.tgbase.products.v1.ProductR\bproducts*F\n" +
+	"\bproducts\x18\x01 \x03(\v2\x1b.tgbase.products.v1.ProductR\bproducts\x12<\n" +
+	"\n" +
+	"categories\x18\x02 \x03(\v2\x1c.tgbase.products.v1.CategoryR\n" +
+	"categories*F\n" +
 	"\vFodmapLevel\x12\x16\n" +
 	"\x12FODMAP_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -369,29 +468,33 @@ func file_products_proto_rawDescGZIP() []byte {
 }
 
 var file_products_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_products_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_products_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_products_proto_goTypes = []any{
 	(FodmapLevel)(0), // 0: tgbase.products.v1.FodmapLevel
 	(Measure)(0),     // 1: tgbase.products.v1.Measure
 	(Stage)(0),       // 2: tgbase.products.v1.Stage
 	(*Product)(nil),  // 3: tgbase.products.v1.Product
-	(*Catalog)(nil),  // 4: tgbase.products.v1.Catalog
-	nil,              // 5: tgbase.products.v1.Product.StagesEntry
-	nil,              // 6: tgbase.products.v1.Product.NameLocalizedEntry
-	nil,              // 7: tgbase.products.v1.Product.NoteLocalizedEntry
+	(*Category)(nil), // 4: tgbase.products.v1.Category
+	(*Catalog)(nil),  // 5: tgbase.products.v1.Catalog
+	nil,              // 6: tgbase.products.v1.Product.StagesEntry
+	nil,              // 7: tgbase.products.v1.Product.NameLocalizedEntry
+	nil,              // 8: tgbase.products.v1.Product.NoteLocalizedEntry
+	nil,              // 9: tgbase.products.v1.Category.NameLocalizedEntry
 }
 var file_products_proto_depIdxs = []int32{
 	0, // 0: tgbase.products.v1.Product.fodmap:type_name -> tgbase.products.v1.FodmapLevel
 	1, // 1: tgbase.products.v1.Product.measure:type_name -> tgbase.products.v1.Measure
-	5, // 2: tgbase.products.v1.Product.stages:type_name -> tgbase.products.v1.Product.StagesEntry
-	6, // 3: tgbase.products.v1.Product.name_localized:type_name -> tgbase.products.v1.Product.NameLocalizedEntry
-	7, // 4: tgbase.products.v1.Product.note_localized:type_name -> tgbase.products.v1.Product.NoteLocalizedEntry
-	3, // 5: tgbase.products.v1.Catalog.products:type_name -> tgbase.products.v1.Product
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	6, // 2: tgbase.products.v1.Product.stages:type_name -> tgbase.products.v1.Product.StagesEntry
+	7, // 3: tgbase.products.v1.Product.name_localized:type_name -> tgbase.products.v1.Product.NameLocalizedEntry
+	8, // 4: tgbase.products.v1.Product.note_localized:type_name -> tgbase.products.v1.Product.NoteLocalizedEntry
+	9, // 5: tgbase.products.v1.Category.name_localized:type_name -> tgbase.products.v1.Category.NameLocalizedEntry
+	3, // 6: tgbase.products.v1.Catalog.products:type_name -> tgbase.products.v1.Product
+	4, // 7: tgbase.products.v1.Catalog.categories:type_name -> tgbase.products.v1.Category
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_products_proto_init() }
@@ -405,7 +508,7 @@ func file_products_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_products_proto_rawDesc), len(file_products_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -33,8 +33,20 @@ message Product {
   string note = 5;
   map<string, string> name_localized = 6;
   map<string, string> note_localized = 7;
+  string category = 8;
+  string emoji = 9;
+}
+
+// Category is a runtime-mutable bucket products can be browsed by.
+// Definitions live in the same backend value as the catalog (see Catalog
+// below), so admins can add or rename categories without a redeploy.
+message Category {
+  string id = 1;
+  string emoji = 2;
+  map<string, string> name_localized = 3;
 }
 
 message Catalog {
   repeated Product products = 1;
+  repeated Category categories = 2;
 }
