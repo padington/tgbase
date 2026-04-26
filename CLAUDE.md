@@ -24,6 +24,12 @@ Cross-package refactors that must touch multiple packages require **one commit p
 - When adding a new feature, add its tests in the **same commit** as the feature code (same package commit rule still applies).
 - Never delete or weaken a test to make it pass — fix the code instead.
 
+## Flow diagram protection
+
+`README.md` contains Mermaid state and sequence diagrams describing user-facing flows. Treat these diagrams as part of the contract — keep them in sync with the code.
+
+When changing user-facing behavior — new commands, new states, new transitions, changed prompts, changed reminder/timeout logic, changes to what gets persisted on a transition — update the README diagrams in the same change. The diagram update lives in its own docs commit (per the table above), not bundled with the code commit, but it must land in the same branch/PR as the code that motivated it. If diagrams are out of date after your change, the work is not done.
+
 ## Package boundaries
 
 - `internal/state` has no internal imports — keep it that way.
