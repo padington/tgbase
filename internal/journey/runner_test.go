@@ -63,7 +63,7 @@ phase.defecation.reminder: "Still there?"
 phase.product.prompt: "Pick:"
 phase.product.invalid: "Tap a button."
 phase.product.exhausted: "All done."
-phase.stage_choice.prompt: "Recommended for {name}: {recommended}. Pick a volume:"
+phase.stage_choice.prompt: "Recommended for {name}: {recommended}.{note} Pick a volume:"
 phase.stage_choice.invalid: "Tap one of the amounts."
 phase.stage.prompt: "Take {description}. Check in {checkin}."
 phase.stage.next: "Now take {description}."
@@ -99,6 +99,7 @@ product.amount_template.grams: "{value}g"
   fodmap: high
   measure: pieces
   stages: { low: 0.25, medium: 0.5, high: 1.0 }
+  note: TESTNOTE
 - name: Cashews
   fodmap: high
   measure: grams
@@ -344,6 +345,52 @@ func TestHandleText_StageChoiceInvalidStays(t *testing.T) {
 	}
 	if got := sender.lastText(); got != "Tap one of the amounts." {
 		t.Errorf("expected invalid prompt, got %q", got)
+	}
+}
+
+func TestHandleText_StageChoicePromptIncludesNoteWhenPresent(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+
+	// Drive the picker to a known product (Apple in the seed has a note).
+	offered := store.Get(1).OfferedProducts
+	for _, name := range offered {
+		if name == "Apple" {
+			runner.HandleText(sender, newMsg(1, "Apple"))
+			break
+		}
+	}
+	if store.Get(1).CurrentProduct != "Apple" {
+		t.Fatalf("expected to land on Apple, got %q", store.Get(1).CurrentProduct)
+	}
+
+	got := sender.lastText()
+	if !contains(got, "💡 TESTNOTE") {
+		t.Errorf("stage-choice prompt should include the product note rendered with the lightbulb prefix; got %q", got)
+	}
+}
+
+func TestHandleText_StageChoicePromptOmitsNoteWhenAbsent(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+
+	// Cashews in the seed has no note.
+	offered := store.Get(1).OfferedProducts
+	for _, name := range offered {
+		if name == "Cashews" {
+			runner.HandleText(sender, newMsg(1, "Cashews"))
+			break
+		}
+	}
+	if store.Get(1).CurrentProduct != "Cashews" {
+		t.Fatalf("expected to land on Cashews, got %q", store.Get(1).CurrentProduct)
+	}
+
+	got := sender.lastText()
+	if contains(got, "💡") {
+		t.Errorf("stage-choice prompt for note-less product should not render a lightbulb; got %q", got)
 	}
 }
 
