@@ -28,6 +28,7 @@ func (StageChoicePhase) Setup(ctx Context) Outcome {
 	for _, s := range stageOrder {
 		buttons = append(buttons, prod.AmountLabel(s, ctx.Locale, ctx.Trans))
 	}
+	back := ctx.Trans.T("button.product.back", ctx.Locale, nil)
 	return Outcome{
 		ReplyKey: "phase.stage_choice.prompt",
 		ReplyArgs: map[string]any{
@@ -35,7 +36,7 @@ func (StageChoicePhase) Setup(ctx Context) Outcome {
 			"recommended": prod.StageDescription(products.StageLow, ctx.Locale, ctx.Trans),
 			"note":        notePrefix(prod.DisplayNote(ctx.Locale)),
 		},
-		Keyboard: [][]string{buttons},
+		Keyboard: [][]string{buttons, {back}},
 	}
 }
 
@@ -56,6 +57,16 @@ func (StageChoicePhase) Collect(ctx Context, input string) Outcome {
 		return Outcome{NextState: state.StateAwaitingProductChoice}
 	}
 	normalized := strings.TrimSpace(input)
+
+	if normalized == ctx.Trans.T("button.product.back", ctx.Locale, nil) {
+		return Outcome{
+			NextState: state.StateAwaitingProductChoice,
+			Mutate: func(u *state.UserData) {
+				u.CurrentProduct = ""
+				u.CurrentStage = ""
+			},
+		}
+	}
 	picked := products.Stage("")
 	for _, s := range stageOrder {
 		if normalized == prod.AmountLabel(s, ctx.Locale, ctx.Trans) {
