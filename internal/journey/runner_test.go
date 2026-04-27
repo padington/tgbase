@@ -848,10 +848,9 @@ func TestHandleText_PickProductFromCategoryFlowsToStageChoice(t *testing.T) {
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
-	// Per-product emoji on Apple is "A"; the rendered button label is
-	// "A Apple". Tap the rendered label so we exercise the productLabel
-	// match path.
-	runner.HandleText(sender, newMsg(1, "A Apple"))
+	// Apple is high FODMAP; productLabel renders "🔴 Apple".
+	// Tap the rendered label to exercise the productLabel match path.
+	runner.HandleText(sender, newMsg(1, "🔴 Apple"))
 
 	d := store.Get(1)
 	if d.State != state.StateAwaitingStageChoice {
@@ -862,16 +861,14 @@ func TestHandleText_PickProductFromCategoryFlowsToStageChoice(t *testing.T) {
 	}
 }
 
-func TestHandleText_ProductLabelFallsBackToCategoryEmoji(t *testing.T) {
-	// Banana has no per-product emoji; should fall back to the category
-	// emoji ("L" for legumes is wrong; banana is in fruits with emoji
-	// "F" — verify "F Banana" matches).
+func TestHandleText_ProductLabelLowFodmapGreenEmoji(t *testing.T) {
+	// Banana is low FODMAP — productLabel renders "🟢 Banana".
 	runner, store, sender := setupWithCategories(t)
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
-	runner.HandleText(sender, newMsg(1, "F Banana"))
+	runner.HandleText(sender, newMsg(1, "🟢 Banana"))
 
 	if got := store.Get(1).CurrentProduct; got != "Banana" {
 		t.Errorf("CurrentProduct: got %q", got)
@@ -899,7 +896,7 @@ func TestHandleText_StageChoiceBackReturnsToProductChoice(t *testing.T) {
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
-	runner.HandleText(sender, newMsg(1, "A Apple")) // → stage choice
+	runner.HandleText(sender, newMsg(1, "🔴 Apple")) // → stage choice
 
 	runner.HandleText(sender, newMsg(1, "Back"))
 

@@ -60,7 +60,7 @@ func NewDefecationPhase(), NewProductCategoryPhase(), NewProductChoicePhase(),
 ## Picker label rendering
 
 - Category button: `<emoji> <localized name>` from `products.Category` (or raw id when unknown).
-- Product button: `<emoji> <localized name>`. Per-product emoji wins; falls back to category emoji; plain name if neither.
+- Product button: FODMAP-level indicator + localized name. 🔴 = high, 🟠 = moderate, 🟢 = low, plain name for unspecified.
 - `matchOffered` accepts the raw name, the localized name, OR the rendered button label (so taps and typed inputs both work).
 
 ## When to edit

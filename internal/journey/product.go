@@ -124,21 +124,20 @@ func (ProductChoicePhase) Collect(ctx Context, input string) Outcome {
 
 func (ProductChoicePhase) Remind(ctx Context) Outcome { return Outcome{} }
 
-// productLabel renders "<emoji> <localized name>". Falls back to the
-// product's category emoji when the product has none of its own; falls
-// back to plain name when neither is set.
+// productLabel renders "<fodmap-indicator> <localized name>".
+// 🔴 = high FODMAP, 🟠 = moderate FODMAP, plain name for low/unspecified.
 func productLabel(ctx Context, p products.Product) string {
 	name := p.DisplayName(ctx.Locale)
-	emoji := p.Emoji
-	if emoji == "" {
-		if cat, ok := ctx.Catalog.CategoryByID(p.Category); ok {
-			emoji = cat.Emoji
-		}
+	switch p.Fodmap {
+	case products.FodmapHigh:
+		return "🔴 " + name
+	case products.FodmapModerate:
+		return "🟠 " + name
+	case products.FodmapLow:
+		return "🟢 " + name
+	default:
+		return name
 	}
-	if emoji != "" {
-		return emoji + " " + name
-	}
-	return name
 }
 
 // navRow builds the Back / Prev / Next row beneath the product grid.
