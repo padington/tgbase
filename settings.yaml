@@ -6,4 +6,4 @@
 defecation_reminder_after: 1m
 checkin_interval: 30m
 scan_interval: 10s
-default_locale: en
+default_locale: ru

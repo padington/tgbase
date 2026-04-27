@@ -29,7 +29,7 @@ Durations are human-readable strings (`"1m"`, `"30s"`); `Update` writes back as 
 defecation_reminder_after: 1m
 checkin_interval: 30m
 scan_interval: 10s
-default_locale: en
+default_locale: ru
 ```
 
 ## Invariants

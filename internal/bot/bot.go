@@ -64,7 +64,7 @@ func New(cfg Config) (*Bot, error) {
 		return nil, err
 	}
 
-	trans, err := i18n.Load(cfg.I18nDir, "en")
+	trans, err := i18n.Load(cfg.I18nDir, "ru")
 	if err != nil {
 		return nil, fmt.Errorf("load i18n from %s: %w", cfg.I18nDir, err)
 	}
