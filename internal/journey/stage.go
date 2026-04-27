@@ -2,6 +2,7 @@ package journey
 
 import (
 	"strings"
+	"time"
 
 	"github.com/padington/tgbase/internal/products"
 	"github.com/padington/tgbase/internal/state"
@@ -39,9 +40,22 @@ func (StageCheckinPhase) Setup(ctx Context) Outcome {
 }
 
 func (StageCheckinPhase) Collect(ctx Context, input string) Outcome {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == ctx.Trans.T("button.product.back", ctx.Locale, nil) {
+		product := ctx.User.CurrentProduct
+		return Outcome{
+			NextState: state.StateAwaitingStageChoice,
+			Mutate: func(u *state.UserData) {
+				delete(u.Products, product)
+				u.CurrentStage = ""
+				u.StageStartedAt = time.Time{}
+				u.CheckinAsked = false
+			},
+		}
+	}
 	yes := ctx.Trans.T("button.yes", ctx.Locale, nil)
 	no := ctx.Trans.T("button.no", ctx.Locale, nil)
-	normalized := strings.ToLower(strings.TrimSpace(input))
+	normalized := strings.ToLower(trimmed)
 	switch normalized {
 	case strings.ToLower(yes), "yes":
 		return advanceOnYes(ctx)
@@ -64,11 +78,15 @@ func (StageCheckinPhase) Remind(ctx Context) Outcome {
 		return Outcome{}
 	}
 	desc := prod.StageDescription(ctx.User.CurrentStage, ctx.Locale, ctx.Trans)
+	yes := ctx.Trans.T("button.yes", ctx.Locale, nil)
+	no := ctx.Trans.T("button.no", ctx.Locale, nil)
+	back := ctx.Trans.T("button.product.back", ctx.Locale, nil)
 	return Outcome{
 		ReplyKey: "phase.stage.checkin",
 		ReplyArgs: map[string]any{
 			"description": desc,
 		},
+		Keyboard: [][]string{{yes, no}, {back}},
 		Mutate: func(u *state.UserData) {
 			u.CheckinAsked = true
 		},

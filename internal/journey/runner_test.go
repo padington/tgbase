@@ -72,6 +72,7 @@ phase.stage.checkin_invalid: "yes/no"
 phase.stage.completed: "{name} done!"
 phase.stage.not_tolerated: "{name} skipped."
 about: "Bot info"
+button.product.back: "Back"
 button.yes: "yes"
 button.no: "no"
 cmd.report.empty: "nothing"
@@ -802,6 +803,31 @@ func TestHandleText_ProductLabelFallsBackToCategoryEmoji(t *testing.T) {
 
 	if got := store.Get(1).CurrentProduct; got != "Banana" {
 		t.Errorf("CurrentProduct: got %q", got)
+	}
+}
+
+func TestHandleText_StageCheckinBackReturnsToStageChoice(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
+
+	runner.HandleText(sender, newMsg(1, "Back"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingStageChoice {
+		t.Errorf("expected StateAwaitingStageChoice after Back, got %q", d.State)
+	}
+	if d.CurrentProduct != picked {
+		t.Errorf("CurrentProduct should be preserved, got %q", d.CurrentProduct)
+	}
+	if d.CurrentStage != "" {
+		t.Errorf("CurrentStage should be cleared, got %q", d.CurrentStage)
+	}
+	if _, exists := d.Products[picked]; exists {
+		t.Errorf("Products[%q] entry should be deleted after Back", picked)
 	}
 }
 
