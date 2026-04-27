@@ -1,0 +1,39 @@
+# internal/bot
+
+Composition root. The only package that imports every other internal package and wires them together.
+
+## Responsibility
+
+- Build `tgbotapi.BotAPI` from token.
+- Build `store.Backend` from `Config.DataDir` (or fall back to memory).
+- Construct typed stores (`state.Store`, `products.Catalog`, `settings.Store`).
+- Construct `journey.Runner`, register all phases, register router handlers.
+- Drive the update loop and the reminder worker.
+
+## Public API
+
+```go
+type Config struct { Token, Env, DataDir, DataPath, I18nDir, ProductsSeedPath, SettingsSeedPath string; Debug bool; Timeout int; StateFlushInterval time.Duration }
+func New(cfg Config) (*Bot, error)
+func (b *Bot) Run(ctx context.Context) error
+```
+
+## Backend selection (buildBackend)
+
+```
+DataDir set     → FileBackend (atomic tmp+rename, one .json per key)
+DataPath only   → derive dir, FileBackend
+both empty      → MemoryBackend (warns)
+StateFlushInterval > 0 → wrap with DebouncedBackend
+```
+
+## When to edit
+
+- **Adding a new phase** → register it here under `runner.Register(...)`. Order doesn't matter (phases keyed by `State()`).
+- **New router handler** → add to the same block as `/start`, `/about`, etc.
+- **New typed store** built on top of `store.Backend` → construct here, pass into `journey.New`.
+- **Changing backend selection** → `buildBackend` is the only place that picks an implementation.
+
+## Dependencies
+
+Imports everything. Nothing imports `internal/bot`.

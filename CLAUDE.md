@@ -53,6 +53,12 @@ Cross-package refactors that must touch multiple packages require **one commit p
 
 When changing user-facing behavior — new commands, new states, new transitions, changed prompts, changed reminder/timeout logic, changes to what gets persisted on a transition — update the README diagrams in the same change. The diagram update lives in its own docs commit (per the table above), not bundled with the code commit, but it must land in the same branch/PR as the code that motivated it. If diagrams are out of date after your change, the work is not done.
 
+## Per-package READMEs
+
+Every package directory contains a `README.md` describing its responsibility, public API, key invariants, and dependencies. **To plan a change, read only the relevant package READMEs first** — drop into source files only when you start implementing. The READMEs exist so a planner has enough context to scope a change without loading the package's source into the context window.
+
+Every PR that changes a package's public API, persisted shape, runtime invariant, or place in the dependency graph must update that package's `README.md` in the same PR. The README update lives in the same package commit as the code change (per the discipline table). If a README is out of date after your change, the work is not done — same rule as flow diagram protection.
+
 ## Package boundaries
 
 - `internal/router` imports only `tgbotapi`.
