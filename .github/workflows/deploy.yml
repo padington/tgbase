@@ -29,6 +29,7 @@ jobs:
           docker volume create tgbase_data 2>/dev/null || true
           docker stop tgbot 2>/dev/null || true
           docker rm tgbot 2>/dev/null || true
+          docker run --rm -v tgbase_data:/data alpine rm -f /data/products.json
           docker run -d \
             --name tgbot \
             --restart unless-stopped \
