@@ -48,6 +48,26 @@ func TestParseSeedYAML_WrapperProductsOnly(t *testing.T) {
 	}
 }
 
+func TestParseSeedYAML_ParsesModerateFodmap(t *testing.T) {
+	in := []byte(`products:
+  - name: Avocado
+    category: vegetables
+    fodmap: moderate
+    measure: grams
+    stages: { low: 30, medium: 45, high: 80 }
+`)
+	_, prods, err := parseSeedYAML(in)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(prods) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(prods))
+	}
+	if prods[0].Fodmap != FodmapModerate {
+		t.Errorf("expected FodmapModerate, got %q", prods[0].Fodmap)
+	}
+}
+
 func TestParseSeedYAML_LegacyBareList(t *testing.T) {
 	in := []byte(`- name: Apple
   fodmap: high

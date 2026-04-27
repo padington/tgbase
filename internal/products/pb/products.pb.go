@@ -27,6 +27,7 @@ const (
 	FodmapLevel_FODMAP_UNSPECIFIED FodmapLevel = 0
 	FodmapLevel_FODMAP_LOW         FodmapLevel = 1
 	FodmapLevel_FODMAP_HIGH        FodmapLevel = 2
+	FodmapLevel_FODMAP_MODERATE    FodmapLevel = 3
 )
 
 // Enum value maps for FodmapLevel.
@@ -35,11 +36,13 @@ var (
 		0: "FODMAP_UNSPECIFIED",
 		1: "FODMAP_LOW",
 		2: "FODMAP_HIGH",
+		3: "FODMAP_MODERATE",
 	}
 	FodmapLevel_value = map[string]int32{
 		"FODMAP_UNSPECIFIED": 0,
 		"FODMAP_LOW":         1,
 		"FODMAP_HIGH":        2,
+		"FODMAP_MODERATE":    3,
 	}
 )
 
@@ -435,12 +438,13 @@ const file_products_proto_rawDesc = "" +
 	"\bproducts\x18\x01 \x03(\v2\x1b.tgbase.products.v1.ProductR\bproducts\x12<\n" +
 	"\n" +
 	"categories\x18\x02 \x03(\v2\x1c.tgbase.products.v1.CategoryR\n" +
-	"categories*F\n" +
+	"categories*[\n" +
 	"\vFodmapLevel\x12\x16\n" +
 	"\x12FODMAP_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"FODMAP_LOW\x10\x01\x12\x0f\n" +
-	"\vFODMAP_HIGH\x10\x02*m\n" +
+	"\vFODMAP_HIGH\x10\x02\x12\x13\n" +
+	"\x0fFODMAP_MODERATE\x10\x03*m\n" +
 	"\aMeasure\x12\x17\n" +
 	"\x13MEASURE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eMEASURE_PIECES\x10\x01\x12\x11\n" +

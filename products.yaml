@@ -6,6 +6,11 @@
 # Categories declare the buckets the picker browses by (id, emoji,
 # localized names). Products reference a category by id; per-product
 # emoji is optional and falls back to the category emoji at render time.
+#
+# fodmap: high     — high at typical serving (Monash red light)
+# fodmap: moderate — moderate at typical serving (Monash amber)
+# Low-FODMAP foods are not catalogued here — they don't need a trial.
+#
 # Stage values (low / medium / high) are starting estimates loosely
 # anchored to Monash low-FODMAP serving sizes — adjust per user via
 # the runtime catalog API rather than editing this seed.
@@ -104,6 +109,59 @@ products:
     stages: { low: 50, medium: 100, high: 200 }
     name_localized: { ru: "Арбуз" }
 
+  - name: Date
+    category: fruits
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.5, medium: 1, high: 2 }
+    name_localized: { ru: "Финик" }
+
+  - name: Fig
+    category: fruits
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.25, medium: 0.5, high: 1 }
+    name_localized: { ru: "Инжир" }
+
+  - name: Persimmon
+    category: fruits
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.25, medium: 0.5, high: 1 }
+    name_localized: { ru: "Хурма" }
+
+  - name: Grapefruit
+    category: fruits
+    fodmap: high
+    measure: grams
+    stages: { low: 40, medium: 80, high: 160 }
+    name_localized: { ru: "Грейпфрут" }
+
+  - name: Banana (ripe)
+    category: fruits
+    emoji: "🍌"
+    fodmap: moderate
+    measure: pieces
+    stages: { low: 0.33, medium: 0.66, high: 1.0 }
+    note: Ripe only; unripe bananas are low FODMAP
+    name_localized: { ru: "Банан спелый" }
+    note_localized: { ru: "Только спелый; неспелый — low FODMAP" }
+
+  - name: Strawberry
+    category: fruits
+    emoji: "🍓"
+    fodmap: moderate
+    measure: grams
+    stages: { low: 75, medium: 150, high: 250 }
+    name_localized: { ru: "Клубника" }
+
+  - name: Pomegranate
+    category: fruits
+    fodmap: moderate
+    measure: grams
+    stages: { low: 45, medium: 90, high: 180 }
+    name_localized: { ru: "Гранат" }
+
   # Vegetables --------------------------------------------------------
   - name: Asparagus
     category: vegetables
@@ -153,6 +211,67 @@ products:
     stages: { low: 5, medium: 15, high: 30 }
     name_localized: { ru: "Лук" }
 
+  - name: Artichoke
+    category: vegetables
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.25, medium: 0.5, high: 1 }
+    name_localized: { ru: "Артишок" }
+
+  - name: Snow peas
+    category: vegetables
+    fodmap: high
+    measure: grams
+    stages: { low: 15, medium: 30, high: 60 }
+    name_localized: { ru: "Стручковый горох" }
+
+  - name: Avocado
+    category: vegetables
+    emoji: "🥑"
+    fodmap: moderate
+    measure: grams
+    stages: { low: 30, medium: 45, high: 80 }
+    note: Tolerance is portion-bound — ≤30g typically low, ≥80g high
+    name_localized: { ru: "Авокадо" }
+    note_localized: { ru: "Зависит от порции — ≤30г обычно low, ≥80г high" }
+
+  - name: Sweet potato
+    category: vegetables
+    emoji: "🍠"
+    fodmap: moderate
+    measure: grams
+    stages: { low: 75, medium: 100, high: 150 }
+    name_localized: { ru: "Батат" }
+
+  - name: Butternut squash
+    category: vegetables
+    fodmap: moderate
+    measure: grams
+    stages: { low: 60, medium: 90, high: 150 }
+    name_localized: { ru: "Тыква мускатная" }
+
+  - name: Brussels sprouts
+    category: vegetables
+    fodmap: moderate
+    measure: grams
+    stages: { low: 75, medium: 150, high: 250 }
+    name_localized: { ru: "Брюссельская капуста" }
+
+  - name: Beetroot
+    category: vegetables
+    fodmap: moderate
+    measure: grams
+    stages: { low: 30, medium: 60, high: 120 }
+    name_localized: { ru: "Свёкла" }
+
+  - name: Sweet corn
+    category: vegetables
+    emoji: "🌽"
+    fodmap: moderate
+    measure: grams
+    stages: { low: 40, medium: 80, high: 160 }
+    name_localized: { ru: "Сладкая кукуруза" }
+
   # Dairy -------------------------------------------------------------
   - name: Cottage cheese
     category: dairy
@@ -186,6 +305,43 @@ products:
     stages: { low: 50, medium: 100, high: 200 }
     name_localized: { ru: "Йогурт" }
 
+  - name: Buttermilk
+    category: dairy
+    fodmap: high
+    measure: ml
+    stages: { low: 50, medium: 100, high: 200 }
+    name_localized: { ru: "Кефир/пахта" }
+
+  - name: Ricotta
+    category: dairy
+    fodmap: high
+    measure: grams
+    stages: { low: 30, medium: 60, high: 120 }
+    name_localized: { ru: "Рикотта" }
+
+  - name: Soy milk (whole bean)
+    category: dairy
+    fodmap: high
+    measure: ml
+    stages: { low: 50, medium: 100, high: 200 }
+    note: Made from whole soybeans; soy-protein milk is low FODMAP
+    name_localized: { ru: "Соевое молоко (из бобов)" }
+    note_localized: { ru: "Из цельных бобов; молоко из соевого протеина — low FODMAP" }
+
+  - name: Cream cheese
+    category: dairy
+    fodmap: moderate
+    measure: grams
+    stages: { low: 20, medium: 40, high: 80 }
+    name_localized: { ru: "Сливочный сыр" }
+
+  - name: Sour cream
+    category: dairy
+    fodmap: moderate
+    measure: spoons
+    stages: { low: 1, medium: 2, high: 4 }
+    name_localized: { ru: "Сметана" }
+
   # Grains ------------------------------------------------------------
   - name: Couscous
     category: grains
@@ -216,6 +372,27 @@ products:
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
     name_localized: { ru: "Пшеничный хлеб" }
+
+  - name: Barley
+    category: grains
+    fodmap: high
+    measure: grams
+    stages: { low: 25, medium: 50, high: 100 }
+    name_localized: { ru: "Ячмень" }
+
+  - name: Wheat flour
+    category: grains
+    fodmap: high
+    measure: grams
+    stages: { low: 15, medium: 30, high: 60 }
+    name_localized: { ru: "Пшеничная мука" }
+
+  - name: Muesli (with wheat)
+    category: grains
+    fodmap: high
+    measure: grams
+    stages: { low: 25, medium: 50, high: 100 }
+    name_localized: { ru: "Мюсли (с пшеницей)" }
 
   # Legumes & nuts ----------------------------------------------------
   - name: Beans (red kidney)
@@ -253,6 +430,41 @@ products:
     stages: { low: 10, medium: 20, high: 30 }
     name_localized: { ru: "Фисташки" }
 
+  - name: Baked beans
+    category: legumes
+    fodmap: high
+    measure: grams
+    stages: { low: 30, medium: 60, high: 120 }
+    name_localized: { ru: "Печёная фасоль" }
+
+  - name: Soybeans
+    category: legumes
+    fodmap: high
+    measure: grams
+    stages: { low: 30, medium: 60, high: 120 }
+    name_localized: { ru: "Соевые бобы" }
+
+  - name: Almonds
+    category: legumes
+    fodmap: moderate
+    measure: pieces
+    stages: { low: 10, medium: 15, high: 25 }
+    name_localized: { ru: "Миндаль" }
+
+  - name: Hazelnuts
+    category: legumes
+    fodmap: moderate
+    measure: pieces
+    stages: { low: 10, medium: 20, high: 30 }
+    name_localized: { ru: "Фундук" }
+
+  - name: Black beans
+    category: legumes
+    fodmap: moderate
+    measure: grams
+    stages: { low: 40, medium: 75, high: 120 }
+    name_localized: { ru: "Чёрная фасоль" }
+
   # Sweets & sauces ---------------------------------------------------
   - name: Agave syrup
     category: sweets
@@ -277,3 +489,26 @@ products:
     note: Sorbitol/xylitol — short trial only
     name_localized: { ru: "Жвачка без сахара" }
     note_localized: { ru: "Сорбит/ксилит — короткий тест" }
+
+  - name: High-fructose corn syrup
+    category: sweets
+    fodmap: high
+    measure: spoons
+    stages: { low: 0.5, medium: 1, high: 2 }
+    name_localized: { ru: "Кукурузный сироп с фруктозой" }
+
+  - name: Apple juice
+    category: sweets
+    emoji: "🧃"
+    fodmap: high
+    measure: ml
+    stages: { low: 50, medium: 100, high: 200 }
+    name_localized: { ru: "Яблочный сок" }
+
+  - name: Dark chocolate
+    category: sweets
+    emoji: "🍫"
+    fodmap: moderate
+    measure: grams
+    stages: { low: 30, medium: 50, high: 80 }
+    name_localized: { ru: "Тёмный шоколад" }
