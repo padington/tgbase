@@ -24,6 +24,7 @@ const (
 	FodmapUnspecified FodmapLevel = ""
 	FodmapLow         FodmapLevel = "low"
 	FodmapHigh        FodmapLevel = "high"
+	FodmapModerate    FodmapLevel = "moderate"
 )
 
 type Measure string
