@@ -53,7 +53,7 @@ func NewDefecationPhase(), NewProductCategoryPhase(), NewProductChoicePhase(),
 | `DefecationPhase` | `StateAwaitingDefecation` | 1/2/3 keyboard; reminder nudge after `Settings.DefecationReminderAfter`. |
 | `ProductCategoryPhase` | `StateAwaitingProductCategory` | 2-col category grid; auto-skips when only 1 bucket has products; transitions to Idle (with "exhausted" reply) when none remain. |
 | `ProductChoicePhase` | `StateAwaitingProductChoice` | 4×3 paged grid scoped to `User.PickerCategory`, plus Back / Prev / Next. Bounces to category state when category is empty or unset. |
-| `StageChoicePhase` | `StateAwaitingStageChoice` | 3-button volume picker (low/med/high). |
+| `StageChoicePhase` | `StateAwaitingStageChoice` | 3-button volume picker (low/med/high). Renders the product's localized note (when set) as a "💡 …" line above the keyboard so the user can read prep / pathway / swap context before committing to a dose. |
 | `StageCheckinPhase` | `StateAwaitingStageCheckin` | yes/no; advances stage, completes product, or marks not_tolerated. Reminder prompts the check-in question after `Settings.CheckinInterval`. |
 
 ## Picker label rendering

@@ -20,7 +20,7 @@ button.product.back: "⬅ Назад"
 button.product.prev: "◀ Пред"
 button.product.next: "След ▶"
 
-phase.stage_choice.prompt: "Рекомендуемая начальная доза для {name} — {recommended}. Выбери, с какого объёма начать:"
+phase.stage_choice.prompt: "Рекомендуемая начальная доза для {name} — {recommended}.{note}\n\nВыбери, с какого объёма начать:"
 phase.stage_choice.invalid: "Пожалуйста, нажми на один из предложенных объёмов."
 
 phase.stage.prompt: "Съешь {description}. Проверю через {checkin}."

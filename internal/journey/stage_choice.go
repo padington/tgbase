@@ -33,9 +33,21 @@ func (StageChoicePhase) Setup(ctx Context) Outcome {
 		ReplyArgs: map[string]any{
 			"name":        prod.DisplayName(ctx.Locale),
 			"recommended": prod.StageDescription(products.StageLow, ctx.Locale, ctx.Trans),
+			"note":        notePrefix(prod.DisplayNote(ctx.Locale)),
 		},
 		Keyboard: [][]string{buttons},
 	}
+}
+
+// notePrefix renders the product note as a "💡 …" block to be inlined
+// into the stage-choice prompt before the dose-pick keyboard. Returns
+// empty string when the product carries no note, so the surrounding
+// template collapses cleanly.
+func notePrefix(note string) string {
+	if note == "" {
+		return ""
+	}
+	return "\n\n💡 " + note
 }
 
 func (StageChoicePhase) Collect(ctx Context, input string) Outcome {

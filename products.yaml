@@ -14,6 +14,10 @@
 # Stage values (low / medium / high) are starting estimates loosely
 # anchored to Monash low-FODMAP serving sizes — adjust per user via
 # the runtime catalog API rather than editing this seed.
+#
+# Notes are displayed when the user picks a product, before they choose
+# a dose. Keep notes one short sentence: which FODMAP subgroup is being
+# tested, plus a practical prep tip or low-FODMAP swap.
 
 categories:
   - id: fruits
@@ -43,9 +47,9 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 0.25, medium: 0.5, high: 1.0 }
-    note: Test on empty stomach; monitor 2h
+    note: Tests excess fructose + sorbitol. Test on empty stomach; observe 2h.
     name_localized: { ru: "Яблоко" }
-    note_localized: { ru: "Тестировать натощак, наблюдать 2 ч" }
+    note_localized: { ru: "Тестирует избыток фруктозы + сорбит. Натощак, наблюдать 2 ч." }
 
   - name: Apricot
     category: fruits
@@ -53,7 +57,9 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests sorbitol. Stone-fruit pathway — reactions often shared with plum/nectarine.
     name_localized: { ru: "Абрикос" }
+    note_localized: { ru: "Тестирует сорбит. Косточковые часто реагируют схоже (слива, нектарин)." }
 
   - name: Blackberry
     category: fruits
@@ -61,7 +67,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
+    note: Tests sorbitol.
     name_localized: { ru: "Ежевика" }
+    note_localized: { ru: "Тестирует сорбит." }
 
   - name: Cherry
     category: fruits
@@ -69,7 +77,9 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 3, medium: 6, high: 12 }
+    note: Tests sorbitol + excess fructose. Easy to overshoot — count them out.
     name_localized: { ru: "Черешня" }
+    note_localized: { ru: "Тестирует сорбит + избыток фруктозы. Легко переесть — отсчитай." }
 
   - name: Mango
     category: fruits
@@ -77,14 +87,18 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 40, medium: 80, high: 160 }
+    note: Tests excess fructose. Riper fruit carries more sugars.
     name_localized: { ru: "Манго" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Спелее — больше сахаров." }
 
   - name: Nectarine
     category: fruits
     fodmap: high
     measure: pieces
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests sorbitol. Stone fruit.
     name_localized: { ru: "Нектарин" }
+    note_localized: { ru: "Тестирует сорбит. Косточковый." }
 
   - name: Pear
     category: fruits
@@ -92,14 +106,18 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 0.25, medium: 0.5, high: 1.0 }
+    note: Tests sorbitol + excess fructose. Test on empty stomach.
     name_localized: { ru: "Груша" }
+    note_localized: { ru: "Тестирует сорбит + избыток фруктозы. Натощак." }
 
   - name: Plum
     category: fruits
     fodmap: high
     measure: pieces
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests sorbitol. Reactions are often pronounced.
     name_localized: { ru: "Слива" }
+    note_localized: { ru: "Тестирует сорбит. Реакции часто выраженные." }
 
   - name: Watermelon
     category: fruits
@@ -107,35 +125,55 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 50, medium: 100, high: 200 }
+    note: Tests fructose + fructans + polyols at once — hard to interpret in isolation.
     name_localized: { ru: "Арбуз" }
+    note_localized: { ru: "Тестирует фруктозу + фруктаны + полиолы сразу — трудно интерпретировать изолированно." }
 
   - name: Date
     category: fruits
     fodmap: high
     measure: pieces
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests excess fructose. Very concentrated.
     name_localized: { ru: "Финик" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Очень концентрированно." }
 
   - name: Fig
     category: fruits
     fodmap: high
     measure: pieces
     stages: { low: 0.25, medium: 0.5, high: 1 }
+    note: Tests excess fructose. Dried figs are far more concentrated than fresh.
     name_localized: { ru: "Инжир" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Сушёный концентрированнее свежего." }
 
   - name: Persimmon
     category: fruits
     fodmap: high
     measure: pieces
     stages: { low: 0.25, medium: 0.5, high: 1 }
+    note: Tests sorbitol.
     name_localized: { ru: "Хурма" }
+    note_localized: { ru: "Тестирует сорбит." }
 
   - name: Grapefruit
     category: fruits
     fodmap: high
     measure: grams
     stages: { low: 40, medium: 80, high: 160 }
+    note: Tests fructans (atypical for fruit).
     name_localized: { ru: "Грейпфрут" }
+    note_localized: { ru: "Тестирует фруктаны (нетипично для фруктов)." }
+
+  - name: Peach
+    category: fruits
+    emoji: "🍑"
+    fodmap: high
+    measure: pieces
+    stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests sorbitol. Stone-fruit pathway shared with apricot/nectarine/plum.
+    name_localized: { ru: "Персик" }
+    note_localized: { ru: "Тестирует сорбит. Один путь с абрикосом/нектарином/сливой." }
 
   - name: Banana (ripe)
     category: fruits
@@ -143,9 +181,9 @@ products:
     fodmap: moderate
     measure: pieces
     stages: { low: 0.33, medium: 0.66, high: 1.0 }
-    note: Ripe only; unripe bananas are low FODMAP
+    note: Tests fructans (only the ripe ones; firm/yellow banana is low-FODMAP).
     name_localized: { ru: "Банан спелый" }
-    note_localized: { ru: "Только спелый; неспелый — low FODMAP" }
+    note_localized: { ru: "Тестирует фруктаны (только спелые; неспелый — low-FODMAP)." }
 
   - name: Strawberry
     category: fruits
@@ -153,14 +191,18 @@ products:
     fodmap: moderate
     measure: grams
     stages: { low: 75, medium: 150, high: 250 }
+    note: Tests fructans only at large portions.
     name_localized: { ru: "Клубника" }
+    note_localized: { ru: "Тестирует фруктаны только в больших порциях." }
 
   - name: Pomegranate
     category: fruits
     fodmap: moderate
     measure: grams
     stages: { low: 45, medium: 90, high: 180 }
+    note: Tests excess fructose at higher portions.
     name_localized: { ru: "Гранат" }
+    note_localized: { ru: "Тестирует избыток фруктозы в больших порциях." }
 
   # Vegetables --------------------------------------------------------
   - name: Asparagus
@@ -168,7 +210,9 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 1, medium: 3, high: 5 }
+    note: Tests fructans. One spear is already a meaningful starting dose.
     name_localized: { ru: "Спаржа" }
+    note_localized: { ru: "Тестирует фруктаны. Один побег — уже значимая доза." }
 
   - name: Cauliflower
     category: vegetables
@@ -176,7 +220,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests mannitol + GOS. Two pathways at once — interpret carefully.
     name_localized: { ru: "Цветная капуста" }
+    note_localized: { ru: "Тестирует маннит + GOS. Сразу два пути — внимательно к выводам." }
 
   - name: Garlic
     category: vegetables
@@ -184,16 +230,18 @@ products:
     fodmap: high
     measure: pieces
     stages: { low: 0.5, medium: 1, high: 2 }
-    note: Use raw clove; cooked is gentler
+    note: Tests fructans. Garlic-infused oil (strained) is low-FODMAP — useful kitchen swap if this fails.
     name_localized: { ru: "Чеснок" }
-    note_localized: { ru: "Сырой зубчик; варёный мягче" }
+    note_localized: { ru: "Тестирует фруктаны. Чесночное масло (отцеженное) — low-FODMAP, удобная замена." }
 
   - name: Leek
     category: vegetables
     fodmap: high
     measure: grams
     stages: { low: 10, medium: 25, high: 50 }
+    note: Tests fructans (white part is highest). Green tops alone are low-FODMAP.
     name_localized: { ru: "Лук-порей" }
+    note_localized: { ru: "Тестирует фруктаны (белая часть). Только зелёные перья — low-FODMAP." }
 
   - name: Mushroom
     category: vegetables
@@ -201,7 +249,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
+    note: Tests mannitol. Oyster mushrooms and rinsed canned champignons are tolerated more easily.
     name_localized: { ru: "Грибы" }
+    note_localized: { ru: "Тестирует маннит. Вёшенки и промытые консервированные шампиньоны переносятся легче." }
 
   - name: Onion
     category: vegetables
@@ -209,21 +259,36 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 5, medium: 15, high: 30 }
+    note: Tests fructans. Spring-onion green tops alone are low-FODMAP — useful kitchen swap.
     name_localized: { ru: "Лук" }
+    note_localized: { ru: "Тестирует фруктаны. Только зелёные перья зелёного лука — low-FODMAP, удобная замена." }
 
   - name: Artichoke
     category: vegetables
     fodmap: high
     measure: pieces
     stages: { low: 0.25, medium: 0.5, high: 1 }
+    note: Tests fructans. Globe-artichoke heart specifically.
     name_localized: { ru: "Артишок" }
+    note_localized: { ru: "Тестирует фруктаны. Сердцевина артишока." }
 
   - name: Snow peas
     category: vegetables
     fodmap: high
     measure: grams
     stages: { low: 15, medium: 30, high: 60 }
+    note: Tests fructans + GOS.
     name_localized: { ru: "Стручковый горох" }
+    note_localized: { ru: "Тестирует фруктаны + GOS." }
+
+  - name: Tomato paste
+    category: vegetables
+    fodmap: high
+    measure: spoons
+    stages: { low: 1, medium: 2, high: 4 }
+    note: Tests excess fructose (concentrated form). Fresh tomato is low-FODMAP.
+    name_localized: { ru: "Томатная паста" }
+    note_localized: { ru: "Тестирует избыток фруктозы (концентрат). Свежий помидор — low-FODMAP." }
 
   - name: Avocado
     category: vegetables
@@ -231,9 +296,9 @@ products:
     fodmap: moderate
     measure: grams
     stages: { low: 30, medium: 45, high: 80 }
-    note: Tolerance is portion-bound — ≤30g typically low, ≥80g high
+    note: Tests sorbitol. Strongly portion-bound — ≤30g typically low, ≥80g high.
     name_localized: { ru: "Авокадо" }
-    note_localized: { ru: "Зависит от порции — ≤30г обычно low, ≥80г high" }
+    note_localized: { ru: "Тестирует сорбит. Сильно зависит от порции — ≤30г обычно low, ≥80г high." }
 
   - name: Sweet potato
     category: vegetables
@@ -241,28 +306,36 @@ products:
     fodmap: moderate
     measure: grams
     stages: { low: 75, medium: 100, high: 150 }
+    note: Tests mannitol. Threshold-bound — ~75g often tolerated.
     name_localized: { ru: "Батат" }
+    note_localized: { ru: "Тестирует маннит. Зависит от порции — ~75г часто ОК." }
 
   - name: Butternut squash
     category: vegetables
     fodmap: moderate
     measure: grams
     stages: { low: 60, medium: 90, high: 150 }
+    note: Tests mannitol + a bit of fructans.
     name_localized: { ru: "Тыква мускатная" }
+    note_localized: { ru: "Тестирует маннит + немного фруктанов." }
 
   - name: Brussels sprouts
     category: vegetables
     fodmap: moderate
     measure: grams
     stages: { low: 75, medium: 150, high: 250 }
+    note: Tests fructans.
     name_localized: { ru: "Брюссельская капуста" }
+    note_localized: { ru: "Тестирует фруктаны." }
 
   - name: Beetroot
     category: vegetables
     fodmap: moderate
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests fructans. Cooked is more tolerable than raw.
     name_localized: { ru: "Свёкла" }
+    note_localized: { ru: "Тестирует фруктаны. Варёная переносится лучше сырой." }
 
   - name: Sweet corn
     category: vegetables
@@ -270,7 +343,9 @@ products:
     fodmap: moderate
     measure: grams
     stages: { low: 40, medium: 80, high: 160 }
+    note: Tests fructans. Half-cob is a typical reintroduction step.
     name_localized: { ru: "Сладкая кукуруза" }
+    note_localized: { ru: "Тестирует фруктаны. Половина початка — типичный шаг." }
 
   # Dairy -------------------------------------------------------------
   - name: Cottage cheese
@@ -279,7 +354,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests lactose. Lactose-free cottage cheese is a clean swap.
     name_localized: { ru: "Творог" }
+    note_localized: { ru: "Тестирует лактозу. Безлактозный творог — чистая замена." }
 
   - name: Ice cream
     category: dairy
@@ -287,7 +364,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests lactose. Sorbet and lactose-free ice cream are swaps.
     name_localized: { ru: "Мороженое" }
+    note_localized: { ru: "Тестирует лактозу. Сорбет и безлактозное мороженое — замена." }
 
   - name: Milk (cow)
     category: dairy
@@ -295,7 +374,9 @@ products:
     fodmap: high
     measure: ml
     stages: { low: 50, medium: 100, high: 200 }
+    note: Tests lactose. Lactose-free milk is low-FODMAP — a clean swap if this fails.
     name_localized: { ru: "Молоко коровье" }
+    note_localized: { ru: "Тестирует лактозу. Безлактозное молоко — low-FODMAP, чистая замена." }
 
   - name: Yogurt
     category: dairy
@@ -303,44 +384,63 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 50, medium: 100, high: 200 }
+    note: Tests lactose. Lactose-free yogurt is a clean swap.
     name_localized: { ru: "Йогурт" }
+    note_localized: { ru: "Тестирует лактозу. Безлактозный йогурт — чистая замена." }
 
   - name: Buttermilk
     category: dairy
     fodmap: high
     measure: ml
     stages: { low: 50, medium: 100, high: 200 }
+    note: Tests lactose.
     name_localized: { ru: "Кефир/пахта" }
+    note_localized: { ru: "Тестирует лактозу." }
 
   - name: Ricotta
     category: dairy
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests lactose. Hard cheeses (cheddar, parmesan) are naturally low-lactose.
     name_localized: { ru: "Рикотта" }
+    note_localized: { ru: "Тестирует лактозу. Твёрдые сыры (чеддер, пармезан) — естественно низколактозные." }
 
   - name: Soy milk (whole bean)
     category: dairy
     fodmap: high
     measure: ml
     stages: { low: 50, medium: 100, high: 200 }
-    note: Made from whole soybeans; soy-protein milk is low FODMAP
+    note: Tests GOS. Made from whole soybeans; soy-protein milk is low-FODMAP.
     name_localized: { ru: "Соевое молоко (из бобов)" }
-    note_localized: { ru: "Из цельных бобов; молоко из соевого протеина — low FODMAP" }
+    note_localized: { ru: "Тестирует GOS. Из цельных бобов; молоко из соевого протеина — low-FODMAP." }
+
+  - name: Coconut cream
+    category: dairy
+    fodmap: high
+    measure: ml
+    stages: { low: 30, medium: 60, high: 120 }
+    note: Tests sorbitol at higher portions. Canned coconut milk behaves similarly.
+    name_localized: { ru: "Кокосовые сливки" }
+    note_localized: { ru: "Тестирует сорбит в больших порциях. Консервированное кокосовое молоко — аналогично." }
 
   - name: Cream cheese
     category: dairy
     fodmap: moderate
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
+    note: Tests lactose at higher portions.
     name_localized: { ru: "Сливочный сыр" }
+    note_localized: { ru: "Тестирует лактозу в больших порциях." }
 
   - name: Sour cream
     category: dairy
     fodmap: moderate
     measure: spoons
     stages: { low: 1, medium: 2, high: 4 }
+    note: Tests lactose at higher portions.
     name_localized: { ru: "Сметана" }
+    note_localized: { ru: "Тестирует лактозу в больших порциях." }
 
   # Grains ------------------------------------------------------------
   - name: Couscous
@@ -348,7 +448,9 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests fructans (wheat-based). Quinoa is a low-FODMAP swap.
     name_localized: { ru: "Кускус" }
+    note_localized: { ru: "Тестирует фруктаны (на пшенице). Киноа — low-FODMAP замена." }
 
   - name: Pasta
     category: grains
@@ -356,14 +458,18 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests fructans (wheat). Spelt or gluten-free pasta is a low-FODMAP swap.
     name_localized: { ru: "Макароны" }
+    note_localized: { ru: "Тестирует фруктаны (пшеница). Спельта или безглютеновые — low-FODMAP замена." }
 
   - name: Rye bread
     category: grains
     fodmap: high
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
+    note: Tests fructans. Sourdough rye is sometimes better tolerated.
     name_localized: { ru: "Ржаной хлеб" }
+    note_localized: { ru: "Тестирует фруктаны. Ржаной на закваске часто переносится лучше." }
 
   - name: Wheat bread
     category: grains
@@ -371,28 +477,36 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 20, medium: 40, high: 80 }
+    note: Tests fructans. Sourdough wheat or sourdough spelt are often tolerated where this fails.
     name_localized: { ru: "Пшеничный хлеб" }
+    note_localized: { ru: "Тестирует фруктаны. Пшеничный/спельтовый на закваске часто переносится лучше." }
 
   - name: Barley
     category: grains
     fodmap: high
     measure: grams
     stages: { low: 25, medium: 50, high: 100 }
+    note: Tests fructans + GOS.
     name_localized: { ru: "Ячмень" }
+    note_localized: { ru: "Тестирует фруктаны + GOS." }
 
   - name: Wheat flour
     category: grains
     fodmap: high
     measure: grams
     stages: { low: 15, medium: 30, high: 60 }
+    note: Tests fructans. Pure flour test, useful for baking-ingredient sensitivity.
     name_localized: { ru: "Пшеничная мука" }
+    note_localized: { ru: "Тестирует фруктаны. Чистая мука — для проверки чувствительности к ингредиенту." }
 
   - name: Muesli (with wheat)
     category: grains
     fodmap: high
     measure: grams
     stages: { low: 25, medium: 50, high: 100 }
+    note: Tests fructans. Oat-only muesli is low-FODMAP.
     name_localized: { ru: "Мюсли (с пшеницей)" }
+    note_localized: { ru: "Тестирует фруктаны. Овсяные мюсли (без пшеницы) — low-FODMAP." }
 
   # Legumes & nuts ----------------------------------------------------
   - name: Beans (red kidney)
@@ -400,70 +514,99 @@ products:
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 100 }
+    note: Tests GOS. Canned + rinsed cuts the load by ~30%.
     name_localized: { ru: "Красная фасоль" }
+    note_localized: { ru: "Тестирует GOS. Консервированная + промытая — нагрузка ~на 30% меньше." }
 
   - name: Cashews
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 10, medium: 20, high: 30 }
+    note: Tests GOS + fructans. Different pathway than peanuts (low-FODMAP).
     name_localized: { ru: "Кешью" }
+    note_localized: { ru: "Тестирует GOS + фруктаны. Иной путь чем арахис (low-FODMAP)." }
 
   - name: Chickpeas
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 100 }
+    note: Tests GOS. Canned + rinsed is the standard test form.
     name_localized: { ru: "Нут" }
+    note_localized: { ru: "Тестирует GOS. Консервированный + промытый — стандартная форма теста." }
 
   - name: Lentils
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests GOS. Canned (rinsed) is notably lower than dried-cooked.
     name_localized: { ru: "Чечевица" }
+    note_localized: { ru: "Тестирует GOS. Консервированная (промытая) — заметно ниже сухой варёной." }
 
   - name: Pistachios
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 10, medium: 20, high: 30 }
+    note: Tests GOS + fructans. Easy to over-eat — count them out.
     name_localized: { ru: "Фисташки" }
+    note_localized: { ru: "Тестирует GOS + фруктаны. Легко переесть — отсчитай заранее." }
 
   - name: Baked beans
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests GOS. Sauce often hides onion/garlic — check the label.
     name_localized: { ru: "Печёная фасоль" }
+    note_localized: { ru: "Тестирует GOS. В соусе часто прячутся лук/чеснок — читай этикетку." }
 
   - name: Soybeans
     category: legumes
     fodmap: high
     measure: grams
     stages: { low: 30, medium: 60, high: 120 }
+    note: Tests GOS. Soy-protein products (firm tofu, tempeh) are low-FODMAP.
     name_localized: { ru: "Соевые бобы" }
+    note_localized: { ru: "Тестирует GOS. Продукты из соевого протеина (твёрдый тофу, темпе) — low-FODMAP." }
+
+  - name: Silken tofu
+    category: legumes
+    fodmap: high
+    measure: grams
+    stages: { low: 50, medium: 100, high: 170 }
+    note: Tests GOS + fructans. Firm/extra-firm tofu is low-FODMAP — a clean swap.
+    name_localized: { ru: "Шёлковый тофу" }
+    note_localized: { ru: "Тестирует GOS + фруктаны. Твёрдый/плотный тофу — low-FODMAP, чистая замена." }
 
   - name: Almonds
     category: legumes
     fodmap: moderate
     measure: pieces
     stages: { low: 10, medium: 15, high: 25 }
+    note: Tests GOS. Easy to over-eat — count.
     name_localized: { ru: "Миндаль" }
+    note_localized: { ru: "Тестирует GOS. Легко переесть — отсчитай." }
 
   - name: Hazelnuts
     category: legumes
     fodmap: moderate
     measure: pieces
     stages: { low: 10, medium: 20, high: 30 }
+    note: Tests GOS.
     name_localized: { ru: "Фундук" }
+    note_localized: { ru: "Тестирует GOS." }
 
   - name: Black beans
     category: legumes
     fodmap: moderate
     measure: grams
     stages: { low: 40, medium: 75, high: 120 }
+    note: Tests GOS. Canned + rinsed is the standard test form.
     name_localized: { ru: "Чёрная фасоль" }
+    note_localized: { ru: "Тестирует GOS. Консервированная + промытая — стандартная форма." }
 
   # Sweets & sauces ---------------------------------------------------
   - name: Agave syrup
@@ -471,7 +614,9 @@ products:
     fodmap: high
     measure: spoons
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests excess fructose. Higher in fructose than honey.
     name_localized: { ru: "Сироп агавы" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Фруктозы больше, чем в мёде." }
 
   - name: Honey
     category: sweets
@@ -479,23 +624,27 @@ products:
     fodmap: high
     measure: spoons
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests excess fructose. Maple syrup is a low-FODMAP swap.
     name_localized: { ru: "Мёд" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Кленовый сироп — low-FODMAP замена." }
 
   - name: Sugar-free gum
     category: sweets
     fodmap: high
     measure: pieces
     stages: { low: 1, medium: 2, high: 4 }
-    note: Sorbitol/xylitol — short trial only
+    note: Tests sorbitol/xylitol. Effects can be rapid; 1–2 pieces is meaningful.
     name_localized: { ru: "Жвачка без сахара" }
-    note_localized: { ru: "Сорбит/ксилит — короткий тест" }
+    note_localized: { ru: "Тестирует сорбит/ксилит. Эффект может быть быстрым; 1–2 шт. уже значимо." }
 
   - name: High-fructose corn syrup
     category: sweets
     fodmap: high
     measure: spoons
     stages: { low: 0.5, medium: 1, high: 2 }
+    note: Tests excess fructose. Common hidden ingredient in sodas and processed foods.
     name_localized: { ru: "Кукурузный сироп с фруктозой" }
+    note_localized: { ru: "Тестирует избыток фруктозы. Часто прячется в газировке и обработанных продуктах." }
 
   - name: Apple juice
     category: sweets
@@ -503,7 +652,9 @@ products:
     fodmap: high
     measure: ml
     stages: { low: 50, medium: 100, high: 200 }
+    note: Tests excess fructose + sorbitol. Concentrated form of apple FODMAPs.
     name_localized: { ru: "Яблочный сок" }
+    note_localized: { ru: "Тестирует избыток фруктозы + сорбит. Концентрированная форма яблочных FODMAP." }
 
   - name: Dark chocolate
     category: sweets
@@ -511,4 +662,6 @@ products:
     fodmap: moderate
     measure: grams
     stages: { low: 30, medium: 50, high: 80 }
+    note: Tests mannitol + GOS at higher portions. ~30g is a typical low threshold.
     name_localized: { ru: "Тёмный шоколад" }
+    note_localized: { ru: "Тестирует маннит + GOS в больших порциях. ~30г — типичный нижний порог." }

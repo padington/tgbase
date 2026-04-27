@@ -20,7 +20,7 @@ button.product.back: "⬅ Back"
 button.product.prev: "◀ Prev"
 button.product.next: "Next ▶"
 
-phase.stage_choice.prompt: "Recommended starting dose for {name} is {recommended}. Pick the volume you want to start with:"
+phase.stage_choice.prompt: "Recommended starting dose for {name} is {recommended}.{note}\n\nPick the volume you want to start with:"
 phase.stage_choice.invalid: "Please tap one of the suggested amounts."
 
 phase.stage.prompt: "Take {description}. I'll check in around {checkin} from now."
