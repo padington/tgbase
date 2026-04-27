@@ -8,6 +8,7 @@ enum FodmapLevel {
   FODMAP_UNSPECIFIED = 0;
   FODMAP_LOW = 1;
   FODMAP_HIGH = 2;
+  FODMAP_MODERATE = 3;
 }
 
 enum Measure {
