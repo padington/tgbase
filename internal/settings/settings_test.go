@@ -96,6 +96,16 @@ func TestUpdate_PersistsAndIsReadable(t *testing.T) {
 	}
 }
 
+func TestSettingsSeed_DefaultLocaleIsRu(t *testing.T) {
+	s, err := settings.New(store.NewMemoryBackend(), "../../settings.yaml")
+	if err != nil {
+		t.Fatalf("loading real settings.yaml: %v", err)
+	}
+	if got := s.Get().DefaultLocale; got != "ru" {
+		t.Errorf("settings.yaml default_locale: got %q, want %q", got, "ru")
+	}
+}
+
 func TestNew_BadDurationFails(t *testing.T) {
 	seed := writeSeed(t, "checkin_interval: not-a-duration\n")
 	if _, err := settings.New(store.NewMemoryBackend(), seed); err == nil {
