@@ -47,9 +47,11 @@ func (ProductCategoryPhase) Setup(ctx Context) Outcome {
 		}
 	}
 
+	back := ctx.Trans.T("button.product.back", ctx.Locale, nil)
+	keyboard := append(categoryKeyboard(ctx, available), []string{back})
 	return Outcome{
 		ReplyKey: "phase.product.category.prompt",
-		Keyboard: categoryKeyboard(ctx, available),
+		Keyboard: keyboard,
 		Mutate: func(u *state.UserData) {
 			u.PickerCategory = ""
 			u.PickerPage = 0
@@ -60,6 +62,11 @@ func (ProductCategoryPhase) Setup(ctx Context) Outcome {
 
 func (ProductCategoryPhase) Collect(ctx Context, input string) Outcome {
 	trimmed := strings.TrimSpace(input)
+
+	if trimmed == ctx.Trans.T("button.product.back", ctx.Locale, nil) {
+		return Outcome{NextState: state.StateAwaitingDefecation}
+	}
+
 	exclude := finishedProducts(ctx.User.Products)
 	available := ctx.Catalog.AvailableCategories(exclude)
 

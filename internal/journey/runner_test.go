@@ -805,6 +805,43 @@ func TestHandleText_ProductLabelFallsBackToCategoryEmoji(t *testing.T) {
 	}
 }
 
+func TestHandleText_CategoryBackReturnsToDefecation(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2")) // → category
+
+	runner.HandleText(sender, newMsg(1, "Back"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingDefecation {
+		t.Errorf("expected AwaitingDefecation after Back, got %q", d.State)
+	}
+	if got := sender.lastText(); got != "D?" {
+		t.Errorf("expected defecation prompt, got %q", got)
+	}
+}
+
+func TestHandleText_StageChoiceBackReturnsToProductChoice(t *testing.T) {
+	runner, store, sender := setupWithCategories(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	runner.HandleText(sender, newMsg(1, "F Fruits"))
+	runner.HandleText(sender, newMsg(1, "A Apple")) // → stage choice
+
+	runner.HandleText(sender, newMsg(1, "Back"))
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingProductChoice {
+		t.Errorf("expected AwaitingProductChoice after Back, got %q", d.State)
+	}
+	if d.CurrentProduct != "" {
+		t.Errorf("CurrentProduct should be cleared after Back, got %q", d.CurrentProduct)
+	}
+	if d.CurrentStage != "" {
+		t.Errorf("CurrentStage should be cleared after Back, got %q", d.CurrentStage)
+	}
+}
+
 func contains(haystack, needle string) bool {
 	return len(haystack) >= len(needle) && (haystack == needle || stringIndex(haystack, needle) != -1)
 }
