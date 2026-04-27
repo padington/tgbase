@@ -17,11 +17,12 @@ type Phase interface {
 }
 
 type Outcome struct {
-    NextState state.StateKind   // empty = stay put
-    ReplyKey  string            // i18n key; empty = silent
-    ReplyArgs map[string]any
-    Keyboard  [][]string        // each inner slice = one row
-    Mutate    func(*state.UserData)
+    NextState      state.StateKind   // empty = stay put
+    ReplyKey       string            // i18n key; empty = silent
+    ReplyArgs      map[string]any
+    Keyboard       [][]string        // each inner slice = one row
+    RemoveKeyboard bool              // dismiss any active Telegram keyboard
+    Mutate         func(*state.UserData)
 }
 
 type Context struct { UserID int64; User UserData; Catalog *products.Catalog; Settings settings.Settings; Trans i18n.Translator; Locale i18n.Locale; Now func() time.Time }

@@ -308,6 +308,32 @@ func TestHandleText_StageChoicePicksLowStartsCheckin(t *testing.T) {
 	}
 }
 
+func TestHandleText_StageChoiceDismissesKeyboardOnCheckinSetup(t *testing.T) {
+	runner, store, sender := setup(t)
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	runner.HandleText(sender, newMsg(1, "2"))
+	picked := store.Get(1).OfferedProducts[0]
+	runner.HandleText(sender, newMsg(1, picked))
+
+	sender.mu.Lock()
+	sender.sent = nil
+	sender.mu.Unlock()
+
+	runner.HandleText(sender, newMsg(1, lowAmountFor(t, picked)))
+
+	msgs := sender.snapshot()
+	if len(msgs) == 0 {
+		t.Fatal("expected at least one message after stage pick")
+	}
+	last, ok := msgs[len(msgs)-1].(tgbotapi.MessageConfig)
+	if !ok {
+		t.Fatalf("expected MessageConfig, got %T", msgs[len(msgs)-1])
+	}
+	if _, ok := last.ReplyMarkup.(tgbotapi.ReplyKeyboardRemove); !ok {
+		t.Errorf("expected ReplyKeyboardRemove after stage pick, got %T", last.ReplyMarkup)
+	}
+}
+
 func TestHandleText_StageChoicePicksMediumSkipsLow(t *testing.T) {
 	runner, store, sender := setup(t)
 	runner.HandleStart(sender, newMsg(1, "/start"))
