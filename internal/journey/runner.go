@@ -177,6 +177,8 @@ func (r *Runner) applyOutcome(ctx Context, oc Outcome, chatID int64) {
 		out := tgbotapi.NewMessage(chatID, text)
 		if len(oc.Keyboard) > 0 {
 			out.ReplyMarkup = buildKeyboard(oc.Keyboard)
+		} else if oc.RemoveKeyboard {
+			out.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 		}
 		if _, err := r.sender.Send(out); err != nil {
 			log.Printf("journey: send: %v", err)

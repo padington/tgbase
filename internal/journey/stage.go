@@ -31,6 +31,7 @@ func (StageCheckinPhase) Setup(ctx Context) Outcome {
 			"description": desc,
 			"checkin":     checkin,
 		},
+		RemoveKeyboard: true,
 		Mutate: func(u *state.UserData) {
 			u.StageStartedAt = now
 			u.CheckinAsked = false
