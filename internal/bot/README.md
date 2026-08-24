@@ -13,10 +13,18 @@ Composition root. The only package that imports every other internal package and
 ## Public API
 
 ```go
-type Config struct { Token, Env, DataDir, DataPath, I18nDir, ProductsSeedPath, SettingsSeedPath string; Debug bool; Timeout int; StateFlushInterval time.Duration }
+type Config struct { Token, Env, DataDir, DataPath, I18nDir, ProductsSeedPath, SettingsSeedPath, ScreeningDir string; Debug bool; Timeout int; StateFlushInterval time.Duration }
 func New(cfg Config) (*Bot, error)
 func (b *Bot) Run(ctx context.Context) error
 ```
+
+## Screening mode wiring
+
+`ScreeningDir` non-empty → `screening.Load` runs at startup (fail-fast on any
+content deviation), the mode fork + all `scr_*` phases are registered, and the
+`/adhd` / `/adhd_delete` commands are installed. Empty `ScreeningDir` →
+none of that happens and `/start` keeps its legacy direct-to-diary behavior
+(`Runner.HandleStart` falls back when the fork phase is unregistered).
 
 ## Backend selection (buildBackend)
 
