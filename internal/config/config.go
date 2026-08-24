@@ -26,6 +26,11 @@ type BootstrapConfig struct {
 	ProductsSeedPath string `yaml:"products_seed_path"`
 	SettingsSeedPath string `yaml:"settings_seed_path"`
 	I18nDir          string `yaml:"i18n_dir"`
+	// ScreeningDir holds the read-only ADHD-screening content YAMLs.
+	// Unlike the seeds above it is consulted on every boot (like I18nDir):
+	// the content is never copied into the backend. Empty = screening
+	// mode disabled.
+	ScreeningDir string `yaml:"screening_dir"`
 }
 
 // ReminderConfig is the legacy reminder block. Deprecated: settings live in

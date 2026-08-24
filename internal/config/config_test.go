@@ -64,6 +64,7 @@ bootstrap:
   products_seed_path: /products.yaml
   settings_seed_path: /settings.yaml
   i18n_dir: /i18n
+  screening_dir: /screening
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -80,6 +81,25 @@ bootstrap:
 	}
 	if cfg.Bootstrap.I18nDir != "/i18n" {
 		t.Errorf("i18n dir: got %q", cfg.Bootstrap.I18nDir)
+	}
+	if cfg.Bootstrap.ScreeningDir != "/screening" {
+		t.Errorf("screening dir: got %q", cfg.Bootstrap.ScreeningDir)
+	}
+}
+
+func TestLoad_ScreeningDirDefaultsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "c.yaml")
+	if err := writeFile(path, "state:\n  flush_interval: 200ms\n"); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Bootstrap.ScreeningDir != "" {
+		t.Errorf("screening dir: got %q, want empty", cfg.Bootstrap.ScreeningDir)
 	}
 }
 
