@@ -29,6 +29,7 @@ Each commit must touch **one package or concern only**. Never mix changes across
 | `internal/products/` | only products files |
 | `internal/settings/` | only settings files |
 | `internal/i18n/` | only i18n files |
+| `internal/screening/` | only screening files |
 | `internal/journey/` | only journey files |
 | `internal/reminder/` | only reminder files |
 | `internal/flows/meta/` | only meta flow files |
@@ -65,8 +66,9 @@ Every PR that changes a package's public API, persisted shape, runtime invariant
 - `internal/store` imports nothing internal — it's the bottom of the persistence stack.
 - `internal/state` imports `store` and `products` (for the `Stage` field type).
 - `internal/products`, `internal/settings`, `internal/i18n` import `store` (and `i18n` is consumed by `products`).
+- `internal/screening` imports nothing internal (stdlib + yaml.v3 only) — same layer as `products`.
 - `internal/reminder` imports `state` and `router` (legacy survey path) and is otherwise generic over a callback.
-- `internal/journey` imports `state`, `products`, `settings`, `i18n`, `router`, `tgbotapi` — it's the orchestrator.
+- `internal/journey` imports `state`, `products`, `settings`, `i18n`, `screening`, `router`, `tgbotapi` — it's the orchestrator.
 - `internal/flows/meta` imports `router` only.
 - `internal/bot` is the only composition root — it imports everything and wires it together.
 
@@ -88,11 +90,13 @@ internal/state/        per-user UserData on top of store.Backend (key="users")
 internal/products/     FODMAP catalog with metadata, mutable at runtime (key="products")
 internal/settings/     reminder/check-in tunables + default locale (key="settings")
 internal/i18n/         translator loaded from i18n/<locale>.yaml
-internal/journey/      Phase framework: SetupPhase, DefecationPhase, ProductChoicePhase, StageCheckinPhase
+internal/screening/    read-only ADHD screening content (ASRS/WURS/DSM module) + pure scoring
+internal/journey/      Phase framework: mode fork, FODMAP phases, scr_* screening phases
 internal/reminder/     scan loop with callback (calls journey.Runner.Remind)
 internal/flows/meta/   stateless commands: /ping, /whoami, /menu
 proto/                 canonical schemas; generated *.pb.go committed under internal/<pkg>/pb/
 i18n/                  bundled UI string yamls (en.yaml, ru.yaml)
+screening/             bundled read-only ADHD screening content yamls (ru), reloaded every boot
 products.yaml          first-boot product catalog seed
 settings.yaml          first-boot settings seed
 config.yaml            boot-only paths + state flush interval
