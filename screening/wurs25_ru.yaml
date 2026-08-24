@@ -1,0 +1,214 @@
+# WURS-25 — Wender Utah Rating Scale (25-пунктовая версия), русский текст для tgbase
+#
+# ВАЖНО: валидированной русскоязычной адаптации WURS-25 НЕ СУЩЕСТВУЕТ.
+# Используется неофициальный перевод psytests.org (2023), сделанный по оригинальным
+# материалам Ward, Wender, Reimherr (1993); сам psytests.org прямо указывает:
+# «Сведений об адаптации опросника нет. Перевод и подсчет баллов сделан по
+# оригинальным материалам». Пороги отсечения валидированы только на английском
+# оригинале (клинические выборки США).
+
+instrument:
+  id: wurs_25
+  name_en: "Wender Utah Rating Scale — 25-item version (WURS-25)"
+  name_ru: "Вендер-Ютская шкала самооценки СДВГ у взрослых (WURS-25)"
+  purpose: >-
+    Ретроспективная оценка детских симптомов СДВГ у взрослых (18+): помогает
+    подтвердить наличие симптомов в детстве, что требуется для диагноза СДВГ у
+    взрослых. Ограничена способностью респондента вспомнить детские годы.
+  authors: "M. F. Ward, P. H. Wender, F. W. Reimherr (1993)"
+  primary_reference: >-
+    Ward MF, Wender PH, Reimherr FW. The Wender Utah Rating Scale: an aid in the
+    retrospective diagnosis of childhood attention deficit hyperactivity disorder.
+    American Journal of Psychiatry. 1993;150(6):885-890.
+    (Полная шкала — 61 пункт; для скоринга используются приведённые здесь 25
+    пунктов, наиболее различавших пациентов с СДВГ и контрольную группу.)
+  translation:
+    source: "psytests.org (2023)"
+    source_urls:
+      - "https://psytests.org/diag/wurs.html"
+      - "https://psytests.org/diag/wurs-bl.html"
+      - "https://psytests.org/diag/wurs-blF.html"
+    local_copies:
+      - "sources/psytests_wurs.html"
+      - "sources/psytests_wurs_blank.html"
+      - "sources/psytests_wurs_blankF.html"
+      - "sources/psytests_wursen_blank.html"
+    status: unofficial
+    disclaimer_ru: >-
+      Русский перевод НЕ ВАЛИДИРОВАН: психометрическая адаптация русской версии
+      WURS-25 не публиковалась. Перевод — psytests.org (2023), выполнен по
+      оригинальным материалам; пороги и точность (чувствительность/специфичность)
+      относятся к английскому оригиналу.
+  target_population: "Взрослые от 18 лет"
+
+# Инструкция — дословно со страницы прохождения psytests.org.
+# Примечание: возрастной интервал «от шести до десяти лет» — уточнение psytests.org;
+# в оригинале Ward et al. формулировка «As a child I was (or had)…» / «As a child
+# in school…» без явного интервала.
+instruction_ru: >-
+  Ниже приведены пункты, касающиеся поведения детей и проблем, с которыми они
+  иногда сталкиваются. Прочитайте внимательно каждый пункт и определите,
+  насколько, по вашему мнению, вас беспокоили данные проблемы в возрасте от
+  шести до десяти лет. Выберите тот вариант ответа, который наиболее
+  соответствует вам в тот период жизни.
+
+# Шкала 0–4. Русские метки — дословно из бланка psytests.org.
+# (На бланке psytests колонки пронумерованы 1–5, но это номера колонок, НЕ баллы;
+# скоринг по оригиналу Ward et al. — 0–4 за пункт.)
+scale:
+  - score: 0
+    label: "Совсем нет или очень незначительно"
+    label_en: "Not at all or very slightly"
+  - score: 1
+    label: "Слегка"
+    label_en: "Mildly"
+  - score: 2
+    label: "Умеренно"
+    label_en: "Moderately"
+  - score: 3
+    label: "Довольно много"
+    label_en: "Quite a bit"
+  - score: 4
+    label: "Очень много"
+    label_en: "Very much"
+
+# 25 пунктов — дословно из бланков psytests.org.
+# text_m — мужской бланк, text_f — женский бланк, text_en — оригинал (Ward et al., 1993).
+items:
+  - id: 1
+    text_m: "В школьные годы у меня были проблемы с концентрацией внимания, я легко отвлекался"
+    text_f: "В школьные годы у меня были проблемы с концентрацией внимания, я легко отвлекалась"
+    text_en: "As a child in school I had concentration problems, easily distracted"
+  - id: 2
+    text_m: "В школьные годы я был тревожным, беспокойным"
+    text_f: "В школьные годы я была тревожной, беспокойной"
+    text_en: "As a child in school I was anxious, worrying"
+  - id: 3
+    text_m: "В школьные годы я был нервным, суетливым"
+    text_f: "В школьные годы я была нервной, суетливой"
+    text_en: "As a child in school I was nervous, fidgety"
+  - id: 4
+    text_m: "В школьные годы я был невнимательным, «витал в облаках»"
+    text_f: "В школьные годы я была невнимательной, «витала в облаках»"
+    text_en: "As a child in school I was inattentive, daydreaming"
+  - id: 5
+    text_m: "В школьные годы я был вспыльчивым, несдержанным, легко «закипал»"
+    text_f: "В школьные годы я была вспыльчивой, несдержанной, легко «закипала»"
+    text_en: "As a child in school I was hot- or short-tempered, low boiling point"
+  - id: 6
+    text_m: "В школьные годы у меня были вспышки гнева, истерики"
+    text_f: "В школьные годы у меня были вспышки гнева, истерики"
+    text_en: "As a child in school I had temper outbursts, tantrums"
+  - id: 7
+    text_m: "В школьные годы у меня были проблемы с настойчивостью, неспособностью довести начатое до конца"
+    text_f: "В школьные годы у меня были проблемы с настойчивостью, неспособностью довести начатое до конца"
+    text_en: "As a child in school I had trouble with stick-to-it-tiveness, not following through, failing to finish things started"
+  - id: 8
+    text_m: "В школьные годы я был упрямым, упёртым, неподатливым"
+    text_f: "В школьные годы я была упрямой, упёртой, неподатливой"
+    text_en: "As a child in school I was stubborn, strong-willed"
+  - id: 9
+    text_m: "В школьные годы я был грустным, депрессивным, несчастным"
+    text_f: "В школьные годы я была грустной, депрессивной, несчастной"
+    text_en: "As a child in school I was sad or blue, depressed, unhappy"
+  - id: 10
+    text_m: "В школьные годы я был непокорным, нахальным, не слушался родителей"
+    text_f: "В школьные годы я была непокорной, нахальной, не слушалась родителей"
+    text_en: "As a child in school I was disobedient with parents, rebellious, sassy"
+  - id: 11
+    text_m: "В школьные годы я был низкого мнения о себе"
+    text_f: "В школьные годы я была низкого мнения о себе"
+    text_en: "As a child in school I had low opinion of myself"
+  - id: 12
+    text_m: "В школьные годы я был раздражительным"
+    text_f: "В школьные годы я была раздражительной"
+    text_en: "As a child in school I was irritable"
+  - id: 13
+    text_m: "В школьные годы я был капризным, с перепадами настроения"
+    text_f: "В школьные годы я была капризной, с перепадами настроения"
+    text_en: "As a child in school I was moody, ups and downs"
+  - id: 14
+    text_m: "В школьные годы я был гневливым, злобным"
+    text_f: "В школьные годы я была гневливой, злобной"
+    text_en: "As a child in school I was angry"
+  - id: 15
+    text_m: "В школьные годы я действовал бездумно, импульсивно"
+    text_f: "В школьные годы я действовала бездумно, импульсивно"
+    text_en: "As a child in school I was acting without thinking, impulsive"
+  - id: 16
+    text_m: "В школьные годы я был склонен к незрелому, безответственному поведению, шалостям"
+    text_f: "В школьные годы я была склонна к незрелому, безответственному поведению, шалостям"
+    text_en: "As a child in school I had tendency to be immature"
+  - id: 17
+    text_m: "В школьные годы у меня было чувство вины, сожаления, раскаяния"
+    text_f: "В школьные годы у меня было чувство вины, сожаления, раскаяния"
+    text_en: "As a child in school I had guilty feelings, regretful"
+  - id: 18
+    text_m: "В школьные годы я терял над собой контроль"
+    text_f: "В школьные годы я теряла над собой контроль"
+    text_en: "As a child in school I was losing control of myself"
+  - id: 19
+    text_m: "В школьные годы я был склонен к иррациональности, иррациональному поведению"
+    text_f: "В школьные годы я была склонна к иррациональности, иррациональному поведению"
+    text_en: "As a child in school I had tendency to be or act irrational"
+  - id: 20
+    text_m: "В школьные годы я был непопулярным среди других детей, не сохранял дружбу надолго, не ладил с другими детьми"
+    text_f: "В школьные годы я была непопулярной среди других детей, не сохраняла дружбу надолго, не ладила с другими детьми"
+    text_en: "As a child in school I was unpopular with other children, didn't keep friends for long, didn't get along with other children"
+  - id: 21
+    text_m: "В школьные годы у меня были проблемы с тем, чтобы поставить себя на место другого"
+    text_f: "В школьные годы у меня были проблемы с тем, чтобы поставить себя на место другого"
+    text_en: "As a child in school I had trouble seeing things from someone else's point of view"
+  - id: 22
+    text_m: "В школьные годы у меня были проблемы с дисциплиной, с учебой, вызовы родителей в школу"
+    text_f: "В школьные годы у меня были проблемы с дисциплиной, с учебой, вызовы родителей в школу"
+    text_en: "As a child in school I had trouble with authorities, trouble with school, visits to principal's office"
+  - id: 23
+    text_m: "В школьные годы я учился в целом плохо, медленно усваивал материал"
+    text_f: "В школьные годы я училась в целом плохо, медленно усваивала материал"
+    text_en: "As a child in school I was overall a poor student, slow learner"
+  - id: 24
+    text_m: "В школьные годы у меня были проблемы с математикой или с числами, датами"
+    text_f: "В школьные годы у меня были проблемы с математикой или с числами, датами"
+    text_en: "As a child in school I had trouble with mathematics or numbers"
+  - id: 25
+    text_m: "В школьные годы я не достигал своего потенциала"
+    text_f: "В школьные годы я не достигала своего потенциала"
+    text_en: "As a child in school I was not achieving up to potential"
+
+scoring:
+  method: "Сумма баллов по всем 25 пунктам, каждый пункт 0–4."
+  range: [0, 100]
+  thresholds:
+    - cutoff: 46
+      role: primary
+      rule: "Балл >= 46 — скрининг положительный (ретроспективные детские симптомы согласуются с СДВГ)."
+      evidence: >-
+        Ward, Wender, Reimherr (1993): порог 46 правильно классифицировал 86%
+        пациентов с СДВГ (чувствительность 86%), 99% здоровых из контрольной
+        группы (специфичность 99%) и 81% пациентов с депрессией.
+    - cutoff: 36
+      role: alternative_ward1993
+      rule: "Балл >= 36 — более чувствительный порог при различении только с нормой."
+      evidence: >-
+        Ward, Wender, Reimherr (1993): порог 36 давал чувствительность 96% при
+        специфичности ~96% против здорового контроля (но хуже отделяет от
+        депрессии, чем порог 46).
+    - cutoff: 30
+      role: alternative_low
+      rule: "Балл >= 30 — низкий порог, применяемый в части последующих валидационных исследований и переводов WURS-25 как более мягкая скрининговая граница."
+      evidence: >-
+        Используется в ряде более поздних зарубежных исследований/адаптаций
+        WURS(-25) как скрининговый катоф; повышает чувствительность ценой
+        специфичности. К русскому переводу напрямую не валидирован.
+  validation_caveat_ru: >-
+    Все пороги получены на английском оригинале (клинические выборки США,
+    Ward et al., 1993). Для русского перевода чувствительность/специфичность
+    не измерялись — трактовать результат только как ориентировочный скрининг.
+
+attribution_text_ru: >-
+  Вендер-Ютская шкала (WURS), 25-пунктовая скоринговая версия: Ward M.F.,
+  Wender P.H., Reimherr F.W., American Journal of Psychiatry, 1993.
+  Русский текст пунктов — неофициальный перевод psytests.org (2023);
+  валидированной русской адаптации не существует, результат — ориентировочный
+  скрининг, а не диагноз.
