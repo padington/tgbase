@@ -4,7 +4,12 @@ The multi-phase interaction framework. Owns the user-facing flow.
 
 ## Responsibility
 
-Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatches text + reminder ticks to phases, and the concrete phases (defecation → product category → product choice → stage choice → stage check-in).
+Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatches text + reminder ticks to phases, and the concrete phases of both modes:
+
+- **FODMAP diary**: defecation → product category → product choice → stage choice → stage check-in.
+- **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 → result → referral → doctor report; plus the delete-confirmation phase.
+
+`/start` lands on `ModeChoicePhase` (the fork). The screening phases receive a `*screening.Content` via their constructors; `journey.New` is unchanged.
 
 ## Public API
 
@@ -30,15 +35,24 @@ type Context struct { UserID int64; User UserData; Catalog *products.Catalog; Se
 func New(stateStore *state.Store, sender router.Sender, catalog *products.Catalog,
         settingsStore *settings.Store, trans i18n.Translator) *Runner
 func (r *Runner) Register(p Phase)
-func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message)   // /start handler
+func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message)   // /start → mode fork (legacy path when the fork is unregistered)
 func (r *Runner) HandleText(s router.Sender, msg *tgbotapi.Message)    // generic text dispatcher
 func (r *Runner) HandleAbout / HandleReport / HandleAbandon
+func (r *Runner) HandleAdhd / HandleAdhdDelete                          // screening entry / data deletion (no-ops when unwired)
 func (r *Runner) IsJourneyState(userID int64) bool
 func (r *Runner) Remind()  // called by reminder.Worker on every tick
 
 // Concrete phases:
 func NewDefecationPhase(), NewProductCategoryPhase(), NewProductChoicePhase(),
     NewStageChoicePhase(), NewStageCheckinPhase()
+func NewModeChoicePhase()
+// Screening phases (all take *screening.Content):
+func NewScrConsentPhase(c), NewScrIntroPhase(c),
+    NewScrAsrsAPhase(c), NewScrAsrsAGatePhase(c), NewScrAsrsBPhase(c), NewScrAsrsBGatePhase(c),
+    NewScrWursFormPhase(c), NewScrWursPhase(c), NewScrWursGatePhase(c),
+    NewScrOnsetPhase(c), NewScrOnsetAgePhase(c),
+    NewScrDomainsAdultPhase(c), NewScrDomainsChildPhase(c),
+    NewScrReferralPhase(c), NewScrReportPhase(c), NewScrDeleteConfirmPhase(c)
 ```
 
 ## Runner contracts (important)
@@ -56,6 +70,17 @@ func NewDefecationPhase(), NewProductCategoryPhase(), NewProductChoicePhase(),
 | `ProductChoicePhase` | `StateAwaitingProductChoice` | 4×3 paged grid scoped to `User.PickerCategory`, plus Back / Prev / Next. Bounces to category state when category is empty or unset. |
 | `StageChoicePhase` | `StateAwaitingStageChoice` | 3-button volume picker (low/med/high). Renders the product's localized note (when set) as a "💡 …" line above the keyboard so the user can read prep / pathway / swap context before committing to a dose. |
 | `StageCheckinPhase` | `StateAwaitingStageCheckin` | yes/no; advances stage, completes product, or marks not_tolerated. Reminder prompts the check-in question after `Settings.CheckinInterval`. |
+| `ModeChoicePhase` | `StateAwaitingModeChoice` | /start fork. The FODMAP button owns the legacy /start semantics (interrupt + reset); the screening button leaves the diary intact. Silent `Remind` — users parked on the fork get no nudges (accepted trade-off). |
+| `ScrConsentPhase` … `ScrDeleteConfirmPhase` | `scr_*` | The ADHD self-check chain. All `Remind`s are empty — the reminder loop never selects `scr_*` states by construction (pinned by test). Texts are assembled from `screening.Content` and sent via the `scr.text` pass-through i18n key. |
+
+## Screening-specific contracts
+
+- **Privacy**: raw per-question answers live only in `UserData.Screening` (transient); completion writes `ScreeningResult` and wipes `Screening` in the same `Set`. The doctor report is rendered on the fly and never stored. The WURS wording form (m/f) never reaches the result.
+- **Detour bookkeeping**: `/start` or `/adhd` from a FODMAP state records `ReturnState`; every screening exit (pause, decline, finish, delete, `/abandon`) returns there (re-firing that phase's Setup — which restarts the stage timer, an accepted trade-off pinned by test) or to idle, clearing `ReturnState`.
+- **Pause/resume**: gates set `Screening.ResumeState`; `/start` mid-screening records the current state there. `/adhd` resumes via the intro in resume mode without re-asking consent. "Start" on the resume intro means "start over" (wipes raw answers, keeps the previous result until a new completion).
+- **No combined score**: each instrument renders its own block with its own threshold and attribution; the overall wording maps `screening.OverallVerdict` keys onto content templates.
+- **Reply keyboards** (v1 compromise): the user's taps stay visible in their Telegram chat history; the bot neither reads nor stores it. Inline buttons + CallbackQuery support in `internal/router` would remove that trace — a v2 privacy improvement, out of scope here.
+- **No nudges / no TTL** for unfinished screenings in v1 — a future extension point.
 
 ## Picker label rendering
 
@@ -72,4 +97,4 @@ func NewDefecationPhase(), NewProductCategoryPhase(), NewProductChoicePhase(),
 
 ## Dependencies
 
-`internal/state, products, settings, i18n, router` + `tgbotapi`. Top of the internal stack — only `bot` imports it.
+`internal/state, products, settings, i18n, screening, router` + `tgbotapi`. Top of the internal stack — only `bot` imports it.

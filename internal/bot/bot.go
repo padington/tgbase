@@ -15,6 +15,7 @@ import (
 	"github.com/padington/tgbase/internal/products"
 	"github.com/padington/tgbase/internal/reminder"
 	"github.com/padington/tgbase/internal/router"
+	"github.com/padington/tgbase/internal/screening"
 	"github.com/padington/tgbase/internal/settings"
 	"github.com/padington/tgbase/internal/state"
 	"github.com/padington/tgbase/internal/store"
@@ -34,6 +35,12 @@ type Config struct {
 	ProductsSeedPath   string
 	SettingsSeedPath   string
 	I18nDir            string
+
+	// ScreeningDir holds the read-only ADHD-screening content YAMLs
+	// (reloaded on every boot, never backend-seeded). Empty disables the
+	// screening mode: /start keeps its legacy behavior and the /adhd
+	// commands are not registered.
+	ScreeningDir string
 
 	// DataPath is the legacy single-file persistence path. Kept so main.go
 	// continues compiling while it transitions to DataDir.
@@ -81,12 +88,41 @@ func New(cfg Config) (*Bot, error) {
 
 	stateStore := state.NewStoreFromBackend(backend)
 
+	var scrContent *screening.Content
+	if cfg.ScreeningDir != "" {
+		scrContent, err = screening.Load(cfg.ScreeningDir)
+		if err != nil {
+			// Fail fast: running with wrong instrument texts or thresholds
+			// is worse than not starting.
+			return nil, fmt.Errorf("load screening content from %s: %w", cfg.ScreeningDir, err)
+		}
+	}
+
 	runner := journey.New(stateStore, api, catalog, settingsStore, trans)
 	runner.Register(journey.NewDefecationPhase())
 	runner.Register(journey.NewProductCategoryPhase())
 	runner.Register(journey.NewProductChoicePhase())
 	runner.Register(journey.NewStageChoicePhase())
 	runner.Register(journey.NewStageCheckinPhase())
+	if scrContent != nil {
+		runner.Register(journey.NewModeChoicePhase())
+		runner.Register(journey.NewScrConsentPhase(scrContent))
+		runner.Register(journey.NewScrIntroPhase(scrContent))
+		runner.Register(journey.NewScrAsrsAPhase(scrContent))
+		runner.Register(journey.NewScrAsrsAGatePhase(scrContent))
+		runner.Register(journey.NewScrAsrsBPhase(scrContent))
+		runner.Register(journey.NewScrAsrsBGatePhase(scrContent))
+		runner.Register(journey.NewScrWursFormPhase(scrContent))
+		runner.Register(journey.NewScrWursPhase(scrContent))
+		runner.Register(journey.NewScrWursGatePhase(scrContent))
+		runner.Register(journey.NewScrOnsetPhase(scrContent))
+		runner.Register(journey.NewScrOnsetAgePhase(scrContent))
+		runner.Register(journey.NewScrDomainsAdultPhase(scrContent))
+		runner.Register(journey.NewScrDomainsChildPhase(scrContent))
+		runner.Register(journey.NewScrReferralPhase(scrContent))
+		runner.Register(journey.NewScrReportPhase(scrContent))
+		runner.Register(journey.NewScrDeleteConfirmPhase(scrContent))
+	}
 
 	worker := reminder.NewWithCallback(
 		runner.Remind,
@@ -105,6 +141,10 @@ func New(cfg Config) (*Bot, error) {
 	r.HandleCommand("about", runner.HandleAbout)
 	r.HandleCommand("report", runner.HandleReport)
 	r.HandleCommand("abandon", runner.HandleAbandon)
+	if scrContent != nil {
+		r.HandleCommand("adhd", runner.HandleAdhd)
+		r.HandleCommand("adhd_delete", runner.HandleAdhdDelete)
+	}
 
 	r.HandleText(func(msg *tgbotapi.Message) bool {
 		if msg.From == nil {

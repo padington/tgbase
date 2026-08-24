@@ -26,31 +26,85 @@ const (
 type StateKind int32
 
 const (
-	StateKind_STATE_UNSPECIFIED             StateKind = 0
-	StateKind_STATE_IDLE                    StateKind = 1
-	StateKind_STATE_AWAITING_DEFECATION     StateKind = 2
-	StateKind_STATE_AWAITING_PRODUCT_CHOICE StateKind = 3
-	StateKind_STATE_AWAITING_STAGE_CHECKIN  StateKind = 4
-	StateKind_STATE_AWAITING_STAGE_CHOICE   StateKind = 5
+	StateKind_STATE_UNSPECIFIED               StateKind = 0
+	StateKind_STATE_IDLE                      StateKind = 1
+	StateKind_STATE_AWAITING_DEFECATION       StateKind = 2
+	StateKind_STATE_AWAITING_PRODUCT_CHOICE   StateKind = 3
+	StateKind_STATE_AWAITING_STAGE_CHECKIN    StateKind = 4
+	StateKind_STATE_AWAITING_STAGE_CHOICE     StateKind = 5
+	StateKind_STATE_AWAITING_MODE_CHOICE      StateKind = 6
+	StateKind_STATE_SCR_CONSENT               StateKind = 7
+	StateKind_STATE_SCR_INTRO                 StateKind = 8
+	StateKind_STATE_SCR_ASRS_A                StateKind = 9
+	StateKind_STATE_SCR_ASRS_A_GATE           StateKind = 10
+	StateKind_STATE_SCR_ASRS_B                StateKind = 11
+	StateKind_STATE_SCR_ASRS_B_GATE           StateKind = 12
+	StateKind_STATE_SCR_WURS_FORM             StateKind = 13
+	StateKind_STATE_SCR_WURS                  StateKind = 14
+	StateKind_STATE_SCR_WURS_GATE             StateKind = 15
+	StateKind_STATE_SCR_ONSET                 StateKind = 16
+	StateKind_STATE_SCR_ONSET_AGE             StateKind = 17
+	StateKind_STATE_SCR_DOMAINS_ADULT         StateKind = 18
+	StateKind_STATE_SCR_DOMAINS_CHILD         StateKind = 19
+	StateKind_STATE_SCR_REFERRAL              StateKind = 20
+	StateKind_STATE_SCR_REPORT                StateKind = 21
+	StateKind_STATE_SCR_DELETE_CONFIRM        StateKind = 22
+	StateKind_STATE_AWAITING_PRODUCT_CATEGORY StateKind = 23
 )
 
 // Enum value maps for StateKind.
 var (
 	StateKind_name = map[int32]string{
-		0: "STATE_UNSPECIFIED",
-		1: "STATE_IDLE",
-		2: "STATE_AWAITING_DEFECATION",
-		3: "STATE_AWAITING_PRODUCT_CHOICE",
-		4: "STATE_AWAITING_STAGE_CHECKIN",
-		5: "STATE_AWAITING_STAGE_CHOICE",
+		0:  "STATE_UNSPECIFIED",
+		1:  "STATE_IDLE",
+		2:  "STATE_AWAITING_DEFECATION",
+		3:  "STATE_AWAITING_PRODUCT_CHOICE",
+		4:  "STATE_AWAITING_STAGE_CHECKIN",
+		5:  "STATE_AWAITING_STAGE_CHOICE",
+		6:  "STATE_AWAITING_MODE_CHOICE",
+		7:  "STATE_SCR_CONSENT",
+		8:  "STATE_SCR_INTRO",
+		9:  "STATE_SCR_ASRS_A",
+		10: "STATE_SCR_ASRS_A_GATE",
+		11: "STATE_SCR_ASRS_B",
+		12: "STATE_SCR_ASRS_B_GATE",
+		13: "STATE_SCR_WURS_FORM",
+		14: "STATE_SCR_WURS",
+		15: "STATE_SCR_WURS_GATE",
+		16: "STATE_SCR_ONSET",
+		17: "STATE_SCR_ONSET_AGE",
+		18: "STATE_SCR_DOMAINS_ADULT",
+		19: "STATE_SCR_DOMAINS_CHILD",
+		20: "STATE_SCR_REFERRAL",
+		21: "STATE_SCR_REPORT",
+		22: "STATE_SCR_DELETE_CONFIRM",
+		23: "STATE_AWAITING_PRODUCT_CATEGORY",
 	}
 	StateKind_value = map[string]int32{
-		"STATE_UNSPECIFIED":             0,
-		"STATE_IDLE":                    1,
-		"STATE_AWAITING_DEFECATION":     2,
-		"STATE_AWAITING_PRODUCT_CHOICE": 3,
-		"STATE_AWAITING_STAGE_CHECKIN":  4,
-		"STATE_AWAITING_STAGE_CHOICE":   5,
+		"STATE_UNSPECIFIED":               0,
+		"STATE_IDLE":                      1,
+		"STATE_AWAITING_DEFECATION":       2,
+		"STATE_AWAITING_PRODUCT_CHOICE":   3,
+		"STATE_AWAITING_STAGE_CHECKIN":    4,
+		"STATE_AWAITING_STAGE_CHOICE":     5,
+		"STATE_AWAITING_MODE_CHOICE":      6,
+		"STATE_SCR_CONSENT":               7,
+		"STATE_SCR_INTRO":                 8,
+		"STATE_SCR_ASRS_A":                9,
+		"STATE_SCR_ASRS_A_GATE":           10,
+		"STATE_SCR_ASRS_B":                11,
+		"STATE_SCR_ASRS_B_GATE":           12,
+		"STATE_SCR_WURS_FORM":             13,
+		"STATE_SCR_WURS":                  14,
+		"STATE_SCR_WURS_GATE":             15,
+		"STATE_SCR_ONSET":                 16,
+		"STATE_SCR_ONSET_AGE":             17,
+		"STATE_SCR_DOMAINS_ADULT":         18,
+		"STATE_SCR_DOMAINS_CHILD":         19,
+		"STATE_SCR_REFERRAL":              20,
+		"STATE_SCR_REPORT":                21,
+		"STATE_SCR_DELETE_CONFIRM":        22,
+		"STATE_AWAITING_PRODUCT_CATEGORY": 23,
 	}
 )
 
@@ -193,6 +247,275 @@ func (x *ProductProgress) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// ScreeningProgress mirrors state.ScreeningProgress — the TRANSIENT
+// unfinished ADHD-screening run (raw per-question answers live only here;
+// wiped on completion / restart / abandon / delete).
+type ScreeningProgress struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AsrsAnswers   []int32                `protobuf:"varint,1,rep,packed,name=asrs_answers,json=asrsAnswers,proto3" json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = id-1
+	WursAnswers   []int32                `protobuf:"varint,2,rep,packed,name=wurs_answers,json=wursAnswers,proto3" json:"wurs_answers,omitempty"` // append-only, scores 0..4
+	WursForm      string                 `protobuf:"bytes,3,opt,name=wurs_form,json=wursForm,proto3" json:"wurs_form,omitempty"`                  // "m" | "f"
+	OnsetChild    *bool                  `protobuf:"varint,4,opt,name=onset_child,json=onsetChild,proto3,oneof" json:"onset_child,omitempty"`     // absent = not asked yet
+	OnsetAge      int32                  `protobuf:"varint,5,opt,name=onset_age,json=onsetAge,proto3" json:"onset_age,omitempty"`                 // >0 when onset_child == false
+	AdultDomains  []string               `protobuf:"bytes,6,rep,name=adult_domains,json=adultDomains,proto3" json:"adult_domains,omitempty"`
+	ChildDomains  []string               `protobuf:"bytes,7,rep,name=child_domains,json=childDomains,proto3" json:"child_domains,omitempty"`
+	ResumeState   StateKind              `protobuf:"varint,8,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"`
+	ConsentAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScreeningProgress) Reset() {
+	*x = ScreeningProgress{}
+	mi := &file_state_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScreeningProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScreeningProgress) ProtoMessage() {}
+
+func (x *ScreeningProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScreeningProgress.ProtoReflect.Descriptor instead.
+func (*ScreeningProgress) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ScreeningProgress) GetAsrsAnswers() []int32 {
+	if x != nil {
+		return x.AsrsAnswers
+	}
+	return nil
+}
+
+func (x *ScreeningProgress) GetWursAnswers() []int32 {
+	if x != nil {
+		return x.WursAnswers
+	}
+	return nil
+}
+
+func (x *ScreeningProgress) GetWursForm() string {
+	if x != nil {
+		return x.WursForm
+	}
+	return ""
+}
+
+func (x *ScreeningProgress) GetOnsetChild() bool {
+	if x != nil && x.OnsetChild != nil {
+		return *x.OnsetChild
+	}
+	return false
+}
+
+func (x *ScreeningProgress) GetOnsetAge() int32 {
+	if x != nil {
+		return x.OnsetAge
+	}
+	return 0
+}
+
+func (x *ScreeningProgress) GetAdultDomains() []string {
+	if x != nil {
+		return x.AdultDomains
+	}
+	return nil
+}
+
+func (x *ScreeningProgress) GetChildDomains() []string {
+	if x != nil {
+		return x.ChildDomains
+	}
+	return nil
+}
+
+func (x *ScreeningProgress) GetResumeState() StateKind {
+	if x != nil {
+		return x.ResumeState
+	}
+	return StateKind_STATE_UNSPECIFIED
+}
+
+func (x *ScreeningProgress) GetConsentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConsentAt
+	}
+	return nil
+}
+
+func (x *ScreeningProgress) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+// ScreeningResult mirrors state.ScreeningResult — the last completed run:
+// scores + applied thresholds + context facts, never per-question answers.
+type ScreeningResult struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	AsrsASignificant int32                  `protobuf:"varint,2,opt,name=asrs_a_significant,json=asrsASignificant,proto3" json:"asrs_a_significant,omitempty"` // 0..6
+	AsrsAThreshold   int32                  `protobuf:"varint,3,opt,name=asrs_a_threshold,json=asrsAThreshold,proto3" json:"asrs_a_threshold,omitempty"`       // applied threshold (4)
+	AsrsAPositive    bool                   `protobuf:"varint,4,opt,name=asrs_a_positive,json=asrsAPositive,proto3" json:"asrs_a_positive,omitempty"`
+	AsrsBSignificant int32                  `protobuf:"varint,5,opt,name=asrs_b_significant,json=asrsBSignificant,proto3" json:"asrs_b_significant,omitempty"` // 0..12, no threshold by design
+	WursScore        int32                  `protobuf:"varint,6,opt,name=wurs_score,json=wursScore,proto3" json:"wurs_score,omitempty"`                        // 0..100
+	WursCutoff       int32                  `protobuf:"varint,7,opt,name=wurs_cutoff,json=wursCutoff,proto3" json:"wurs_cutoff,omitempty"`                     // applied cutoff (46)
+	WursPositive     bool                   `protobuf:"varint,8,opt,name=wurs_positive,json=wursPositive,proto3" json:"wurs_positive,omitempty"`
+	OnsetChildhood   bool                   `protobuf:"varint,9,opt,name=onset_childhood,json=onsetChildhood,proto3" json:"onset_childhood,omitempty"`
+	OnsetAge         int32                  `protobuf:"varint,10,opt,name=onset_age,json=onsetAge,proto3" json:"onset_age,omitempty"` // 0 when onset_childhood
+	AdultDomains     []string               `protobuf:"bytes,11,rep,name=adult_domains,json=adultDomains,proto3" json:"adult_domains,omitempty"`
+	ChildDomains     []string               `protobuf:"bytes,12,rep,name=child_domains,json=childDomains,proto3" json:"child_domains,omitempty"`
+	Verdict          string                 `protobuf:"bytes,13,opt,name=verdict,proto3" json:"verdict,omitempty"`                // consistent | partial | not_consistent
+	GapHint          string                 `protobuf:"bytes,14,opt,name=gap_hint,json=gapHint,proto3" json:"gap_hint,omitempty"` // gap-hint key when partial
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ScreeningResult) Reset() {
+	*x = ScreeningResult{}
+	mi := &file_state_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScreeningResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScreeningResult) ProtoMessage() {}
+
+func (x *ScreeningResult) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScreeningResult.ProtoReflect.Descriptor instead.
+func (*ScreeningResult) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ScreeningResult) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *ScreeningResult) GetAsrsASignificant() int32 {
+	if x != nil {
+		return x.AsrsASignificant
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetAsrsAThreshold() int32 {
+	if x != nil {
+		return x.AsrsAThreshold
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetAsrsAPositive() bool {
+	if x != nil {
+		return x.AsrsAPositive
+	}
+	return false
+}
+
+func (x *ScreeningResult) GetAsrsBSignificant() int32 {
+	if x != nil {
+		return x.AsrsBSignificant
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetWursScore() int32 {
+	if x != nil {
+		return x.WursScore
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetWursCutoff() int32 {
+	if x != nil {
+		return x.WursCutoff
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetWursPositive() bool {
+	if x != nil {
+		return x.WursPositive
+	}
+	return false
+}
+
+func (x *ScreeningResult) GetOnsetChildhood() bool {
+	if x != nil {
+		return x.OnsetChildhood
+	}
+	return false
+}
+
+func (x *ScreeningResult) GetOnsetAge() int32 {
+	if x != nil {
+		return x.OnsetAge
+	}
+	return 0
+}
+
+func (x *ScreeningResult) GetAdultDomains() []string {
+	if x != nil {
+		return x.AdultDomains
+	}
+	return nil
+}
+
+func (x *ScreeningResult) GetChildDomains() []string {
+	if x != nil {
+		return x.ChildDomains
+	}
+	return nil
+}
+
+func (x *ScreeningResult) GetVerdict() string {
+	if x != nil {
+		return x.Verdict
+	}
+	return ""
+}
+
+func (x *ScreeningResult) GetGapHint() string {
+	if x != nil {
+		return x.GapHint
+	}
+	return ""
+}
+
 type UserData struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	State           StateKind                   `protobuf:"varint,1,opt,name=state,proto3,enum=tgbase.state.v1.StateKind" json:"state,omitempty"`
@@ -207,13 +530,16 @@ type UserData struct {
 	EnteredAt       *timestamppb.Timestamp      `protobuf:"bytes,10,opt,name=entered_at,json=enteredAt,proto3" json:"entered_at,omitempty"`
 	ReminderSent    bool                        `protobuf:"varint,11,opt,name=reminder_sent,json=reminderSent,proto3" json:"reminder_sent,omitempty"`
 	Locale          string                      `protobuf:"bytes,12,opt,name=locale,proto3" json:"locale,omitempty"`
+	Screening       *ScreeningProgress          `protobuf:"bytes,13,opt,name=screening,proto3" json:"screening,omitempty"`
+	ScreeningResult *ScreeningResult            `protobuf:"bytes,14,opt,name=screening_result,json=screeningResult,proto3" json:"screening_result,omitempty"`
+	ReturnState     StateKind                   `protobuf:"varint,15,opt,name=return_state,json=returnState,proto3,enum=tgbase.state.v1.StateKind" json:"return_state,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UserData) Reset() {
 	*x = UserData{}
-	mi := &file_state_proto_msgTypes[1]
+	mi := &file_state_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +551,7 @@ func (x *UserData) String() string {
 func (*UserData) ProtoMessage() {}
 
 func (x *UserData) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[1]
+	mi := &file_state_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +564,7 @@ func (x *UserData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserData.ProtoReflect.Descriptor instead.
 func (*UserData) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{1}
+	return file_state_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UserData) GetState() StateKind {
@@ -325,6 +651,27 @@ func (x *UserData) GetLocale() string {
 	return ""
 }
 
+func (x *UserData) GetScreening() *ScreeningProgress {
+	if x != nil {
+		return x.Screening
+	}
+	return nil
+}
+
+func (x *UserData) GetScreeningResult() *ScreeningResult {
+	if x != nil {
+		return x.ScreeningResult
+	}
+	return nil
+}
+
+func (x *UserData) GetReturnState() StateKind {
+	if x != nil {
+		return x.ReturnState
+	}
+	return StateKind_STATE_UNSPECIFIED
+}
+
 type UserMap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         map[int64]*UserData    `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -334,7 +681,7 @@ type UserMap struct {
 
 func (x *UserMap) Reset() {
 	*x = UserMap{}
-	mi := &file_state_proto_msgTypes[2]
+	mi := &file_state_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -346,7 +693,7 @@ func (x *UserMap) String() string {
 func (*UserMap) ProtoMessage() {}
 
 func (x *UserMap) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[2]
+	mi := &file_state_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -359,7 +706,7 @@ func (x *UserMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMap.ProtoReflect.Descriptor instead.
 func (*UserMap) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{2}
+	return file_state_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *UserMap) GetUsers() map[int64]*UserData {
@@ -379,7 +726,41 @@ const file_state_proto_rawDesc = "" +
 	"last_stage\x18\x01 \x01(\x0e2\x19.tgbase.products.v1.StageR\tlastStage\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x129\n" +
 	"\n" +
-	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xbc\x05\n" +
+	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xc8\x03\n" +
+	"\x11ScreeningProgress\x12!\n" +
+	"\fasrs_answers\x18\x01 \x03(\x05R\vasrsAnswers\x12!\n" +
+	"\fwurs_answers\x18\x02 \x03(\x05R\vwursAnswers\x12\x1b\n" +
+	"\twurs_form\x18\x03 \x01(\tR\bwursForm\x12$\n" +
+	"\vonset_child\x18\x04 \x01(\bH\x00R\n" +
+	"onsetChild\x88\x01\x01\x12\x1b\n" +
+	"\tonset_age\x18\x05 \x01(\x05R\bonsetAge\x12#\n" +
+	"\radult_domains\x18\x06 \x03(\tR\fadultDomains\x12#\n" +
+	"\rchild_domains\x18\a \x03(\tR\fchildDomains\x12=\n" +
+	"\fresume_state\x18\b \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vresumeState\x129\n" +
+	"\n" +
+	"consent_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tconsentAt\x129\n" +
+	"\n" +
+	"started_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAtB\x0e\n" +
+	"\f_onset_child\"\xa0\x04\n" +
+	"\x0fScreeningResult\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12,\n" +
+	"\x12asrs_a_significant\x18\x02 \x01(\x05R\x10asrsASignificant\x12(\n" +
+	"\x10asrs_a_threshold\x18\x03 \x01(\x05R\x0easrsAThreshold\x12&\n" +
+	"\x0fasrs_a_positive\x18\x04 \x01(\bR\rasrsAPositive\x12,\n" +
+	"\x12asrs_b_significant\x18\x05 \x01(\x05R\x10asrsBSignificant\x12\x1d\n" +
+	"\n" +
+	"wurs_score\x18\x06 \x01(\x05R\twursScore\x12\x1f\n" +
+	"\vwurs_cutoff\x18\a \x01(\x05R\n" +
+	"wursCutoff\x12#\n" +
+	"\rwurs_positive\x18\b \x01(\bR\fwursPositive\x12'\n" +
+	"\x0fonset_childhood\x18\t \x01(\bR\x0eonsetChildhood\x12\x1b\n" +
+	"\tonset_age\x18\n" +
+	" \x01(\x05R\bonsetAge\x12#\n" +
+	"\radult_domains\x18\v \x03(\tR\fadultDomains\x12#\n" +
+	"\rchild_domains\x18\f \x03(\tR\fchildDomains\x12\x18\n" +
+	"\averdict\x18\r \x01(\tR\averdict\x12\x19\n" +
+	"\bgap_hint\x18\x0e \x01(\tR\agapHint\"\x8a\a\n" +
 	"\bUserData\x120\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\x05state\x12J\n" +
 	"\x10defecation_state\x18\x02 \x01(\x0e2\x1f.tgbase.state.v1.DefecationKindR\x0fdefecationState\x12'\n" +
@@ -394,7 +775,10 @@ const file_state_proto_rawDesc = "" +
 	"entered_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tenteredAt\x12#\n" +
 	"\rreminder_sent\x18\v \x01(\bR\freminderSent\x12\x16\n" +
-	"\x06locale\x18\f \x01(\tR\x06locale\x1a]\n" +
+	"\x06locale\x18\f \x01(\tR\x06locale\x12@\n" +
+	"\tscreening\x18\r \x01(\v2\".tgbase.state.v1.ScreeningProgressR\tscreening\x12K\n" +
+	"\x10screening_result\x18\x0e \x01(\v2 .tgbase.state.v1.ScreeningResultR\x0fscreeningResult\x12=\n" +
+	"\freturn_state\x18\x0f \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vreturnState\x1a]\n" +
 	"\rProductsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
 	"\x05value\x18\x02 \x01(\v2 .tgbase.state.v1.ProductProgressR\x05value:\x028\x01\"\x99\x01\n" +
@@ -403,7 +787,7 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\xb7\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x84\x05\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -411,7 +795,26 @@ const file_state_proto_rawDesc = "" +
 	"\x19STATE_AWAITING_DEFECATION\x10\x02\x12!\n" +
 	"\x1dSTATE_AWAITING_PRODUCT_CHOICE\x10\x03\x12 \n" +
 	"\x1cSTATE_AWAITING_STAGE_CHECKIN\x10\x04\x12\x1f\n" +
-	"\x1bSTATE_AWAITING_STAGE_CHOICE\x10\x05*p\n" +
+	"\x1bSTATE_AWAITING_STAGE_CHOICE\x10\x05\x12\x1e\n" +
+	"\x1aSTATE_AWAITING_MODE_CHOICE\x10\x06\x12\x15\n" +
+	"\x11STATE_SCR_CONSENT\x10\a\x12\x13\n" +
+	"\x0fSTATE_SCR_INTRO\x10\b\x12\x14\n" +
+	"\x10STATE_SCR_ASRS_A\x10\t\x12\x19\n" +
+	"\x15STATE_SCR_ASRS_A_GATE\x10\n" +
+	"\x12\x14\n" +
+	"\x10STATE_SCR_ASRS_B\x10\v\x12\x19\n" +
+	"\x15STATE_SCR_ASRS_B_GATE\x10\f\x12\x17\n" +
+	"\x13STATE_SCR_WURS_FORM\x10\r\x12\x12\n" +
+	"\x0eSTATE_SCR_WURS\x10\x0e\x12\x17\n" +
+	"\x13STATE_SCR_WURS_GATE\x10\x0f\x12\x13\n" +
+	"\x0fSTATE_SCR_ONSET\x10\x10\x12\x17\n" +
+	"\x13STATE_SCR_ONSET_AGE\x10\x11\x12\x1b\n" +
+	"\x17STATE_SCR_DOMAINS_ADULT\x10\x12\x12\x1b\n" +
+	"\x17STATE_SCR_DOMAINS_CHILD\x10\x13\x12\x16\n" +
+	"\x12STATE_SCR_REFERRAL\x10\x14\x12\x14\n" +
+	"\x10STATE_SCR_REPORT\x10\x15\x12\x1c\n" +
+	"\x18STATE_SCR_DELETE_CONFIRM\x10\x16\x12#\n" +
+	"\x1fSTATE_AWAITING_PRODUCT_CATEGORY\x10\x17*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
@@ -431,35 +834,44 @@ func file_state_proto_rawDescGZIP() []byte {
 }
 
 var file_state_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_state_proto_goTypes = []any{
 	(StateKind)(0),                // 0: tgbase.state.v1.StateKind
 	(DefecationKind)(0),           // 1: tgbase.state.v1.DefecationKind
 	(*ProductProgress)(nil),       // 2: tgbase.state.v1.ProductProgress
-	(*UserData)(nil),              // 3: tgbase.state.v1.UserData
-	(*UserMap)(nil),               // 4: tgbase.state.v1.UserMap
-	nil,                           // 5: tgbase.state.v1.UserData.ProductsEntry
-	nil,                           // 6: tgbase.state.v1.UserMap.UsersEntry
-	(pb.Stage)(0),                 // 7: tgbase.products.v1.Stage
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(*ScreeningProgress)(nil),     // 3: tgbase.state.v1.ScreeningProgress
+	(*ScreeningResult)(nil),       // 4: tgbase.state.v1.ScreeningResult
+	(*UserData)(nil),              // 5: tgbase.state.v1.UserData
+	(*UserMap)(nil),               // 6: tgbase.state.v1.UserMap
+	nil,                           // 7: tgbase.state.v1.UserData.ProductsEntry
+	nil,                           // 8: tgbase.state.v1.UserMap.UsersEntry
+	(pb.Stage)(0),                 // 9: tgbase.products.v1.Stage
+	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
 }
 var file_state_proto_depIdxs = []int32{
-	7,  // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
-	8,  // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 2: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
-	1,  // 3: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
-	7,  // 4: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
-	8,  // 5: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
-	5,  // 6: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
-	8,  // 7: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
-	6,  // 8: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
-	2,  // 9: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
-	3,  // 10: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	9,  // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
+	10, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 2: tgbase.state.v1.ScreeningProgress.resume_state:type_name -> tgbase.state.v1.StateKind
+	10, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
+	10, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
+	10, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 6: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
+	1,  // 7: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
+	9,  // 8: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
+	10, // 9: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
+	7,  // 10: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
+	10, // 11: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
+	3,  // 12: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
+	4,  // 13: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
+	0,  // 14: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
+	8,  // 15: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
+	2,  // 16: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
+	5,  // 17: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_state_proto_init() }
@@ -467,13 +879,14 @@ func file_state_proto_init() {
 	if File_state_proto != nil {
 		return
 	}
+	file_state_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_state_proto_rawDesc), len(file_state_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

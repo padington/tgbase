@@ -21,6 +21,28 @@ const (
 	StateAwaitingProductChoice   StateKind = "awaiting_product_choice"
 	StateAwaitingStageChoice     StateKind = "awaiting_stage_choice"
 	StateAwaitingStageCheckin    StateKind = "awaiting_stage_checkin"
+
+	// Mode fork shown on /start: FODMAP diary vs ADHD self-check.
+	StateAwaitingModeChoice StateKind = "awaiting_mode_choice"
+
+	// ADHD screening states (scr_*). None of these are scanned by the
+	// reminder loop — screening has no nudges in v1.
+	StateScrConsent       StateKind = "scr_consent"
+	StateScrIntro         StateKind = "scr_intro"
+	StateScrAsrsA         StateKind = "scr_asrs_a"
+	StateScrAsrsAGate     StateKind = "scr_asrs_a_gate"
+	StateScrAsrsB         StateKind = "scr_asrs_b"
+	StateScrAsrsBGate     StateKind = "scr_asrs_b_gate"
+	StateScrWursForm      StateKind = "scr_wurs_form"
+	StateScrWurs          StateKind = "scr_wurs"
+	StateScrWursGate      StateKind = "scr_wurs_gate"
+	StateScrOnset         StateKind = "scr_onset"
+	StateScrOnsetAge      StateKind = "scr_onset_age"
+	StateScrDomainsAdult  StateKind = "scr_domains_adult"
+	StateScrDomainsChild  StateKind = "scr_domains_child"
+	StateScrReferral      StateKind = "scr_referral"
+	StateScrReport        StateKind = "scr_report"
+	StateScrDeleteConfirm StateKind = "scr_delete_confirm"
 )
 
 // DefecationKind captures the user's reply to the defecation question.
@@ -40,6 +62,65 @@ type ProductProgress struct {
 	UpdatedAt time.Time      `json:"updated_at,omitempty"`
 }
 
+// ScreeningProgress is the TRANSIENT state of an unfinished ADHD screening
+// run — it exists only so the user can resume. nil whenever no screening is
+// in progress. It is wiped on completion, on restart ("Начать заново"), on
+// /abandon, and on /adhd_delete. Raw per-question answers live ONLY here:
+// they reach disk (users.json) only while the test is unfinished and are
+// erased in the same Set that persists the final ScreeningResult.
+type ScreeningProgress struct {
+	AsrsAnswers  []int     `json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = question id - 1
+	WursAnswers  []int     `json:"wurs_answers,omitempty"` // append-only, scores 0..4
+	WursForm     string    `json:"wurs_form,omitempty"`    // "m" | "f"; transient, never copied to the result
+	OnsetChild   *bool     `json:"onset_child,omitempty"`  // nil = not asked yet
+	OnsetAge     int       `json:"onset_age,omitempty"`    // >0 when OnsetChild == false
+	AdultDomains []string  `json:"adult_domains,omitempty"`
+	ChildDomains []string  `json:"child_domains,omitempty"`
+	ResumeState  StateKind `json:"resume_state,omitempty"`
+	ConsentAt    time.Time `json:"consent_at,omitempty"`
+	StartedAt    time.Time `json:"started_at,omitempty"`
+}
+
+// Clone returns a deep copy (slices and the OnsetChild pointer are copied),
+// so Outcome.Mutate can replace the pointer instead of mutating shared data.
+func (p *ScreeningProgress) Clone() *ScreeningProgress {
+	if p == nil {
+		return nil
+	}
+	out := *p
+	out.AsrsAnswers = append([]int(nil), p.AsrsAnswers...)
+	out.WursAnswers = append([]int(nil), p.WursAnswers...)
+	out.AdultDomains = append([]string(nil), p.AdultDomains...)
+	out.ChildDomains = append([]string(nil), p.ChildDomains...)
+	if p.OnsetChild != nil {
+		v := *p.OnsetChild
+		out.OnsetChild = &v
+	}
+	return &out
+}
+
+// ScreeningResult is the last COMPLETED screening run (overwritten by each
+// new completion). Only scores, the thresholds that were applied, domain
+// ids, the onset fact/age, and the date — per-question answers are never
+// stored here. Thresholds are copied from the content on purpose: the report
+// stays honest even if the content file changes its cutoffs later.
+type ScreeningResult struct {
+	TakenAt          time.Time `json:"taken_at"`
+	AsrsASignificant int       `json:"asrs_a_significant"` // 0..6
+	AsrsAThreshold   int       `json:"asrs_a_threshold"`   // applied threshold (4)
+	AsrsAPositive    bool      `json:"asrs_a_positive"`
+	AsrsBSignificant int       `json:"asrs_b_significant"` // 0..12; part B has no threshold
+	WursScore        int       `json:"wurs_score"`         // 0..100
+	WursCutoff       int       `json:"wurs_cutoff"`        // applied cutoff (46)
+	WursPositive     bool      `json:"wurs_positive"`
+	OnsetChildhood   bool      `json:"onset_childhood"`
+	OnsetAge         int       `json:"onset_age,omitempty"` // 0 when OnsetChildhood
+	AdultDomains     []string  `json:"adult_domains,omitempty"`
+	ChildDomains     []string  `json:"child_domains,omitempty"`
+	Verdict          string    `json:"verdict"`            // consistent | partial | not_consistent
+	GapHint          string    `json:"gap_hint,omitempty"` // gap-hint key when partial
+}
+
 // UserData holds everything persisted per user.
 type UserData struct {
 	State        StateKind `json:"state"`
@@ -55,6 +136,13 @@ type UserData struct {
 	PickerPage      int                        `json:"picker_page,omitempty"`
 	Products        map[string]ProductProgress `json:"products,omitempty"`
 	Locale          string                     `json:"locale,omitempty"`
+
+	// ADHD screening. Screening is the transient in-progress run (nil when
+	// none); ScreeningResult is the last completed run. ReturnState remembers
+	// the FODMAP journey state to restore after the screening detour.
+	Screening       *ScreeningProgress `json:"screening,omitempty"`
+	ScreeningResult *ScreeningResult   `json:"screening_result,omitempty"`
+	ReturnState     StateKind          `json:"return_state,omitempty"`
 
 	ChatID       int64     `json:"chat_id,omitempty"`
 	EnteredAt    time.Time `json:"entered_at,omitempty"`

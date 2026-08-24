@@ -86,6 +86,12 @@ product.measure_template.pieces: "{value} {name}"
 product.measure_template.grams: "{value}g {name}"
 product.amount_template.pieces: "{value}"
 product.amount_template.grams: "{value}g"
+phase.mode.prompt: "Mode?"
+phase.mode.prompt_active_trial: "Mode? active {name} ({stage})"
+phase.mode.invalid: "Tap a mode."
+button.mode.fodmap: "Diary"
+button.mode.screening: "Check"
+scr.text: "{text}"
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -130,6 +136,7 @@ default_locale: en
 	sender := &mockSender{}
 
 	runner := journey.New(stateStore, sender, cat, settingsStore, trans)
+	runner.Register(journey.NewModeChoicePhase())
 	runner.Register(journey.NewDefecationPhase())
 	runner.Register(journey.NewProductCategoryPhase())
 	runner.Register(journey.NewProductChoicePhase())
@@ -137,6 +144,13 @@ default_locale: en
 	runner.Register(journey.NewStageCheckinPhase())
 
 	return runner, stateStore, sender
+}
+
+// startDiary drives /start plus the "Diary" fork button — the equivalent of
+// the pre-fork /start behavior that most scenarios below build on.
+func startDiary(runner *journey.Runner, sender *mockSender, userID int64) {
+	runner.HandleStart(sender, newMsg(userID, "/start"))
+	runner.HandleText(sender, newMsg(userID, "Diary"))
 }
 
 // lowAmountFor returns the low-stage button label for the seed-test catalog,
@@ -189,13 +203,13 @@ func newMsg(userID int64, text string) *tgbotapi.Message {
 	}
 }
 
-func TestHandleStart_TransitionsToDefecation(t *testing.T) {
+func TestHandleStart_ShowsModeFork(t *testing.T) {
 	runner, store, sender := setup(t)
 	runner.HandleStart(sender, newMsg(1, "/start"))
 
 	d := store.Get(1)
-	if d.State != state.StateAwaitingDefecation {
-		t.Errorf("expected AwaitingDefecation, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected AwaitingModeChoice, got %q", d.State)
 	}
 	if d.Locale != "en" {
 		t.Errorf("locale not set: %q", d.Locale)
@@ -203,12 +217,25 @@ func TestHandleStart_TransitionsToDefecation(t *testing.T) {
 	if d.ChatID != 100 {
 		t.Errorf("ChatID not captured: %d", d.ChatID)
 	}
+	if sender.lastText() != "Mode?" {
+		t.Errorf("mode prompt not sent, last text: %q", sender.lastText())
+	}
+}
+
+func TestHandleStart_DiaryButtonTransitionsToDefecation(t *testing.T) {
+	runner, store, sender := setup(t)
+	startDiary(runner, sender, 1)
+
+	d := store.Get(1)
+	if d.State != state.StateAwaitingDefecation {
+		t.Errorf("expected AwaitingDefecation, got %q", d.State)
+	}
 	if sender.lastText() != "Defecation? 1/2/3" {
 		t.Errorf("setup prompt not sent, last text: %q", sender.lastText())
 	}
 }
 
-func TestHandleStart_MarksInProgressAsInterrupted(t *testing.T) {
+func TestHandleStart_ForkAloneDoesNotInterrupt_DiaryButtonDoes(t *testing.T) {
 	runner, store, sender := setup(t)
 	store.Set(1, state.UserData{
 		State:          state.StateAwaitingStageCheckin,
@@ -222,17 +249,33 @@ func TestHandleStart_MarksInProgressAsInterrupted(t *testing.T) {
 	runner.HandleStart(sender, newMsg(1, "/start"))
 
 	d := store.Get(1)
+	if d.Products["Apple"].Status != "in_progress" {
+		t.Errorf("fork alone must not interrupt; got %q", d.Products["Apple"].Status)
+	}
+	if d.ReturnState != state.StateAwaitingStageCheckin {
+		t.Errorf("ReturnState should record the interrupted journey state, got %q", d.ReturnState)
+	}
+	if !contains(sender.lastText(), "Apple") {
+		t.Errorf("active-trial fork prompt should mention the product, got %q", sender.lastText())
+	}
+
+	runner.HandleText(sender, newMsg(1, "Diary"))
+
+	d = store.Get(1)
 	if d.Products["Apple"].Status != "interrupted" {
 		t.Errorf("expected Apple to be interrupted, got %q", d.Products["Apple"].Status)
 	}
 	if d.CurrentProduct != "" {
 		t.Errorf("CurrentProduct should be cleared, got %q", d.CurrentProduct)
 	}
+	if d.ReturnState != "" {
+		t.Errorf("ReturnState should be dropped by the diary button, got %q", d.ReturnState)
+	}
 }
 
 func TestHandleText_DefecationToProductChoice(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	sender.mu.Lock()
 	sender.sent = nil
 	sender.mu.Unlock()
@@ -256,7 +299,7 @@ func TestHandleText_DefecationToProductChoice(t *testing.T) {
 
 func TestHandleText_DefecationInvalidStays(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "blue"))
 
 	if got := store.Get(1).State; got != state.StateAwaitingDefecation {
@@ -266,7 +309,7 @@ func TestHandleText_DefecationInvalidStays(t *testing.T) {
 
 func TestHandleText_PickProductTransitionsToStageChoice(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	offered := store.Get(1).OfferedProducts
@@ -290,7 +333,7 @@ func TestHandleText_PickProductTransitionsToStageChoice(t *testing.T) {
 
 func TestHandleText_StageChoicePicksLowStartsCheckin(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -311,7 +354,7 @@ func TestHandleText_StageChoicePicksLowStartsCheckin(t *testing.T) {
 
 func TestHandleText_StageChoiceDismissesKeyboardOnCheckinSetup(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -337,7 +380,7 @@ func TestHandleText_StageChoiceDismissesKeyboardOnCheckinSetup(t *testing.T) {
 
 func TestHandleText_StageChoicePicksMediumSkipsLow(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -355,7 +398,7 @@ func TestHandleText_StageChoicePicksMediumSkipsLow(t *testing.T) {
 
 func TestHandleText_StageChoiceInvalidStays(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -376,7 +419,7 @@ func TestHandleText_StageChoiceInvalidStays(t *testing.T) {
 
 func TestHandleText_StageChoicePromptIncludesNoteWhenPresent(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	// Drive the picker to a known product (Apple in the seed has a note).
@@ -399,7 +442,7 @@ func TestHandleText_StageChoicePromptIncludesNoteWhenPresent(t *testing.T) {
 
 func TestHandleText_StageChoicePromptOmitsNoteWhenAbsent(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	// Cashews in the seed has no note.
@@ -422,7 +465,7 @@ func TestHandleText_StageChoicePromptOmitsNoteWhenAbsent(t *testing.T) {
 
 func TestHandleText_StageChoicePromptIncludesRecommendation(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -435,7 +478,7 @@ func TestHandleText_StageChoicePromptIncludesRecommendation(t *testing.T) {
 
 func TestHandleText_StageYesAdvances(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -454,7 +497,7 @@ func TestHandleText_StageYesAdvances(t *testing.T) {
 
 func TestHandleText_StageHighYesCompletes(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -477,7 +520,7 @@ func TestHandleText_StageHighYesCompletes(t *testing.T) {
 
 func TestHandleText_StageStartingHighOneYesCompletes(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -496,7 +539,7 @@ func TestHandleText_StageStartingHighOneYesCompletes(t *testing.T) {
 
 func TestHandleText_StageNoMarksNotTolerated(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -551,7 +594,7 @@ func TestHandleReport_ListsCompleted(t *testing.T) {
 
 func TestHandleAbandon_MarksInterruptedAndShowsList(t *testing.T) {
 	runner, store, sender := setup(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	picked := store.Get(1).OfferedProducts[0]
 	runner.HandleText(sender, newMsg(1, picked))
@@ -674,6 +717,12 @@ product.amount_template.grams: "{value}g"
 about: "info"
 cmd.report.empty: "nothing"
 cmd.report.heading: "Progress:"
+phase.mode.prompt: "Mode?"
+phase.mode.prompt_active_trial: "Mode? active {name} ({stage})"
+phase.mode.invalid: "Tap a mode."
+button.mode.fodmap: "Diary"
+button.mode.screening: "Check"
+scr.text: "{text}"
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -735,6 +784,7 @@ default_locale: en
 	sender := &mockSender{}
 
 	runner := journey.New(stateStore, sender, cat, settingsStore, trans)
+	runner.Register(journey.NewModeChoicePhase())
 	runner.Register(journey.NewDefecationPhase())
 	runner.Register(journey.NewProductCategoryPhase())
 	runner.Register(journey.NewProductChoicePhase())
@@ -746,7 +796,7 @@ default_locale: en
 
 func TestHandleText_DefecationToCategoryWhenMultipleCategories(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	d := store.Get(1)
@@ -760,7 +810,7 @@ func TestHandleText_DefecationToCategoryWhenMultipleCategories(t *testing.T) {
 
 func TestHandleText_PickCategoryEntersChoiceWithPickerCategorySet(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
@@ -783,7 +833,7 @@ func TestHandleText_PickCategoryEntersChoiceWithPickerCategorySet(t *testing.T) 
 
 func TestHandleText_CategoryInvalidStays(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 
 	runner.HandleText(sender, newMsg(1, "blah"))
@@ -795,7 +845,7 @@ func TestHandleText_CategoryInvalidStays(t *testing.T) {
 
 func TestHandleText_NextPagingAdvancesAndShrinksOfferedTail(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
@@ -813,7 +863,7 @@ func TestHandleText_NextPagingAdvancesAndShrinksOfferedTail(t *testing.T) {
 
 func TestHandleText_PrevPagingDecrements(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 	runner.HandleText(sender, newMsg(1, "Next"))
@@ -827,7 +877,7 @@ func TestHandleText_PrevPagingDecrements(t *testing.T) {
 
 func TestHandleText_BackReturnsToCategory(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
@@ -844,7 +894,7 @@ func TestHandleText_BackReturnsToCategory(t *testing.T) {
 
 func TestHandleText_PickProductFromCategoryFlowsToStageChoice(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
@@ -864,7 +914,7 @@ func TestHandleText_PickProductFromCategoryFlowsToStageChoice(t *testing.T) {
 func TestHandleText_ProductLabelLowFodmapGreenEmoji(t *testing.T) {
 	// Banana is low FODMAP — productLabel renders "🟢 Banana".
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 
@@ -877,7 +927,7 @@ func TestHandleText_ProductLabelLowFodmapGreenEmoji(t *testing.T) {
 
 func TestHandleText_CategoryBackReturnsToDefecation(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2")) // → category
 
 	runner.HandleText(sender, newMsg(1, "Back"))
@@ -893,7 +943,7 @@ func TestHandleText_CategoryBackReturnsToDefecation(t *testing.T) {
 
 func TestHandleText_StageChoiceBackReturnsToProductChoice(t *testing.T) {
 	runner, store, sender := setupWithCategories(t)
-	runner.HandleStart(sender, newMsg(1, "/start"))
+	startDiary(runner, sender, 1)
 	runner.HandleText(sender, newMsg(1, "2"))
 	runner.HandleText(sender, newMsg(1, "F Fruits"))
 	runner.HandleText(sender, newMsg(1, "🔴 Apple")) // → stage choice

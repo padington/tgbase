@@ -1,0 +1,250 @@
+# ASRS v1.1 — Adult ADHD Self-Report Scale, русская версия для tgbase (режим скрининга СДВГ)
+#
+# Часть A (вопросы 1–6): ОФИЦИАЛЬНЫЙ русский текст ВОЗ/Harvard NCS, дословно из
+#   6Q_Russian_final.pdf (hcp.med.harvard.edu/ncs, ASRS-V1.1 6-Question Screener).
+#   Текст не менять: это условие использования официального перевода.
+# Часть B (вопросы 7–18): официального русского перевода НЕ СУЩЕСТВУЕТ
+#   (на hcp.med.harvard.edu для русского опубликован только 6Q-скринер; 18Q-версии
+#   есть для других языков). Перевод выполнен для tgbase с официального английского
+#   Symptom Checklist, стилистически согласован с официальной частью A.
+#   См. поле translation_note.
+
+instrument:
+  id: asrs_v1_1
+  name_en: "Adult ADHD Self-Report Scale (ASRS-v1.1) Symptom Checklist"
+  name_ru_official: "ADHD-синдром у взрослых – Скринер со шкалой самооценки V1.1 (ASRS-V1.1)"
+  developer: >-
+    Разработана в сотрудничестве с Всемирной организацией здравоохранения (ВОЗ)
+    и Рабочей группой по взрослому ADHD-синдрому (Lenard Adler, MD, New York
+    University Medical School; Ronald C. Kessler, PhD, Harvard Medical School;
+    Thomas Spencer, MD, Harvard Medical School).
+  copyright: "© New York University and Ronald C. Kessler, PhD. All rights reserved. Разработано совместно с ВОЗ (WHO)."
+  primary_reference: >-
+    Kessler RC, Adler L, Ames M, Demler O, Faraone S, Hiripi E, Howes MJ, Jin R,
+    Secnik K, Spencer T, Ustun TB, Walters EE. The World Health Organization Adult
+    ADHD Self-Report Scale (ASRS): a short screening scale for use in the general
+    population. Psychological Medicine. 2005;35(2):245-256.
+  sources:
+    part_a_russian_official:
+      url: "https://www.hcp.med.harvard.edu/ncs/ftpdir/adhd/6Q_Russian_final.pdf"
+      local_copy: "sources/6Q_Russian_final.pdf"
+      note: "Официальный русский 6Q-скринер ASRS-V1.1 (текущая версия с сайта Harvard NCS). Старая версия того же перевода: ftpdir/adhd/adhd/Old%20Versions/6Q-Russian.pdf"
+    full_checklist_english_official:
+      url: "https://add.org/wp-content/uploads/2015/03/adhd-questionnaire-ASRS111.pdf"
+      local_copy: "sources/18Q_ASRS_English.pdf"
+      note: "Официальный английский 18Q Symptom Checklist (идентичен ранее распространявшемуся Harvard NCS файлу '18 Question ADHD-ASRS-v1-1.pdf'); источник вопросов 7–18 и правил скоринга части B."
+  target_population: "Взрослые от 18 лет"
+  recall_period: "Последние 6 месяцев"
+
+# Шкала ответов — дословно из официального русского PDF (5 градаций).
+# score — стандартная числовая кодировка 0–4 (в самом опроснике баллы не печатаются;
+# скрининговый подсчёт идёт не по сумме, а по попаданию в «затемнённые» клетки).
+scale:
+  - score: 0
+    label: "Никогда"
+  - score: 1
+    label: "Редко"
+  - score: 2
+    label: "Иногда"
+  - score: 3
+    label: "Часто"
+  - score: 4
+    label: "Очень часто"
+
+# Инструкция — дословно из официального русского PDF.
+# Второе предложение привязано к бумажной анкете; в боте его можно опустить,
+# первое предложение — обязательное.
+instruction_official_ru: >-
+  Отметьте клетку с ответом, который лучше всего описывает ваше самочувствие и
+  поведение за последние 6 месяцев. Чтобы обсудить результаты, передайте,
+  пожалуйста, заполненную анкету обслуживающему вас профессиональному
+  медицинскому работнику во время следующего визита к нему.
+
+# ЧАСТЬ A — 6-вопросный скринер (ASRS-V1.1 6QS).
+# text — ДОСЛОВНО из официального русского PDF (не редактировать).
+# significant_from — порог «затемнённой» клетки: ответ засчитывается как
+#   положительный, если он равен этому варианту или сильнее.
+#   КРИТИЧНО: у вопросов 1–3 зачёт начинается с «Иногда» (score >= 2),
+#   у вопросов 4–6 — с «Часто» (score >= 3). Паттерн затемнения сверен визуально
+#   с официальным русским PDF (стр. 3) и официальным английским чек-листом.
+part_a:
+  items:
+    - id: 1
+      domain: inattention
+      text: "Как часто вам бывает трудно закончить работу после того как самое трудное уже сделано?"
+      text_en: "How often do you have trouble wrapping up the final details of a project, once the challenging parts have been done?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 2
+      domain: inattention
+      text: "Как часто вам бывает трудно навести порядок перед выполнением работы, требующей организованности?"
+      text_en: "How often do you have difficulty getting things in order when you have to do a task that requires organization?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 3
+      domain: inattention
+      text: "Как часто у вас возникают трудности с запоминанием времени встреч или своих обязанностей?"
+      text_en: "How often do you have problems remembering appointments or obligations?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 4
+      domain: inattention
+      text: "Как часто вы избегаете или откладываете начало работы, требующей больших умственных усилий?"
+      text_en: "When you have a task that requires a lot of thought, how often do you avoid or delay getting started?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 5
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы беспокойно перебираете руками или ногами, когда приходится долго сидеть на одном месте?"
+      text_en: "How often do you fidget or squirm with your hands or feet when you have to sit down for a long time?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 6
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы испытываете чрезмерную активность и непреодолимое желание что-то сделать, как если бы у вас внутри был мотор?"
+      text_en: "How often do you feel overly active and compelled to do things, like you were driven by a motor?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+  scoring:
+    method: >-
+      Подсчитывается число вопросов части A, где ответ попал в «затемнённую»
+      клетку (см. significant_from у каждого вопроса). Сумма баллов 0–24 в
+      официальном скрининге части A НЕ используется.
+    positive_screen_threshold: 4
+    positive_screen_rule: "Скрининг положительный, если затемнённых отметок >= 4 из 6."
+    official_interpretation_ru: >-
+      Подсчитайте количество отметок, сделанных в темной заштрихованной части
+      графика. Четыре (4) или большее количество таких отметок свидетельствует о
+      том, что ваши симптомы, возможно, совпадают с симптомами ADHD-синдрома у
+      взрослых. Теперь может оказаться полезным поговорить с обслуживающим вас
+      профессиональным медицинским работником об оценке этих результатов.
+    official_interpretation_note: "Текст дословно из официального русского PDF (стр. 3)."
+
+# ЧАСТЬ B — оставшиеся 12 вопросов Symptom Checklist (вопросы 7–18).
+# Официального русского перевода не существует; перевод неофициальный (см. translation_note).
+part_b:
+  translation_note: >-
+    НЕОФИЦИАЛЬНЫЙ перевод. Официальной русской версии части B не существует
+    (Harvard NCS публикует по-русски только 6-вопросный скринер — часть A).
+    Вопросы 7–18 переведены командой tgbase с официального английского
+    ASRS-v1.1 Symptom Checklist (sources/18Q_ASRS_English.pdf), точно по смыслу
+    и стилистически согласованно с официальной русской частью A. Перевод не
+    проходил психометрическую валидацию.
+  items:
+    - id: 7
+      domain: inattention
+      text: "Как часто вы допускаете ошибки по невнимательности, когда вам приходится работать над скучным или трудным заданием?"
+      text_en: "How often do you make careless mistakes when you have to work on a boring or difficult project?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 8
+      domain: inattention
+      text: "Как часто вам бывает трудно удерживать внимание, когда вы выполняете скучную или однообразную работу?"
+      text_en: "How often do you have difficulty keeping your attention when you are doing boring or repetitive work?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 9
+      domain: inattention
+      text: "Как часто вам бывает трудно сосредоточиться на том, что вам говорят, даже когда обращаются прямо к вам?"
+      text_en: "How often do you have difficulty concentrating on what people say to you, even when they are speaking to you directly?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 10
+      domain: inattention
+      text: "Как часто вы кладёте вещи не на место или с трудом находите их дома или на работе?"
+      text_en: "How often do you misplace or have difficulty finding things at home or at work?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 11
+      domain: inattention
+      text: "Как часто вас отвлекает происходящее вокруг или шум?"
+      text_en: "How often are you distracted by activity or noise around you?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 12
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы встаёте с места на совещаниях или в других ситуациях, когда полагается оставаться сидеть?"
+      text_en: "How often do you leave your seat in meetings or other situations in which you are expected to remain seated?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 13
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы чувствуете беспокойство или неусидчивость?"
+      text_en: "How often do you feel restless or fidgety?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 14
+      domain: hyperactivity_impulsivity
+      text: "Как часто вам бывает трудно успокоиться и расслабиться, когда у вас появляется свободное время?"
+      text_en: "How often do you have difficulty unwinding and relaxing when you have time to yourself?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 15
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы замечаете, что слишком много говорите, находясь в обществе других людей?"
+      text_en: "How often do you find yourself talking too much when you are in social situations?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 16
+      domain: hyperactivity_impulsivity
+      text: "Как часто в разговоре вы заканчиваете фразы за собеседников, прежде чем они успевают договорить сами?"
+      text_en: "When you're in a conversation, how often do you find yourself finishing the sentences of the people you are talking to, before they can finish them themselves?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+    - id: 17
+      domain: hyperactivity_impulsivity
+      text: "Как часто вам бывает трудно дождаться своей очереди в ситуациях, когда это необходимо?"
+      text_en: "How often do you have difficulty waiting your turn in situations when turn taking is required?"
+      significant_from: "Часто"
+      significant_labels: ["Часто", "Очень часто"]
+      significant_min_score: 3
+    - id: 18
+      domain: hyperactivity_impulsivity
+      text: "Как часто вы прерываете других, когда они чем-то заняты?"
+      text_en: "How often do you interrupt others when they are busy?"
+      significant_from: "Иногда"
+      significant_labels: ["Иногда", "Часто", "Очень часто"]
+      significant_min_score: 2
+  interpretation:
+    rule: >-
+      По официальной инструкции чек-листа для части B суммарный балл и
+      диагностическая вероятность НЕ вычисляются. Отметки в «затемнённых»
+      клетках части B — дополнительные сигналы (cues) для более глубокого
+      обсуждения симптомов со специалистом; частотный ответ у разных вопросов
+      имеет разную чувствительность (поэтому пороги затемнения различаются).
+      Наиболее предиктивны для расстройства шесть вопросов части A — именно они
+      используются как скрининговый инструмент.
+    source_note: >-
+      Пересказ раздела Instructions официального английского Symptom Checklist
+      (sources/18Q_ASRS_English.pdf, п. Symptoms 3): "The frequency scores on
+      Part B provide additional cues... Pay particular attention to marks
+      appearing in the dark shaded boxes... No total score or diagnostic
+      likelihood is utilized for the twelve questions."
+    suggested_bot_output: >-
+      В отчёте показывать число затемнённых отметок части B (0–12) и список
+      конкретных пунктов с сильными ответами — как материал для обсуждения с
+      врачом, без порога и без вердикта.
+
+attribution_text_ru: >-
+  Шкала самооценки СДВГ у взрослых ASRS-V1.1 разработана при участии Всемирной
+  организации здравоохранения (ВОЗ) и рабочей группы по СДВГ у взрослых
+  (Adler, Kessler, Spencer). © New York University and Ronald C. Kessler, PhD.
+  Вопросы 1–6 приведены в официальном русском переводе ВОЗ/Harvard NCS;
+  вопросы 7–18 — неофициальный перевод с официального английского текста.
+  Источник: hcp.med.harvard.edu/ncs (Kessler et al., Psychological Medicine, 2005).

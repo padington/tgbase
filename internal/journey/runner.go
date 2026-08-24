@@ -50,13 +50,57 @@ func (r *Runner) Register(p Phase) {
 	r.phases[p.State()] = p
 }
 
-// HandleStart implements router.HandlerFunc for /start. Always re-routes
-// the user to the defecation phase, marking any in-progress trial as
-// interrupted.
+// HandleStart implements router.HandlerFunc for /start. With the screening
+// mode wired it routes the user to the mode-choice fork, remembering where
+// to come back: a FODMAP journey state is saved to ReturnState, a screening
+// state to Screening.ResumeState. Nothing is interrupted here — the FODMAP
+// button of the fork owns the legacy interrupt semantics.
 func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
 	}
+	if _, ok := r.phases[state.StateAwaitingModeChoice]; !ok {
+		// Screening mode not wired (no content configured) — keep the
+		// legacy /start behavior so the bot stays usable.
+		r.legacyStart(msg)
+		return
+	}
+	user := r.store.Get(msg.From.ID)
+
+	cur := user.State
+	switch {
+	case isScreeningState(cur):
+		// /start mid-screening: "Continue" must land back here.
+		if user.Screening != nil {
+			sc := user.Screening.Clone()
+			sc.ResumeState = cur
+			user.Screening = sc
+		}
+	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
+		// Remember where to return after a screening detour. A repeated
+		// /start from the fork itself is idempotent — ReturnState is kept.
+		user.ReturnState = cur
+	}
+	// The active trial is NOT marked interrupted here — only the FODMAP
+	// button does that.
+
+	user.ChatID = msg.Chat.ID
+	if user.Locale == "" {
+		user.Locale = string(r.detectLocale(msg.From.LanguageCode))
+	}
+	user.State = state.StateAwaitingModeChoice
+	user.EnteredAt = r.now()
+	r.store.Set(msg.From.ID, user)
+
+	phase := r.phases[state.StateAwaitingModeChoice]
+	ctx := r.contextFor(msg.From.ID, user)
+	r.applyOutcome(ctx, phase.Setup(ctx), msg.Chat.ID)
+}
+
+// legacyStart is the pre-fork /start: route to the defecation phase, marking
+// any in-progress trial as interrupted. Used only when ModeChoicePhase is
+// not registered.
+func (r *Runner) legacyStart(msg *tgbotapi.Message) {
 	user := r.store.Get(msg.From.ID)
 
 	if user.CurrentProduct != "" {

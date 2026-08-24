@@ -34,6 +34,7 @@ func main() {
 		ProductsSeedPath:   appCfg.Bootstrap.ProductsSeedPath,
 		SettingsSeedPath:   appCfg.Bootstrap.SettingsSeedPath,
 		I18nDir:            appCfg.Bootstrap.I18nDir,
+		ScreeningDir:       appCfg.Bootstrap.ScreeningDir,
 	}
 
 	b, err := bot.New(cfg)

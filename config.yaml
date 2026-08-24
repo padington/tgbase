@@ -5,6 +5,9 @@ bootstrap:
   products_seed_path: /products.yaml
   settings_seed_path: /settings.yaml
   i18n_dir: /i18n
+  # Read-only ADHD-screening content (not a seed: reloaded on every boot,
+  # never copied into the backend). Empty/absent disables the screening mode.
+  screening_dir: /screening
 
 # Deprecated — superseded by settings.Store (mutable at runtime under DATA_DIR).
 # Kept for backward compatibility with the bot wiring; will be removed once

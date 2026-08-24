@@ -18,6 +18,7 @@ COPY config.yaml /config.yaml
 COPY products.yaml /products.yaml
 COPY settings.yaml /settings.yaml
 COPY i18n /i18n
+COPY screening /screening
 
 ENV CONFIG_PATH=/config.yaml
 

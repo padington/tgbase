@@ -1,18 +1,26 @@
 # tgbase
 
-A Telegram bot that helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
+A Telegram bot with two modes:
+
+- **Low-FODMAP diary** — helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
+- **Adult ADHD self-check** (ru-only, v1) — a staged screening: ASRS v1.1 part A (official Russian WHO text, verbatim) → ASRS part B → WURS-25 childhood retrospective (unofficial translation, flagged as such) → the bot's own DSM-5-shaped context questions (onset + life domains). Each instrument is scored separately with its own published threshold and attribution; there is deliberately **no combined score**. The result is a wording («pattern is / is not consistent with DSM-5 criteria»), a screening-not-a-diagnosis disclaimer, a route to a specialist, and a shareable doctor report.
 
 ## Commands
 
-| Command     | Response                                                                  |
-|-------------|---------------------------------------------------------------------------|
-| `/start`    | Begins or restarts the journey: defecation check → product choice → trial |
-| `/about`    | Short bot description (localized)                                         |
-| `/report`   | Per-user breakdown: completed / in-progress / not tolerated / interrupted |
-| `/abandon`  | Marks the current trial as interrupted; returns to product selection      |
-| `/ping`     | `pong` — health check                                                     |
-| `/whoami`   | env label, hostname, OS/arch                                              |
-| `/menu`     | reply keyboard with `[Ping]` `[Whoami]` shortcuts                         |
+| Command        | Response                                                                  |
+|----------------|---------------------------------------------------------------------------|
+| `/start`       | Mode fork: FODMAP diary (legacy /start semantics) or ADHD self-check      |
+| `/adhd`        | Enter / resume the ADHD self-check (consent first, progress survives pauses) |
+| `/adhd_delete` | Delete all stored self-check data (with confirmation)                     |
+| `/about`       | Short bot description (localized)                                         |
+| `/report`      | Per-user breakdown: completed / in-progress / not tolerated / interrupted, plus the last self-check summary line |
+| `/abandon`     | Mid-screening: wipes the unfinished run (keeps the last completed result). Otherwise: marks the current trial as interrupted |
+| `/ping`        | `pong` — health check                                                     |
+| `/whoami`      | env label, hostname, OS/arch                                              |
+| `/menu`        | reply keyboard with `[Ping]` `[Whoami]` shortcuts                         |
+
+> Ops note: after deploying, update the BotFather command list
+> (`adhd — самопроверка СДВГ`, `adhd_delete — удалить данные самопроверки`).
 
 ## Architecture
 
@@ -22,23 +30,26 @@ internal/state      per-user UserData on top of store.Backend (key="users")
 internal/products   FODMAP catalog with metadata, mutable at runtime (key="products")
 internal/settings   reminder/check-in tunables, mutable at runtime (key="settings")
 internal/i18n       per-locale UI strings loaded from i18n/<locale>.yaml
-internal/journey    Phase-based interaction framework + concrete phases
+internal/screening  read-only ADHD screening content (ASRS/WURS/DSM module) + pure scoring
+internal/journey    Phase-based interaction framework + concrete phases (both modes)
 internal/reminder   scan loop that delegates per-user nudges to journey.Runner
 internal/router     Telegram update dispatcher
 internal/bot        composition root: wires backend → typed stores → runner
 proto/              canonical schemas (state, products, settings, i18n)
 ```
 
-`products.yaml`, `settings.yaml`, and `i18n/*.yaml` are bundled into the Docker image as first-boot seeds. After first boot the backend (under `DATA_DIR`) is the source of truth — admin commands can mutate products and settings at runtime without a redeploy.
+`products.yaml`, `settings.yaml`, and `i18n/*.yaml` are bundled into the Docker image as first-boot seeds. After first boot the backend (under `DATA_DIR`) is the source of truth — admin commands can mutate products and settings at runtime without a redeploy. `screening/*.yaml` is different: like the i18n bundles it is read-only and reloaded on every boot, never copied into the backend — instrument texts and thresholds change only via redeploy.
 
 ## Flow
 
-### State machine
+### State machine — mode fork + FODMAP diary
 
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> AwaitingDefecation : /start (SetupPhase)
+    Idle --> awaiting_mode_choice : /start (a FODMAP state is saved to ReturnState)
+    awaiting_mode_choice --> AwaitingDefecation : «FODMAP-дневник» (interrupts the active trial — legacy /start)
+    awaiting_mode_choice --> scr_consent : «Самопроверка СДВГ» (diary progress untouched)
     AwaitingDefecation --> AwaitingProductCategory : 1/2/3 → fluid/normal/issues
     AwaitingProductCategory --> AwaitingProductChoice : tap category (auto-skips when only one bucket has products)
     AwaitingProductCategory --> Idle : catalog exhausted (auto report)
@@ -52,6 +63,55 @@ stateDiagram-v2
     AwaitingDefecation --> AwaitingDefecation : reminder tick
     AwaitingStageCheckin --> AwaitingStageCheckin : reminder tick (auto-prompts "are you OK?")
 ```
+
+### State machine — ADHD self-check
+
+Exits marked `[*]` land in `ReturnState` (the recorded FODMAP state, whose
+Setup re-fires) or idle. `scr_*` states get no reminder nudges. `/abandon`
+and `/start` work at any point (`/start` records the position in
+`Screening.ResumeState`).
+
+```mermaid
+stateDiagram-v2
+    [*] --> awaiting_mode_choice: /start (ReturnState := prior FODMAP state)
+    awaiting_mode_choice --> awaiting_defecation: «FODMAP-дневник» (interrupt trial)
+    awaiting_mode_choice --> scr_consent: «Самопроверка СДВГ»
+    [*] --> scr_consent: /adhd
+    scr_consent --> scr_intro: «Согласен(а), начинаем» (resume: intro in resume mode)
+    scr_consent --> [*]: «Не сейчас» → ReturnState | idle
+    scr_intro --> scr_asrs_a: «Начать» / restart
+    scr_intro --> resume: «Продолжить» (to Screening.ResumeState)
+    scr_intro --> [*]: «Вернусь позже»
+    scr_asrs_a --> scr_asrs_a: scale answer, questions 1..6
+    scr_asrs_a --> scr_asrs_a_gate: after the 6th
+    scr_asrs_a_gate --> scr_asrs_b: «Продолжить» (gate showed the screener verdict)
+    scr_asrs_a_gate --> [*]: «Сделать паузу»
+    scr_asrs_b --> scr_asrs_b: questions 7..18
+    scr_asrs_b --> scr_asrs_b_gate: after the 18th
+    scr_asrs_b_gate --> scr_wurs_form: «Продолжить»
+    scr_asrs_b_gate --> [*]: «Сделать паузу»
+    scr_wurs_form --> scr_wurs: masculine/feminine wording
+    scr_wurs --> scr_wurs: questions 1..25
+    scr_wurs --> scr_wurs_gate: after the 25th
+    scr_wurs_gate --> scr_onset: «Продолжить»
+    scr_wurs_gate --> [*]: «Сделать паузу»
+    scr_onset --> scr_domains_adult: «Да, уже тогда»
+    scr_onset --> scr_onset_age: «Нет, это появилось позже»
+    scr_onset_age --> scr_domains_adult: age (number 1..99)
+    scr_domains_adult --> scr_domains_adult: toggle domain
+    scr_domains_adult --> scr_domains_child: «Готово» / «Ни одна не мешает»
+    scr_domains_child --> scr_domains_child: toggle domain
+    scr_domains_child --> scr_referral: «Готово» → summary message, Screening := nil
+    scr_referral --> scr_report: Setup sends criterion E + referral
+    scr_report --> [*]: Setup sends the doctor report → ReturnState (re-Setup) | idle
+```
+
+Deleting data: `/adhd_delete` → `scr_delete_confirm` → «Да, удалить» wipes
+both the unfinished progress and the stored result; «Оставить» changes
+nothing. Privacy: raw per-question answers exist only while a run is
+unfinished and are erased in the same write that stores the final
+`ScreeningResult` (scores + applied thresholds + facts only); the doctor
+report is rendered on the fly and never stored.
 
 ### Sequence — happy path with reminder
 
@@ -201,6 +261,8 @@ Bundled `products.yaml` / `settings.yaml` / `i18n/*.yaml` only seed the backend 
 
 UI strings live in `i18n/<locale>.yaml` baked into the image (`en.yaml`, `ru.yaml` ship by default). Product names + notes carry inline `name_localized` / `note_localized` maps so they can be translated alongside the catalog. Each user's locale is detected from `msg.From.LanguageCode` on first `/start` and persisted on `UserData.Locale`.
 
+The ADHD self-check is **ru-only in v1**: the official Russian ASRS text is the point of the feature. Its texts live in `screening/*.yaml` (not i18n) and reach users through the `scr.text` pass-through key; en users get the ru texts via the translator's per-key fallback. Only the mode fork is translated.
+
 ## Project layout
 
 ```
@@ -213,11 +275,13 @@ internal/
   products/               catalog with FODMAP metadata
   settings/               runtime-mutable timings + default locale
   i18n/                   translator (loads i18n/*.yaml)
-  journey/                Phase framework + concrete diet flow phases
+  screening/              ADHD screening content loader/validator + pure scoring
+  journey/                Phase framework + concrete phases of both modes
   reminder/               scan loop, delegates to journey.Runner.Remind
   flows/meta/             stateless commands (/ping, /whoami, /menu)
 proto/                    canonical .proto schemas
 i18n/                     bundled UI string yamls
+screening/                bundled read-only ADHD screening content yamls
 products.yaml             first-boot product catalog seed
 settings.yaml             first-boot settings seed
 config.yaml               boot-only paths + state flush interval
