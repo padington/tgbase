@@ -14,6 +14,24 @@ enum StateKind {
   STATE_AWAITING_PRODUCT_CHOICE = 3;
   STATE_AWAITING_STAGE_CHECKIN = 4;
   STATE_AWAITING_STAGE_CHOICE = 5;
+  STATE_AWAITING_MODE_CHOICE = 6;
+  STATE_SCR_CONSENT = 7;
+  STATE_SCR_INTRO = 8;
+  STATE_SCR_ASRS_A = 9;
+  STATE_SCR_ASRS_A_GATE = 10;
+  STATE_SCR_ASRS_B = 11;
+  STATE_SCR_ASRS_B_GATE = 12;
+  STATE_SCR_WURS_FORM = 13;
+  STATE_SCR_WURS = 14;
+  STATE_SCR_WURS_GATE = 15;
+  STATE_SCR_ONSET = 16;
+  STATE_SCR_ONSET_AGE = 17;
+  STATE_SCR_DOMAINS_ADULT = 18;
+  STATE_SCR_DOMAINS_CHILD = 19;
+  STATE_SCR_REFERRAL = 20;
+  STATE_SCR_REPORT = 21;
+  STATE_SCR_DELETE_CONFIRM = 22;
+  STATE_AWAITING_PRODUCT_CATEGORY = 23;
 }
 
 enum DefecationKind {
@@ -29,6 +47,41 @@ message ProductProgress {
   google.protobuf.Timestamp updated_at = 3;
 }
 
+// ScreeningProgress mirrors state.ScreeningProgress — the TRANSIENT
+// unfinished ADHD-screening run (raw per-question answers live only here;
+// wiped on completion / restart / abandon / delete).
+message ScreeningProgress {
+  repeated int32 asrs_answers = 1;   // append-only, scores 0..4; index = id-1
+  repeated int32 wurs_answers = 2;   // append-only, scores 0..4
+  string wurs_form = 3;              // "m" | "f"
+  optional bool onset_child = 4;     // absent = not asked yet
+  int32 onset_age = 5;               // >0 when onset_child == false
+  repeated string adult_domains = 6;
+  repeated string child_domains = 7;
+  StateKind resume_state = 8;
+  google.protobuf.Timestamp consent_at = 9;
+  google.protobuf.Timestamp started_at = 10;
+}
+
+// ScreeningResult mirrors state.ScreeningResult — the last completed run:
+// scores + applied thresholds + context facts, never per-question answers.
+message ScreeningResult {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 asrs_a_significant = 2;      // 0..6
+  int32 asrs_a_threshold = 3;        // applied threshold (4)
+  bool asrs_a_positive = 4;
+  int32 asrs_b_significant = 5;      // 0..12, no threshold by design
+  int32 wurs_score = 6;              // 0..100
+  int32 wurs_cutoff = 7;             // applied cutoff (46)
+  bool wurs_positive = 8;
+  bool onset_childhood = 9;
+  int32 onset_age = 10;              // 0 when onset_childhood
+  repeated string adult_domains = 11;
+  repeated string child_domains = 12;
+  string verdict = 13;               // consistent | partial | not_consistent
+  string gap_hint = 14;              // gap-hint key when partial
+}
+
 message UserData {
   StateKind state = 1;
   DefecationKind defecation_state = 2;
@@ -42,6 +95,9 @@ message UserData {
   google.protobuf.Timestamp entered_at = 10;
   bool reminder_sent = 11;
   string locale = 12;
+  ScreeningProgress screening = 13;
+  ScreeningResult screening_result = 14;
+  StateKind return_state = 15;
 }
 
 message UserMap {
