@@ -13,11 +13,31 @@ type StateKind string
 const (
     StateIdle, StateAwaitingHowamiAnswer (legacy), StateAwaitingDefecation,
     StateAwaitingProductCategory, StateAwaitingProductChoice,
-    StateAwaitingStageChoice, StateAwaitingStageCheckin StateKind
+    StateAwaitingStageChoice, StateAwaitingStageCheckin,
+    StateAwaitingModeChoice,                       // /start mode fork
+    StateScrConsent … StateScrDeleteConfirm StateKind  // 16 scr_* screening states
 )
 
 type DefecationKind string  // "", fluid, normal, issues
 type ProductProgress struct { LastStage products.Stage; Status string; UpdatedAt time.Time }
+
+type ScreeningProgress struct {  // TRANSIENT unfinished screening run (resume only)
+    AsrsAnswers, WursAnswers []int   // raw per-question answers live ONLY here
+    WursForm string; OnsetChild *bool; OnsetAge int
+    AdultDomains, ChildDomains []string
+    ResumeState StateKind; ConsentAt, StartedAt time.Time
+}
+func (p *ScreeningProgress) Clone() *ScreeningProgress  // deep copy for Outcome.Mutate
+
+type ScreeningResult struct {    // last COMPLETED run; overwritten by each new completion
+    TakenAt time.Time
+    AsrsASignificant, AsrsAThreshold int; AsrsAPositive bool
+    AsrsBSignificant int                     // no threshold by design
+    WursScore, WursCutoff int; WursPositive bool
+    OnsetChildhood bool; OnsetAge int
+    AdultDomains, ChildDomains []string      // domain ids
+    Verdict string; GapHint string           // wording keys, never numbers
+}
 
 type UserData struct {
     State, Locale string-ish
@@ -27,6 +47,9 @@ type UserData struct {
     OfferedProducts []string                       // last keyboard slice (gate for matchOffered)
     PickerCategory string; PickerPage int          // transient picker state
     Products map[string]ProductProgress
+    Screening *ScreeningProgress                   // nil when no screening in progress
+    ScreeningResult *ScreeningResult               // nil until first completion
+    ReturnState StateKind                          // FODMAP state to restore after the screening detour
     ChatID int64
 }
 
@@ -48,6 +71,9 @@ func (s *Store) Close() error
 - `Set` snapshots the whole map and persists. Per-user persistence is not granular.
 - `OfferedProducts` is the gate for `journey.matchOffered` — only names in this list are accepted as input.
 - `PickerCategory` + `PickerPage` are meaningful only while in `StateAwaitingProductChoice` / `StateAwaitingProductCategory`. Cleared by `/start`, `/abandon`, completion.
+- **Privacy invariant:** raw per-question screening answers exist only inside `Screening` (`ScreeningProgress`). Completing, restarting, `/abandon`, and `/adhd_delete` set `Screening = nil`, and `omitempty` removes the key — and the raw answers — from the persisted JSON in the same `Set`. `ScreeningResult` carries only scores + applied thresholds + facts, never answers. The WURS wording form (m/f) is never copied into the result.
+- Legacy `users.json` files without the screening fields load as zero values — no migration needed.
+- Mutations of `Screening` must go through `Clone()` (pointer field — `Get`'s struct copy shares the pointee).
 
 ## When to edit
 
