@@ -10,7 +10,7 @@ A Telegram bot with three modes:
 
 | Command        | Response                                                                  |
 |----------------|---------------------------------------------------------------------------|
-| `/start`       | Mode fork: FODMAP diary (legacy /start semantics), ADHD self-check, or mood self-check |
+| `/start`       | Home landing: short greeting + mode buttons (FODMAP diary / ADHD test / mood) + 📊 report + contextual resume buttons (unfinished test, active trial). Works from ANY state as a universal escape — progress is never lost |
 | `/adhd`        | Enter / resume the ADHD self-check (consent first, progress survives pauses) |
 | `/adhd_delete` | Delete all stored ADHD self-check data (with confirmation)                |
 | `/mood`        | Enter / resume the mood self-check — PHQ-9 (consent first, progress survives pauses). Named `/mood`, not `/depression`: it matches the mode's user-facing name and keeps a diagnosis word out of the command menu; `/mood_delete` pairs with `/adhd_delete` |
@@ -20,10 +20,10 @@ A Telegram bot with three modes:
 | `/abandon`     | Mid-self-check (either mode): wipes the unfinished run (keeps the last completed result). Otherwise: marks the current trial as interrupted |
 | `/ping`        | `pong` — health check                                                     |
 | `/whoami`      | env label, hostname, OS/arch                                              |
-| `/menu`        | reply keyboard with `[Ping]` `[Whoami]` shortcuts                         |
+| `/menu`        | alias of `/start` — the same home landing                                 |
 
 > Ops note: after deploying, update the BotFather command list
-> (`adhd — самопроверка СДВГ`, `adhd_delete — удалить данные самопроверки СДВГ`,
+> (`menu — главное меню`, `adhd — самопроверка СДВГ`, `adhd_delete — удалить данные самопроверки СДВГ`,
 > `mood — самопроверка настроения (PHQ-9)`, `mood_delete — удалить данные самопроверки настроения`).
 
 ## Architecture
@@ -46,15 +46,27 @@ proto/              canonical schemas (state, products, settings, i18n)
 
 ## Flow
 
-### State machine — mode fork + FODMAP diary
+### State machine — home landing + FODMAP diary
+
+`/start`, `/menu` and the 🏠 button (present on every FODMAP keyboard) escape
+to the landing from ANY state without losing progress: a FODMAP journey
+state is recorded to `ReturnState`, a resumable test position to the run's
+`ResumeState`. The landing is contextual — an unfinished ADHD/mood run adds
+a «▶️ Продолжить …» button (back to the exact question, or the crisis card),
+an active trial adds «▶️ Вернуться к дневнику: <product> (<stage>)»; «📊
+Отчёт» renders the /report breakdown in place. Reminder nudges never reach a
+user parked on the landing.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> awaiting_mode_choice : /start (a FODMAP state is saved to ReturnState)
-    awaiting_mode_choice --> AwaitingDefecation : «FODMAP-дневник» (interrupts the active trial — legacy /start)
-    awaiting_mode_choice --> scr_consent : «Самопроверка СДВГ» (diary progress untouched)
-    awaiting_mode_choice --> mood_consent : «Самопроверка настроения» (diary progress untouched)
+    Idle --> awaiting_mode_choice : /start | /menu | 🏠 (from ANY state; FODMAP position → ReturnState)
+    awaiting_mode_choice --> AwaitingDefecation : «🥦 FODMAP-дневник» (interrupts the active trial — legacy /start)
+    awaiting_mode_choice --> scr_consent : «🧠 Тест СДВГ» (diary progress untouched)
+    awaiting_mode_choice --> mood_consent : «🌤 Настроение» (diary progress untouched)
+    awaiting_mode_choice --> awaiting_mode_choice : «📊 Отчёт» (stays on the landing)
+    awaiting_mode_choice --> AwaitingStageCheckin : «▶️ Вернуться к дневнику» (ReturnState consumed, nothing interrupted)
+    awaiting_mode_choice --> resume_test : «▶️ Продолжить тест …» (same question / crisis card)
     AwaitingDefecation --> AwaitingProductCategory : 1/2/3 → fluid/normal/issues
     AwaitingProductCategory --> AwaitingProductChoice : tap category (auto-skips when only one bucket has products)
     AwaitingProductCategory --> Idle : catalog exhausted (auto report)
@@ -72,15 +84,21 @@ stateDiagram-v2
 ### State machine — ADHD self-check
 
 Exits marked `[*]` land in `ReturnState` (the recorded FODMAP state, whose
-Setup re-fires) or idle. `scr_*` states get no reminder nudges. `/abandon`
-and `/start` work at any point (`/start` records the position in
-`Screening.ResumeState`).
+Setup re-fires) or idle. `scr_*` states get no reminder nudges. `/abandon`,
+`/start` and `/menu` work at any point (the escape records the position in
+`Screening.ResumeState` — resumable states only, never the consent/intro
+gates or the delete confirmation). The landing's «▶️ Продолжить тест СДВГ»
+button jumps straight back to the recorded question; resume mode itself is
+detected by the actual presence of answers, so a lost `ResumeState` never
+turns «Начать» into a silent progress wipe (the position is then derived
+from the answers).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> awaiting_mode_choice: /start (ReturnState := prior FODMAP state)
-    awaiting_mode_choice --> awaiting_defecation: «FODMAP-дневник» (interrupt trial)
-    awaiting_mode_choice --> scr_consent: «Самопроверка СДВГ»
+    [*] --> awaiting_mode_choice: /start | /menu (ReturnState := prior FODMAP state)
+    awaiting_mode_choice --> awaiting_defecation: «🥦 FODMAP-дневник» (interrupt trial)
+    awaiting_mode_choice --> scr_consent: «🧠 Тест СДВГ»
+    awaiting_mode_choice --> resume: «▶️ Продолжить тест СДВГ» (to the recorded question)
     [*] --> scr_consent: /adhd
     scr_consent --> scr_intro: «Согласен(а), начинаем» (resume: intro in resume mode)
     scr_consent --> [*]: «Не сейчас» → ReturnState | idle
@@ -120,7 +138,10 @@ rule of the overall verdict is unchanged.
 
 Deleting data: `/adhd_delete` → `scr_delete_confirm` → «Да, удалить» wipes
 both the unfinished progress and the stored result; «Оставить» changes
-nothing. Privacy: raw per-question answers exist only while a run is
+nothing — and mid-test it returns straight to the interrupted question
+(`/adhd_delete` records the position in `Screening.ResumeState` on entry),
+so the confirmation can never strand the user or lose the resume position.
+Privacy: raw per-question answers exist only while a run is
 unfinished and are erased in the same write that stores the final
 `ScreeningResult` (scores + applied thresholds + facts only); the doctor
 report is rendered on the fly and never stored.
@@ -128,16 +149,21 @@ report is rendered on the fly and never stored.
 ### State machine — Mood self-check (PHQ-9)
 
 Exits marked `[*]` land in `ReturnState` (the recorded FODMAP state, whose
-Setup re-fires) or idle. `mood_*` states get no reminder nudges. `/abandon`
-and `/start` work at any point (`/start` records the position in
-`Mood.ResumeState` — a run paused on the crisis card resumes on the card).
-The consent phase doubles as the resume gate: with an unfinished run it
-offers Continue / start over / later and never re-asks consent.
+Setup re-fires) or idle. `mood_*` states get no reminder nudges. `/abandon`,
+`/start` and `/menu` work at any point (the escape records the position in
+`Mood.ResumeState` — a run paused on the crisis card resumes on the card;
+only `mood_question` / `mood_crisis` are ever recorded). The landing's
+«▶️ Продолжить тест настроения» button jumps straight back to the recorded
+position. The consent phase doubles as the resume gate: with an unfinished
+run it offers Continue / start over / later and never re-asks consent.
+`/mood_delete` mid-test records the position too, and «Оставить» returns
+straight to the interrupted question or crisis card.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> awaiting_mode_choice: /start (ReturnState := prior FODMAP state)
-    awaiting_mode_choice --> mood_consent: «Самопроверка настроения»
+    [*] --> awaiting_mode_choice: /start | /menu (ReturnState := prior FODMAP state)
+    awaiting_mode_choice --> mood_consent: «🌤 Настроение»
+    awaiting_mode_choice --> resume: «▶️ Продолжить тест настроения» (same question / crisis card)
     [*] --> mood_consent: /mood
     mood_consent --> mood_question: «Начать» (fresh) / «Продолжить» / «Начать заново» (resume mode)
     mood_consent --> [*]: «Не сейчас» / «Вернусь позже» → ReturnState | idle
@@ -177,7 +203,11 @@ sequenceDiagram
     participant Backend as FileBackend (debounced)
 
     User->>Bot: /start
-    Bot->>Backend: Put users (state=AwaitingDefecation, ChatID, Locale)
+    Bot->>Backend: Put users (state=awaiting_mode_choice, ChatID, Locale)
+    Bot-->>User: landing greeting + mode/report buttons
+
+    User->>Bot: 🥦 FODMAP-дневник
+    Bot->>Backend: Put users (state=AwaitingDefecation)
     Bot-->>User: "How are things today? 1/2/3" + keyboard
 
     User->>Bot: 2
@@ -316,7 +346,7 @@ Bundled `products.yaml` / `settings.yaml` / `i18n/*.yaml` only seed the backend 
 
 UI strings live in `i18n/<locale>.yaml` baked into the image (`en.yaml`, `ru.yaml` ship by default). Product names + notes carry inline `name_localized` / `note_localized` maps so they can be translated alongside the catalog. Each user's locale is detected from `msg.From.LanguageCode` on first `/start` and persisted on `UserData.Locale`.
 
-Both self-checks are **ru-only in v1**: the official Russian ASRS and PHQ-9 texts are the point of the features. Their texts live in `screening/*.yaml` (not i18n) and reach users through the `scr.text` pass-through key; en users get the ru texts via the translator's per-key fallback. Only the mode fork is translated.
+Both self-checks are **ru-only in v1**: the official Russian ASRS and PHQ-9 texts are the point of the features. Their texts live in `screening/*.yaml` (not i18n) and reach users through the `scr.text` pass-through key; en users get the ru texts via the translator's per-key fallback. Only the landing is translated.
 
 ## Project layout
 
@@ -333,7 +363,7 @@ internal/
   screening/              self-check content loaders/validators (ADHD + PHQ-9) + pure scoring
   journey/                Phase framework + concrete phases of all modes
   reminder/               scan loop, delegates to journey.Runner.Remind
-  flows/meta/             stateless commands (/ping, /whoami, /menu)
+  flows/meta/             stateless commands (/ping, /whoami)
 proto/                    canonical .proto schemas
 i18n/                     bundled UI string yamls
 screening/                bundled read-only self-check content yamls (ADHD + PHQ-9/mood)
