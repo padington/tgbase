@@ -154,15 +154,6 @@ type MoodModule struct {
 		LaterButton string `yaml:"later_button"`
 		Declined    string `yaml:"declined"`
 	} `yaml:"consent"`
-	// Resume is the v1 per-run resume gate. Deprecated: the v2 menu carries
-	// the per-instrument resume rows; kept only until the journey flow stops
-	// referencing it (not validated, absent from the bundled yaml).
-	Resume struct {
-		Body           string `yaml:"body"`
-		ContinueButton string `yaml:"continue_button"`
-		RestartButton  string `yaml:"restart_button"`
-		LaterButton    string `yaml:"later_button"`
-	} `yaml:"resume"`
 	Crisis struct {
 		Lead           string `yaml:"lead"`
 		Contacts       string `yaml:"contacts"`
@@ -215,18 +206,10 @@ type MoodModule struct {
 		Gad7Line    string `yaml:"gad7_line"` // "{date} {score} {band}" template
 		Who5Line    string `yaml:"who5_line"` // "{date} {score} {band}" template
 		Footer      string `yaml:"footer"`
-		// Template is the v1 single-instrument report. Deprecated: kept only
-		// until the journey flow stops referencing it (not validated, absent
-		// from the bundled yaml).
-		Template string `yaml:"template"`
 	} `yaml:"doctor_report"`
 	UI struct {
-		ModeButton string `yaml:"mode_button"`
-		Progress   string `yaml:"progress"` // PHQ-9 / GAD-7 "Вопрос {current} из {total}"
-		// Paused is the v1 pause confirmation. Deprecated: kept only until
-		// the journey flow stops referencing it (not validated, absent from
-		// the bundled yaml).
-		Paused              string `yaml:"paused"`
+		ModeButton          string `yaml:"mode_button"`
+		Progress            string `yaml:"progress"` // PHQ-9 / GAD-7 "Вопрос {current} из {total}"
 		AbandonConfirmed    string `yaml:"abandon_confirmed"`
 		DeleteConfirmPrompt string `yaml:"delete_confirm_prompt"`
 		DeleteConfirmButton string `yaml:"delete_confirm_button"`
