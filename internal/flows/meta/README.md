@@ -4,21 +4,21 @@ Stateless meta commands that don't touch the journey state machine.
 
 ## Responsibility
 
-`/ping`, `/whoami`, `/menu` — sanity-check commands that work regardless of user state.
+`/ping`, `/whoami` — sanity-check commands that work regardless of user state.
+(`/menu` is no longer a meta command: it is an alias of `/start` — the home
+landing — wired in `internal/bot` to `journey.Runner.HandleStart`.)
 
 ## Public API
 
 ```go
 func Ping() router.HandlerFunc
 func Whoami(env string) router.HandlerFunc   // env captured at construction
-func Menu() router.HandlerFunc               // sends a reply keyboard with [Ping][Whoami]
 ```
 
 ## Behavior
 
 - `Ping` → replies `pong` (with `ReplyToMessageID`).
 - `Whoami` → replies env label + hostname + `runtime.GOOS`/`GOARCH`. Used to verify which binary is live on the VPS.
-- `Menu` → sends `"Choose an action:"` with a 2-button reply keyboard.
 
 ## When to edit
 

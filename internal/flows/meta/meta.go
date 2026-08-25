@@ -26,21 +26,6 @@ func Whoami(env string) router.HandlerFunc {
 	}
 }
 
-func Menu() router.HandlerFunc {
-	return func(sender router.Sender, msg *tgbotapi.Message) {
-		keyboard := tgbotapi.NewReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(
-				tgbotapi.NewKeyboardButton("Ping"),
-				tgbotapi.NewKeyboardButton("Whoami"),
-			),
-		)
-		keyboard.ResizeKeyboard = true
-		out := tgbotapi.NewMessage(msg.Chat.ID, "Choose an action:")
-		out.ReplyMarkup = keyboard
-		sender.Send(out)
-	}
-}
-
 func reply(sender router.Sender, msg *tgbotapi.Message, text string) {
 	out := tgbotapi.NewMessage(msg.Chat.ID, text)
 	out.ReplyToMessageID = msg.MessageID
