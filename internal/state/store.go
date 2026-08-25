@@ -44,12 +44,18 @@ const (
 	StateScrReport        StateKind = "scr_report"
 	StateScrDeleteConfirm StateKind = "scr_delete_confirm"
 
-	// Mood screening states (mood_*, PHQ-9). Like scr_*, none of these are
-	// scanned by the reminder loop — screening has no nudges in v1.
+	// Mood-module states (mood_*: PHQ-9, WHO-5, GAD-7). Like scr_*, none of
+	// these are scanned by the reminder loop — screening has no nudges in v1.
 	StateMoodConsent       StateKind = "mood_consent"
+	StateMoodMenu          StateKind = "mood_menu"
 	StateMoodQuestion      StateKind = "mood_question"
 	StateMoodCrisis        StateKind = "mood_crisis"
+	StateMoodQ10           StateKind = "mood_q10"
 	StateMoodReport        StateKind = "mood_report"
+	StateMoodWho5Question  StateKind = "mood_who5_question"
+	StateMoodOfferPhq9     StateKind = "mood_offer_phq9"
+	StateMoodGad7Question  StateKind = "mood_gad7_question"
+	StateMoodOfferGad7     StateKind = "mood_offer_gad7"
 	StateMoodDeleteConfirm StateKind = "mood_delete_confirm"
 )
 
@@ -113,16 +119,18 @@ func (p *ScreeningProgress) Clone() *ScreeningProgress {
 	return &out
 }
 
-// MoodProgress is the TRANSIENT state of an unfinished PHQ-9 mood-screening
-// run — it exists only so the user can resume. nil whenever no mood test is
-// in progress. It is wiped on completion, on restart, on /abandon, and on
-// /mood_delete. Raw per-question answers live ONLY here: they reach disk
-// (users.json) only while the test is unfinished and are erased in the same
-// Set that persists the final MoodResult.
+// MoodProgress is the TRANSIENT state of one unfinished mood-module
+// instrument run (PHQ-9 in UserData.Mood, WHO-5 in .Who5, GAD-7 in .Gad7) —
+// it exists only so the user can resume. nil whenever no run is in progress.
+// It is wiped on completion, on restart, on /abandon, and on /mood_delete.
+// Raw per-question answers live ONLY here: they reach disk (users.json) only
+// while the test is unfinished and are erased in the same Set that persists
+// the final result. For PHQ-9, index 9 (when present) is the answer to the
+// functional (10th) item.
 type MoodProgress struct {
-	Answers     []int     `json:"answers,omitempty"` // append-only, scores 0..3; index = question id - 1
+	Answers     []int     `json:"answers,omitempty"` // append-only; index = question id - 1
 	ResumeState StateKind `json:"resume_state,omitempty"`
-	ConsentAt   time.Time `json:"consent_at,omitempty"`
+	ConsentAt   time.Time `json:"consent_at,omitempty"` // legacy v1 per-run consent; module consent is UserData.MoodConsentAt
 	StartedAt   time.Time `json:"started_at,omitempty"`
 }
 
@@ -139,15 +147,39 @@ func (p *MoodProgress) Clone() *MoodProgress {
 
 // MoodResult is the last COMPLETED PHQ-9 run (overwritten by each new
 // completion). Only the total score, the severity-band id that was applied,
-// the crisis-item flag, and the date — per-question answers are never stored
-// here. Q9Positive is the single per-question fact the privacy policy
-// allows: whether the self-harm item (9) was answered above zero, kept so
-// the result and /report can repeat the support contacts.
+// the crisis-item flag, the functional-item answer, and the date —
+// per-question answers 1..9 are never stored here. Q9Positive is one of the
+// two per-question facts the privacy policy allows: whether the self-harm
+// item (9) was answered above zero, kept so the result and /report can
+// repeat the support contacts. The other is the official functional (10th)
+// item: asked only when at least one of the nine answers was > 0, NOT part
+// of the 0–27 score, surfaced as its own line in the doctor report
+// (Q10Answer is meaningful only when Q10Answered).
 type MoodResult struct {
-	TakenAt    time.Time `json:"taken_at"`
-	Score      int       `json:"score"`    // 0..27
-	Severity   string    `json:"severity"` // applied severity-band id
-	Q9Positive bool      `json:"q9_positive,omitempty"`
+	TakenAt     time.Time `json:"taken_at"`
+	Score       int       `json:"score"`    // 0..27 (functional item not included)
+	Severity    string    `json:"severity"` // applied severity-band id
+	Q9Positive  bool      `json:"q9_positive,omitempty"`
+	Q10Answered bool      `json:"q10_answered,omitempty"`
+	Q10Answer   int       `json:"q10_answer,omitempty"` // 0..3
+}
+
+// Who5Result is the last COMPLETED WHO-5 quick check (overwritten by each
+// new completion): the 0–100 well-being score (raw 0–25 sum × 4) and the
+// interpretation band that was applied — never per-statement answers.
+type Who5Result struct {
+	TakenAt time.Time `json:"taken_at"`
+	Score   int       `json:"score"` // 0..100
+	Band    string    `json:"band"`  // ok | low | very_low
+}
+
+// Gad7Result is the last COMPLETED GAD-7 run (overwritten by each new
+// completion): the total score and the severity-band id that was applied —
+// never per-question answers.
+type Gad7Result struct {
+	TakenAt  time.Time `json:"taken_at"`
+	Score    int       `json:"score"`    // 0..21
+	Severity string    `json:"severity"` // minimal | mild | moderate | severe
 }
 
 // ScreeningResult is the last COMPLETED screening run (overwritten by each
@@ -198,10 +230,19 @@ type UserData struct {
 	ScreeningResult *ScreeningResult   `json:"screening_result,omitempty"`
 	ReturnState     StateKind          `json:"return_state,omitempty"`
 
-	// Mood screening (PHQ-9). Same contract as the ADHD pair; ReturnState is
-	// shared by both detours (only one screening runs at a time by state).
-	Mood       *MoodProgress `json:"mood,omitempty"`
-	MoodResult *MoodResult   `json:"mood_result,omitempty"`
+	// Mood module (PHQ-9 + WHO-5 + GAD-7). Same contract as the ADHD pair;
+	// ReturnState is shared by all detours (only one test runs at a time by
+	// state). MoodConsentAt is the single module-wide consent (asked once,
+	// covers all three instruments; nil = not given); /mood_delete wipes all
+	// six fields. Each instrument keeps its own transient run and its own
+	// last completed result — there is no combined index by design.
+	Mood          *MoodProgress `json:"mood,omitempty"` // PHQ-9 run
+	MoodResult    *MoodResult   `json:"mood_result,omitempty"`
+	MoodConsentAt *time.Time    `json:"mood_consent_at,omitempty"`
+	Who5          *MoodProgress `json:"who5,omitempty"`
+	Who5Result    *Who5Result   `json:"who5_result,omitempty"`
+	Gad7          *MoodProgress `json:"gad7,omitempty"`
+	Gad7Result    *Gad7Result   `json:"gad7_result,omitempty"`
 
 	ChatID       int64     `json:"chat_id,omitempty"`
 	EnteredAt    time.Time `json:"entered_at,omitempty"`

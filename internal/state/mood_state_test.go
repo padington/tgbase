@@ -18,10 +18,12 @@ func fullMoodProgress() *MoodProgress {
 
 func fullMoodResult() *MoodResult {
 	return &MoodResult{
-		TakenAt:    time.Date(2026, 8, 25, 11, 0, 0, 0, time.UTC),
-		Score:      17,
-		Severity:   "moderately_severe",
-		Q9Positive: true,
+		TakenAt:     time.Date(2026, 8, 25, 11, 0, 0, 0, time.UTC),
+		Score:       17,
+		Severity:    "moderately_severe",
+		Q9Positive:  true,
+		Q10Answered: true,
+		Q10Answer:   2,
 	}
 }
 
@@ -60,6 +62,48 @@ func TestUserData_MoodJSONRoundTrip(t *testing.T) {
 	if out.MoodResult.Severity != "moderately_severe" || !out.MoodResult.Q9Positive {
 		t.Errorf("MoodResult fields: %+v", out.MoodResult)
 	}
+	if !out.MoodResult.Q10Answered || out.MoodResult.Q10Answer != 2 {
+		t.Errorf("MoodResult functional-item fields: %+v", out.MoodResult)
+	}
+}
+
+// TestUserData_MoodV2JSONRoundTrip covers the module-wide consent timestamp
+// and the WHO-5 / GAD-7 progress+result pairs added in mood v2.
+func TestUserData_MoodV2JSONRoundTrip(t *testing.T) {
+	consent := time.Date(2026, 8, 25, 9, 0, 0, 0, time.UTC)
+	in := UserData{
+		State:         StateMoodGad7Question,
+		MoodConsentAt: &consent,
+		Who5:          &MoodProgress{Answers: []int{5, 0, 3}, StartedAt: consent},
+		Gad7:          &MoodProgress{Answers: []int{1, 2}, ResumeState: StateMoodGad7Question},
+		Who5Result:    &Who5Result{TakenAt: consent, Score: 48, Band: "low"},
+		Gad7Result:    &Gad7Result{TakenAt: consent, Score: 11, Severity: "moderate"},
+	}
+
+	raw, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out UserData
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	if out.MoodConsentAt == nil || !out.MoodConsentAt.Equal(consent) {
+		t.Errorf("MoodConsentAt lost: %v", out.MoodConsentAt)
+	}
+	if out.Who5 == nil || len(out.Who5.Answers) != 3 || out.Who5.Answers[0] != 5 {
+		t.Errorf("Who5 progress lost: %+v", out.Who5)
+	}
+	if out.Gad7 == nil || out.Gad7.ResumeState != StateMoodGad7Question {
+		t.Errorf("Gad7 progress lost: %+v", out.Gad7)
+	}
+	if out.Who5Result == nil || out.Who5Result.Score != 48 || out.Who5Result.Band != "low" {
+		t.Errorf("Who5Result lost: %+v", out.Who5Result)
+	}
+	if out.Gad7Result == nil || out.Gad7Result.Score != 11 || out.Gad7Result.Severity != "moderate" {
+		t.Errorf("Gad7Result lost: %+v", out.Gad7Result)
+	}
 }
 
 func TestUserData_LegacyJSONWithoutMoodFields(t *testing.T) {
@@ -82,7 +126,7 @@ func TestUserData_OmitemptyKeepsMoodKeysOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(raw)
-	for _, key := range []string{"mood", "mood_result"} {
+	for _, key := range []string{"mood", "mood_result", "mood_consent_at", "who5", "who5_result", "gad7", "gad7_result"} {
 		if strings.Contains(s, `"`+key+`"`) {
 			t.Errorf("empty UserData JSON should not contain %q key: %s", key, s)
 		}

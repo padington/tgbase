@@ -16,7 +16,9 @@ const (
     StateAwaitingStageChoice, StateAwaitingStageCheckin,
     StateAwaitingModeChoice,                       // /start mode fork
     StateScrConsent … StateScrDeleteConfirm StateKind  // 16 scr_* screening states
-    StateMoodConsent … StateMoodDeleteConfirm StateKind // 5 mood_* (PHQ-9) states
+    StateMoodConsent … StateMoodDeleteConfirm StateKind // 11 mood_* states: consent, menu,
+    // PHQ-9 (question/crisis/q10/report), WHO-5 (who5_question/offer_phq9),
+    // GAD-7 (gad7_question/offer_gad7), delete confirm
 )
 
 type DefecationKind string  // "", fluid, normal, issues
@@ -41,17 +43,28 @@ type ScreeningResult struct {    // last COMPLETED run; overwritten by each new 
     Verdict string; GapHint string           // wording keys, never numbers
 }
 
-type MoodProgress struct {       // TRANSIENT unfinished PHQ-9 run (resume only)
-    Answers []int                // raw per-question answers (0..3) live ONLY here
-    ResumeState StateKind; ConsentAt, StartedAt time.Time
+type MoodProgress struct {       // TRANSIENT unfinished run of ONE mood-module instrument
+    Answers []int                // raw per-question answers live ONLY here; PHQ-9 index 9 = functional item
+    ResumeState StateKind; ConsentAt (legacy), StartedAt time.Time
 }
 func (p *MoodProgress) Clone() *MoodProgress   // deep copy for Outcome.Mutate
 
 type MoodResult struct {         // last COMPLETED PHQ-9 run; overwritten by each completion
     TakenAt time.Time
-    Score int                    // 0..27
+    Score int                    // 0..27 (functional item NOT included)
     Severity string              // applied severity-band id
-    Q9Positive bool              // item-9 (self-harm) answered > 0 — the only per-question fact kept
+    Q9Positive bool              // item-9 (self-harm) answered > 0
+    Q10Answered bool; Q10Answer int // official functional (10th) item: asked only when any answer > 0
+}
+
+type Who5Result struct {         // last COMPLETED WHO-5 quick check
+    TakenAt time.Time; Score int // 0..100 (raw 0..25 sum × 4)
+    Band string                  // ok | low | very_low
+}
+
+type Gad7Result struct {         // last COMPLETED GAD-7 run
+    TakenAt time.Time; Score int // 0..21
+    Severity string              // minimal | mild | moderate | severe
 }
 
 type UserData struct {
@@ -65,8 +78,11 @@ type UserData struct {
     Screening *ScreeningProgress                   // nil when no screening in progress
     ScreeningResult *ScreeningResult               // nil until first completion
     ReturnState StateKind                          // state a detour interrupted: FODMAP position (kept across test exits; consumed by the landing's diary button) or the landing (delete-confirm entry); shared by both modes
-    Mood *MoodProgress                             // nil when no mood test in progress
-    MoodResult *MoodResult                         // nil until first completion
+    Mood *MoodProgress                             // nil when no PHQ-9 run in progress
+    MoodResult *MoodResult                         // nil until first PHQ-9 completion
+    MoodConsentAt *time.Time                       // single module-wide consent (nil = not given; wiped by /mood_delete)
+    Who5, Gad7 *MoodProgress                       // WHO-5 / GAD-7 transient runs
+    Who5Result *Who5Result; Gad7Result *Gad7Result // last completed WHO-5 / GAD-7
     ChatID int64
 }
 
@@ -89,7 +105,7 @@ func (s *Store) Close() error
 - `OfferedProducts` is the gate for `journey.matchOffered` — only names in this list are accepted as input.
 - `PickerCategory` + `PickerPage` are meaningful only while in `StateAwaitingProductChoice` / `StateAwaitingProductCategory`. Cleared by `/start`, `/abandon`, completion.
 - **Privacy invariant:** raw per-question screening answers exist only inside `Screening` (`ScreeningProgress`). Completing, restarting, `/abandon`, and `/adhd_delete` set `Screening = nil`, and `omitempty` removes the key — and the raw answers — from the persisted JSON in the same `Set`. `ScreeningResult` carries only scores + applied thresholds + facts, never answers. The WURS wording form (m/f) is never copied into the result.
-- **Privacy invariant (mood):** same contract — raw PHQ-9 answers exist only inside `Mood` (`MoodProgress`); completing, restarting, `/abandon`, and `/mood_delete` set `Mood = nil` in the same `Set` that writes `MoodResult`. The result keeps only the total score, the band id, the date, and the single allowed per-question fact: the item-9 flag (needed to repeat the support contacts).
+- **Privacy invariant (mood):** same contract — raw answers of each mood-module instrument exist only inside its `MoodProgress` (`Mood`/`Who5`/`Gad7`); completing, restarting, `/abandon`, and `/mood_delete` set the progress pointer to nil in the same `Set` that writes the corresponding result. The results keep only totals + applied band ids + dates + the two allowed PHQ-9 per-question facts: the item-9 flag (needed to repeat the support contacts) and the official functional (10th) item answer (not part of the score; surfaced in the doctor report). `/mood_delete` wipes all six mood fields plus `MoodConsentAt`.
 - Legacy `users.json` files without the screening/mood fields load as zero values — no migration needed.
 - Mutations of `Screening` / `Mood` must go through `Clone()` (pointer fields — `Get`'s struct copy shares the pointee).
 
