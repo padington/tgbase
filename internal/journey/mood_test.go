@@ -14,11 +14,11 @@ import (
 )
 
 // --- synthetic mood content -------------------------------------------------
-// LoadMood demands the full canonical shape (4-option scale, 9 items with
-// the crisis flag on item 9, the published bands), so the test set generates
-// a complete synthetic bundle with short texts.
+// LoadMood demands the full canonical shape (the three instruments with
+// their pinned scales/bands plus the v2 module sections), so the test set
+// generates a complete synthetic bundle with short texts.
 
-// moodScale maps the synthetic scale labels to their scores.
+// moodScale maps the synthetic PHQ-9/GAD-7 scale labels to their scores.
 var moodScale = []string{"Not at all", "Several days", "More than half", "Nearly every day"}
 
 // moodQ10Scale maps the synthetic functional-item labels to their scores.
@@ -124,11 +124,6 @@ consent:
   agree_button: "Begin"
   later_button: "Not now"
   declined: "mood declined text"
-resume:
-  body: "resume at question {current} of {total}"
-  continue_button: "Continue"
-  restart_button: "Start over"
-  later_button: "Come back later"
 crisis:
   lead: "crisis lead"
   contacts: |-
@@ -192,14 +187,9 @@ doctor_report:
   gad7_line: "GAD7 {date}: {score}/21 - {band}"
   who5_line: "WHO5 {date}: {score}/100 - {band}"
   footer: "REPORT-FOOTER"
-  template: |-
-    MOOD REPORT {date}
-    score: {score}/27 - {band}
-    q9: {q9_fact}
 ui:
   mode_button: "Mood self-check"
   progress: "Question {current} of {total}"
-  paused: "mood paused text"
   abandon_confirmed: "mood abandoned"
   delete_confirm_prompt: "delete mood data?"
   delete_confirm_button: "Yes, delete"
@@ -227,9 +217,15 @@ func writeMoodTestContent(t *testing.T) string {
 
 func registerMoodPhases(runner *journey.Runner, content *screening.MoodContent) {
 	runner.Register(journey.NewMoodConsentPhase(content))
+	runner.Register(journey.NewMoodMenuPhase(content))
 	runner.Register(journey.NewMoodQuestionPhase(content))
 	runner.Register(journey.NewMoodCrisisPhase(content))
+	runner.Register(journey.NewMoodQ10Phase(content))
 	runner.Register(journey.NewMoodReportPhase(content))
+	runner.Register(journey.NewMoodWho5Phase(content))
+	runner.Register(journey.NewMoodOfferPhq9Phase(content))
+	runner.Register(journey.NewMoodGad7Phase(content))
+	runner.Register(journey.NewMoodOfferGad7Phase(content))
 	runner.Register(journey.NewMoodDeleteConfirmPhase(content))
 }
 
@@ -241,18 +237,50 @@ func moodAnswers(first8, q9 string) []string {
 	return append(rep(first8, 8), q9)
 }
 
-// driveMood walks a full run from /mood to the final report. When q9 > 0
-// the crisis card appears; continueCrisis taps through it.
-func driveMood(t *testing.T, runner *journey.Runner, sender *mockSender, id int64, answers []string) {
+// openMoodMenu enters the mood module via /mood, passing the one-time
+// consent when it is asked, and asserts the menu is reached.
+func openMoodMenu(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender, id int64) {
 	t.Helper()
 	runner.HandleMood(sender, newMsg(id, "/mood"))
-	say(runner, sender, id, "Begin")
+	if st.Get(id).State == state.StateMoodConsent {
+		say(runner, sender, id, "Begin")
+	}
+	if got := st.Get(id).State; got != state.StateMoodMenu {
+		t.Fatalf("expected the mood menu, got %q", got)
+	}
+}
+
+// driveMood walks a full PHQ-9 run from /mood to the home landing: consent
+// (when fresh), the module menu, the nine answers, the crisis card (when
+// q9 > 0), the functional question (when any answer > 0), and declines the
+// closing GAD-7 offer.
+func driveMood(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender, id int64, answers []string) {
+	t.Helper()
+	openMoodMenu(t, runner, st, sender, id)
+	say(runner, sender, id, "PHQ-9 test")
 	for _, l := range answers {
 		say(runner, sender, id, l)
 	}
-	// A crisis answer parks the run on the card — continue through it.
-	if crisisCardShown(sender) {
+	if st.Get(id).State == state.StateMoodCrisis {
 		say(runner, sender, id, "Continue")
+	}
+	if st.Get(id).State == state.StateMoodQ10 {
+		say(runner, sender, id, "Somewhat difficult")
+	}
+	if st.Get(id).State == state.StateMoodOfferGad7 {
+		say(runner, sender, id, "Skip")
+	}
+}
+
+// driveWho5 walks a full WHO-5 quick check from the menu with the given
+// five answers, leaving the user wherever the result routes (the landing or
+// the PHQ-9 offer).
+func driveWho5(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender, id int64, answers []string) {
+	t.Helper()
+	openMoodMenu(t, runner, st, sender, id)
+	say(runner, sender, id, "Quick check")
+	for _, l := range answers {
+		say(runner, sender, id, l)
 	}
 }
 
@@ -295,8 +323,8 @@ func TestMood_ConsentDeclineLeavesNoTrace(t *testing.T) {
 	if d.State != state.StateAwaitingModeChoice {
 		t.Errorf("expected the landing after decline, got %q", d.State)
 	}
-	if d.Mood != nil {
-		t.Error("decline must not create Mood")
+	if d.Mood != nil || d.MoodConsentAt != nil {
+		t.Error("decline must not create any mood data")
 	}
 	texts := sentTexts(sender)
 	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood declined text") {
@@ -310,13 +338,58 @@ func TestMood_ConsentDeclineLeavesNoTrace(t *testing.T) {
 	}
 }
 
-func TestMood_QuestionsOneByOne(t *testing.T) {
-	runner, _, sender, _ := setupScr(t)
+// TestMood_ConsentOnceOpensMenu pins the v2 consent contract: consent is
+// asked ONCE for the whole module, opens the mini-menu with the three
+// instrument buttons, and is never re-asked on later entries.
+func TestMood_ConsentOnceOpensMenu(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
 
 	runner.HandleMood(sender, newMsg(1, "/mood"))
 	say(runner, sender, 1, "Begin")
+	d := st.Get(1)
+	if d.State != state.StateMoodMenu {
+		t.Fatalf("consent must open the menu, got %q", d.State)
+	}
+	if d.MoodConsentAt == nil {
+		t.Fatal("agreeing must record the module-wide consent")
+	}
+	menu := sender.lastText()
+	if !contains(menu, "Mood menu prompt") {
+		t.Errorf("menu prompt missing: %q", menu)
+	}
+	kb := lastKeyboard(sender)
+	for _, want := range []string{"Quick check", "PHQ-9 test", "Anxiety test", "Home"} {
+		if !keyboardHas(kb, want) {
+			t.Errorf("menu must offer %q, got %v", want, kb)
+		}
+	}
+
+	// A quick check passes without any further consent…
+	driveWho5(t, runner, st, sender, 1, rep("All the time", 5))
+
+	// …and the next /mood goes straight to the menu.
+	runner.HandleMood(sender, newMsg(1, "/mood"))
+	if got := st.Get(1).State; got != state.StateMoodMenu {
+		t.Fatalf("second entry must skip consent, got %q", got)
+	}
+	consentShown := 0
+	for _, txt := range sentTexts(sender) {
+		if contains(txt, "mood consent body") {
+			consentShown++
+		}
+	}
+	if consentShown != 1 {
+		t.Errorf("consent must be asked exactly once, shown %d times", consentShown)
+	}
+}
+
+func TestMood_QuestionsOneByOne(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	q1 := sender.lastText()
-	for _, want := range []string{"Mood self-check", "Over the last 2 weeks?", "Question 1 of 9", "M question 1?"} {
+	for _, want := range []string{"PHQ-9 test", "Over the last 2 weeks?", "Question 1 of 9", "M question 1?"} {
 		if !contains(q1, want) {
 			t.Errorf("first question missing %q:\n%s", want, q1)
 		}
@@ -331,15 +404,32 @@ func TestMood_QuestionsOneByOne(t *testing.T) {
 	}
 }
 
-func TestMood_HappyPathNoCrisis(t *testing.T) {
+func TestMood_HappyPathWithFunctionalItem(t *testing.T) {
 	runner, st, sender, backend := setupScr(t)
 
-	// 8×"Several days" + q9 "Not at all" → score 8, band mild, no crisis.
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	// 8×"Several days" + q9 "Not at all" → score 8, band mild, no crisis —
+	// but positives exist, so the functional (10th) question follows.
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
+	for _, l := range moodAnswers("Several days", "Not at all") {
+		say(runner, sender, 1, l)
+	}
 
+	if got := st.Get(1).State; got != state.StateMoodQ10 {
+		t.Fatalf("expected the functional question after nine answers, got %q", got)
+	}
+	q10 := sender.lastText()
+	if !contains(q10, "Q10 how difficult?") {
+		t.Errorf("functional question missing:\n%s", q10)
+	}
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Somewhat difficult") {
+		t.Errorf("functional options missing, got %v", kb)
+	}
+
+	say(runner, sender, 1, "Somewhat difficult")
 	d := st.Get(1)
-	if d.State != state.StateAwaitingModeChoice {
-		t.Errorf("expected the landing after completion, got %q", d.State)
+	if d.State != state.StateMoodOfferGad7 {
+		t.Errorf("expected the GAD-7 offer after the report, got %q", d.State)
 	}
 	if d.Mood != nil {
 		t.Error("Mood must be wiped on completion")
@@ -350,6 +440,9 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 	}
 	if res.Score != 8 || res.Severity != "mild" || res.Q9Positive {
 		t.Errorf("result: %+v", res)
+	}
+	if !res.Q10Answered || res.Q10Answer != 1 {
+		t.Errorf("functional answer must be stored: %+v", res)
 	}
 
 	raw := rawUsersJSON(t, backend)
@@ -362,13 +455,10 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 
 	texts := sentTexts(sender)
 	if len(texts) < 3 {
-		t.Fatalf("expected at least result + report + landing, got %d messages", len(texts))
+		t.Fatalf("expected at least result + report + offer, got %d messages", len(texts))
 	}
-	// The final chain is result → doctor report → home landing.
-	result, report := texts[len(texts)-3], texts[len(texts)-2]
-	if !contains(texts[len(texts)-1], "Mode?") {
-		t.Errorf("the landing prompt must close the test, got %q", texts[len(texts)-1])
-	}
+	// The final chain is result → combined doctor report → GAD-7 offer.
+	result, report, offer := texts[len(texts)-3], texts[len(texts)-2], texts[len(texts)-1]
 	for _, want := range []string{
 		"Your mood result", "PHQ-9: 8 of 27.", "band mild",
 		"retest in 2-4 weeks", "MOOD-DISCLAIMER", "MOOD-ATTR-LINE",
@@ -386,11 +476,56 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 		t.Errorf("unrendered placeholder in result:\n%s", result)
 	}
 	for _, want := range []string{
-		"mood report lead-in", "MOOD REPORT " + res.TakenAt.Format("02.01.2006"),
-		"score: 8/27 - band mild", "q9: not marked",
+		"mood report lead-in", "MOOD SUMMARY REPORT",
+		"PHQ9 " + res.TakenAt.Format("02.01.2006") + ": 8/27 - band mild",
+		"q9: not marked", "q10: Somewhat difficult", "REPORT-FOOTER",
 	} {
 		if !contains(report, want) {
 			t.Errorf("doctor report missing %q:\n%s", want, report)
+		}
+	}
+	for _, notWant := range []string{"GAD7 ", "WHO5 "} {
+		if contains(report, notWant) {
+			t.Errorf("report must list only completed instruments (%q):\n%s", notWant, report)
+		}
+	}
+	if !contains(offer, "offer gad7 body") {
+		t.Errorf("GAD-7 offer must close the PHQ-9 chain:\n%s", offer)
+	}
+
+	// Declining the offer lands home.
+	say(runner, sender, 1, "Skip")
+	if got := st.Get(1).State; got != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after declining the offer, got %q", got)
+	}
+}
+
+// TestMood_Q10OnlyWhenAnyPositive pins the official gate: an all-zero run
+// skips the functional question entirely — no q10 in the chat, no q10 line
+// in the report.
+func TestMood_Q10OnlyWhenAnyPositive(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
+	for _, l := range moodAnswers("Not at all", "Not at all") {
+		say(runner, sender, 1, l)
+	}
+
+	d := st.Get(1)
+	if d.State != state.StateMoodOfferGad7 {
+		t.Fatalf("all-zero run must finalize straight to the offer, got %q", d.State)
+	}
+	res := d.MoodResult
+	if res == nil || res.Score != 0 || res.Q10Answered {
+		t.Fatalf("all-zero result must have no functional answer: %+v", res)
+	}
+	for _, txt := range sentTexts(sender) {
+		if contains(txt, "Q10 how difficult?") {
+			t.Errorf("functional question must not be asked on an all-zero run:\n%s", txt)
+		}
+		if contains(txt, "q10:") {
+			t.Errorf("report must not carry a q10 line on an all-zero run:\n%s", txt)
 		}
 	}
 }
@@ -398,14 +533,14 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	for _, l := range rep("Not at all", 8) {
 		say(runner, sender, 1, l)
 	}
 	say(runner, sender, 1, "Several days") // q9 = 1
 
-	// The card comes right after the answer — before any result.
+	// The card comes right after the answer — before anything else.
 	if got := st.Get(1).State; got != state.StateMoodCrisis {
 		t.Fatalf("expected crisis state right after q9 answer, got %q", got)
 	}
@@ -422,16 +557,23 @@ func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 		t.Errorf("result must not be sent before Continue:\n%s", card)
 	}
 
-	// The test is not blocked: Continue proceeds to the result and then to
-	// the home landing.
+	// The test is not blocked: Continue proceeds to the functional question
+	// (q9 > 0 opens its gate), then the result and the offer.
 	say(runner, sender, 1, "Continue")
+	if got := st.Get(1).State; got != state.StateMoodQ10 {
+		t.Fatalf("continue must proceed to the functional question, got %q", got)
+	}
+	say(runner, sender, 1, "Not difficult at all")
 	d := st.Get(1)
-	if d.State != state.StateAwaitingModeChoice {
-		t.Errorf("expected the landing after continue, got %q", d.State)
+	if d.State != state.StateMoodOfferGad7 {
+		t.Errorf("expected the GAD-7 offer after the report, got %q", d.State)
 	}
 	res := d.MoodResult
 	if res == nil || res.Score != 1 || res.Severity != "minimal" || !res.Q9Positive {
 		t.Fatalf("result: %+v", res)
+	}
+	if !res.Q10Answered || res.Q10Answer != 0 {
+		t.Fatalf("functional answer must be stored even when zero: %+v", res)
 	}
 
 	// The contacts are repeated in the final result despite the minimal score.
@@ -443,9 +585,13 @@ func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 	if !contains(result, "band minimal") {
 		t.Errorf("result should still carry the score band:\n%s", result)
 	}
-	// And the doctor report carries the q9 fact.
-	if report := texts[len(texts)-2]; !contains(report, "q9: marked") {
+	// And the doctor report carries both PHQ-9 facts.
+	report := texts[len(texts)-2]
+	if !contains(report, "q9: marked") {
 		t.Errorf("doctor report must mark q9:\n%s", report)
+	}
+	if !contains(report, "q10: Not difficult at all") {
+		t.Errorf("doctor report must carry the functional answer:\n%s", report)
 	}
 }
 
@@ -460,8 +606,8 @@ func TestMood_CrisisUrgentLineForStrongAnswers(t *testing.T) {
 	} {
 		t.Run(tc.q9, func(t *testing.T) {
 			runner, st, sender, _ := setupScr(t)
-			runner.HandleMood(sender, newMsg(1, "/mood"))
-			say(runner, sender, 1, "Begin")
+			openMoodMenu(t, runner, st, sender, 1)
+			say(runner, sender, 1, "PHQ-9 test")
 			for _, l := range rep("Not at all", 8) {
 				say(runner, sender, 1, l)
 			}
@@ -484,17 +630,19 @@ func TestMood_CrisisUrgentLineForStrongAnswers(t *testing.T) {
 func TestMood_NoCrisisCardWhenQ9Zero(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	for _, l := range rep("Nearly every day", 8) {
 		say(runner, sender, 1, l)
 	}
-	say(runner, sender, 1, "Not at all") // q9 = 0 → straight to the result
+	say(runner, sender, 1, "Not at all") // q9 = 0 → straight to q10 (positives exist)
+
+	if got := st.Get(1).State; got != state.StateMoodQ10 {
+		t.Fatalf("expected the functional question without a crisis card, got %q", got)
+	}
+	say(runner, sender, 1, "Very difficult")
 
 	d := st.Get(1)
-	if d.State != state.StateAwaitingModeChoice {
-		t.Errorf("expected the landing, got %q", d.State)
-	}
 	res := d.MoodResult
 	if res == nil || res.Score != 24 || res.Severity != "severe" || res.Q9Positive {
 		t.Fatalf("result: %+v", res)
@@ -507,38 +655,44 @@ func TestMood_NoCrisisCardWhenQ9Zero(t *testing.T) {
 	if !contains(result, "band severe") {
 		t.Errorf("severe band line missing:\n%s", result)
 	}
+	for _, txt := range texts {
+		if contains(txt, "crisis lead") {
+			t.Errorf("crisis card must not appear when q9 == 0:\n%s", txt)
+		}
+	}
 }
 
 func TestMood_RetestShowsDelta(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all")) // 8
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all")) // 8
 	first := st.Get(1).MoodResult
 	if first == nil || first.Score != 8 {
 		t.Fatalf("first result: %+v", first)
 	}
 
 	resetSender(sender)
-	driveMood(t, runner, sender, 1, moodAnswers("More than half", "Not at all")) // 16
+	driveMood(t, runner, st, sender, 1, moodAnswers("More than half", "Not at all")) // 16
 	res := st.Get(1).MoodResult
 	if res == nil || res.Score != 16 || res.Severity != "moderately_severe" {
 		t.Fatalf("second result must overwrite the first: %+v", res)
 	}
-	texts := sentTexts(sender)
-	result := texts[len(texts)-3]
-	if !contains(result, "Last time (today) it was 8, now 16.") {
-		t.Errorf("delta line missing or wrong:\n%s", result)
+	found := false
+	for _, txt := range sentTexts(sender) {
+		if contains(txt, "Last time (today) it was 8, now 16.") {
+			found = true
+		}
 	}
-	if !contains(result, "retest in 2-4 weeks") {
-		t.Errorf("retest line missing:\n%s", result)
+	if !found {
+		t.Errorf("delta line missing from the retest result:\n%q", sentTexts(sender))
 	}
 }
 
 func TestMood_StartMidTestPausesAndResumes(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	say(runner, sender, 1, "Several days")
 	say(runner, sender, 1, "Several days")
 
@@ -551,16 +705,19 @@ func TestMood_StartMidTestPausesAndResumes(t *testing.T) {
 		t.Fatalf("ResumeState not recorded: %+v", d.Mood)
 	}
 
-	// Resume via the fork: resume prompt, then Continue lands on question 3.
+	// Resume via the mood button: the menu offers the run's resume row, and
+	// consent is NOT re-asked.
 	say(runner, sender, 1, "Mood")
-	resume := sender.lastText()
-	if !contains(resume, "resume at question 3 of 9") {
-		t.Fatalf("resume prompt wrong: %q", resume)
+	if got := st.Get(1).State; got != state.StateMoodMenu {
+		t.Fatalf("expected the menu (consent already given), got %q", got)
 	}
-	if contains(resume, "mood consent body") {
+	if contains(sender.lastText(), "mood consent body") {
 		t.Error("consent must not be asked again on resume")
 	}
-	say(runner, sender, 1, "Continue")
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Resume PHQ-9 run") {
+		t.Fatalf("menu must offer the resume row, got %v", kb)
+	}
+	say(runner, sender, 1, "Resume PHQ-9 run")
 	if got := sender.lastText(); !contains(got, "Question 3 of 9") {
 		t.Errorf("resume should land on question 3, got %q", got)
 	}
@@ -572,15 +729,17 @@ func TestMood_StartMidTestPausesAndResumes(t *testing.T) {
 	}
 }
 
-func TestMood_ResumeRestartResetsAnswers(t *testing.T) {
+func TestMood_MenuInstrumentButtonRestartsRun(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	say(runner, sender, 1, "Nearly every day")
 	runner.HandleStart(sender, newMsg(1, "/start"))
-	say(runner, sender, 1, "Mood")
-	say(runner, sender, 1, "Start over")
+	say(runner, sender, 1, "Mood") // → menu with the resume row above the fresh-start button
+
+	// The plain instrument button is the explicit start-over.
+	say(runner, sender, 1, "PHQ-9 test")
 	if got := sender.lastText(); !contains(got, "Question 1 of 9") {
 		t.Fatalf("restart should begin from question 1, got %q", got)
 	}
@@ -588,21 +747,15 @@ func TestMood_ResumeRestartResetsAnswers(t *testing.T) {
 		t.Errorf("restart must wipe answers, got %d", got)
 	}
 
-	// "Come back later" keeps the run resumable and lands on the landing,
-	// where the resume button is offered right away.
+	// Escaping home keeps the run resumable — the landing offers the mood
+	// resume button right away.
 	runner.HandleStart(sender, newMsg(1, "/start"))
-	say(runner, sender, 1, "Mood")
-	say(runner, sender, 1, "Come back later")
 	d := st.Get(1)
 	if d.State != state.StateAwaitingModeChoice {
-		t.Errorf("expected the landing after later, got %q", d.State)
+		t.Errorf("expected the landing, got %q", d.State)
 	}
 	if d.Mood == nil {
-		t.Error("later must keep the unfinished run")
-	}
-	texts := sentTexts(sender)
-	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood paused text") {
-		t.Errorf("paused text not sent: %q", texts)
+		t.Error("escape must keep the unfinished run")
 	}
 	if kb := lastKeyboard(sender); !keyboardHas(kb, "Resume mood") {
 		t.Errorf("landing must offer the mood resume button, got %v", kb)
@@ -612,8 +765,8 @@ func TestMood_ResumeRestartResetsAnswers(t *testing.T) {
 func TestMood_PauseOnCrisisResumesOnCard(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	for _, l := range rep("Not at all", 8) {
 		say(runner, sender, 1, l)
 	}
@@ -628,8 +781,8 @@ func TestMood_PauseOnCrisisResumesOnCard(t *testing.T) {
 		t.Fatalf("crisis ResumeState not recorded: %+v", d.Mood)
 	}
 
-	say(runner, sender, 1, "Mood")
-	say(runner, sender, 1, "Continue") // resume prompt → back to the card
+	// The landing's resume button lands straight back on the card.
+	say(runner, sender, 1, "Resume mood")
 	card := sender.lastText()
 	if !contains(card, "crisis lead") || !contains(card, "talk to someone today") {
 		t.Fatalf("resume must land back on the crisis card:\n%s", card)
@@ -637,8 +790,9 @@ func TestMood_PauseOnCrisisResumesOnCard(t *testing.T) {
 	if got := st.Get(1).State; got != state.StateMoodCrisis {
 		t.Fatalf("expected crisis state again, got %q", got)
 	}
-	say(runner, sender, 1, "Continue") // card → result
-	if res := st.Get(1).MoodResult; res == nil || !res.Q9Positive {
+	say(runner, sender, 1, "Continue") // card → functional question
+	say(runner, sender, 1, "Extremely difficult")
+	if res := st.Get(1).MoodResult; res == nil || !res.Q9Positive || !res.Q10Answered || res.Q10Answer != 3 {
 		t.Fatalf("result after crisis continue: %+v", res)
 	}
 }
@@ -646,13 +800,13 @@ func TestMood_PauseOnCrisisResumesOnCard(t *testing.T) {
 func TestMood_AbandonKeepsOldResult(t *testing.T) {
 	runner, st, sender, backend := setupScr(t)
 
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 	if st.Get(1).MoodResult == nil {
 		t.Fatal("precondition: result stored")
 	}
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	say(runner, sender, 1, "Nearly every day")
 
 	runner.HandleAbandon(sender, newMsg(1, "/abandon"))
@@ -675,6 +829,30 @@ func TestMood_AbandonKeepsOldResult(t *testing.T) {
 	}
 }
 
+// TestMood_AbandonWipesOnlyTheActiveInstrument pins the per-instrument
+// abandon: cancelling a WHO-5 run must not touch a paused PHQ-9 run.
+func TestMood_AbandonWipesOnlyTheActiveInstrument(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
+	say(runner, sender, 1, "Several days")
+	runner.HandleStart(sender, newMsg(1, "/start")) // pause the PHQ-9 run
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Quick check")
+	say(runner, sender, 1, "All the time")
+
+	runner.HandleAbandon(sender, newMsg(1, "/abandon"))
+	d := st.Get(1)
+	if d.Who5 != nil {
+		t.Error("the active WHO-5 run must be wiped")
+	}
+	if d.Mood == nil || len(d.Mood.Answers) != 1 {
+		t.Errorf("the paused PHQ-9 run must survive: %+v", d.Mood)
+	}
+}
+
 func TestMood_DeleteFlow(t *testing.T) {
 	runner, st, sender, backend := setupScr(t)
 
@@ -688,7 +866,7 @@ func TestMood_DeleteFlow(t *testing.T) {
 	}
 
 	// Cancel keeps everything.
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
 	if !contains(sender.lastText(), "delete mood data?") {
 		t.Fatalf("confirm prompt missing: %q", sender.lastText())
@@ -698,13 +876,15 @@ func TestMood_DeleteFlow(t *testing.T) {
 		t.Error("cancel must keep the result")
 	}
 
-	// Confirm wipes both fields from the persisted JSON and returns to the
-	// landing the command interrupted.
+	// Confirm wipes every mood field from the persisted JSON — including
+	// the module consent — and returns to the landing the command
+	// interrupted.
 	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
 	say(runner, sender, 1, "Yes, delete")
 	d := st.Get(1)
-	if d.Mood != nil || d.MoodResult != nil {
-		t.Error("confirm must wipe mood data")
+	if d.Mood != nil || d.MoodResult != nil || d.Who5 != nil || d.Who5Result != nil ||
+		d.Gad7 != nil || d.Gad7Result != nil || d.MoodConsentAt != nil {
+		t.Error("confirm must wipe all mood data")
 	}
 	texts := sentTexts(sender)
 	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood deleted") {
@@ -713,8 +893,15 @@ func TestMood_DeleteFlow(t *testing.T) {
 	if d.State != state.StateAwaitingModeChoice {
 		t.Errorf("confirm must return to the landing it interrupted, got %q", d.State)
 	}
-	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"mood`) {
-		t.Errorf("persisted JSON still mentions mood:\n%s", raw)
+	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"mood`) ||
+		strings.Contains(raw, `"who5`) || strings.Contains(raw, `"gad7`) {
+		t.Errorf("persisted JSON still mentions mood data:\n%s", raw)
+	}
+
+	// With the consent wiped, the next entry asks it again.
+	runner.HandleMood(sender, newMsg(1, "/mood"))
+	if got := st.Get(1).State; got != state.StateMoodConsent {
+		t.Errorf("consent must be re-asked after a full delete, got %q", got)
 	}
 }
 
@@ -733,11 +920,7 @@ func TestMood_DetourFinishLandsHomeDiaryOneTapAway(t *testing.T) {
 		t.Fatalf("precondition: stage checkin, got %q", got)
 	}
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
-	for _, l := range moodAnswers("Several days", "Not at all") {
-		say(runner, sender, 1, l)
-	}
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 
 	d := st.Get(1)
 	if d.State != state.StateAwaitingModeChoice {
@@ -779,7 +962,7 @@ func TestMood_FinishFromDefecationLandsHome(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 	startDiary(runner, sender, 1) // parked on the defecation question
 
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 
 	d := st.Get(1)
 	if d.State != state.StateAwaitingModeChoice {
@@ -802,7 +985,273 @@ func TestMood_FinishFromDefecationLandsHome(t *testing.T) {
 	}
 }
 
-func TestMood_ReportIncludesMoodLine(t *testing.T) {
+// --- WHO-5 quick check ------------------------------------------------------
+
+func TestWho5_HighScoreLandsHomeWithoutOffer(t *testing.T) {
+	runner, st, sender, backend := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Quick check")
+	s1 := sender.lastText()
+	for _, want := range []string{"Quick well-being check", "Over the last two weeks", "Statement 1 of 5", "W statement 1"} {
+		if !contains(s1, want) {
+			t.Errorf("first statement missing %q:\n%s", want, s1)
+		}
+	}
+	// The scale keeps the form order — best option on top.
+	if kb := lastKeyboard(sender); len(kb) == 0 || kb[0][0] != "All the time" {
+		t.Errorf("WHO-5 keyboard must start with the best option, got %v", kb)
+	}
+
+	for _, l := range rep("All the time", 5) {
+		say(runner, sender, 1, l)
+	}
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("a normal score must land home without an offer, got %q", d.State)
+	}
+	if d.Who5 != nil {
+		t.Error("Who5 progress must be wiped on completion")
+	}
+	res := d.Who5Result
+	if res == nil || res.Score != 100 || res.Band != "ok" {
+		t.Fatalf("result: %+v", res)
+	}
+	texts := sentTexts(sender)
+	result := texts[len(texts)-2] // result → landing prompt
+	for _, want := range []string{"WHO-5: 100 of 100.", "wb ok", "MOOD-DISCLAIMER", "WHO5-ATTR-LINE"} {
+		if !contains(result, want) {
+			t.Errorf("result missing %q:\n%s", want, result)
+		}
+	}
+	for _, txt := range texts {
+		if contains(txt, "offer phq9") {
+			t.Errorf("no offer for a normal score:\n%s", txt)
+		}
+	}
+	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"answers"`) {
+		t.Errorf("raw answers must not survive completion:\n%s", raw)
+	}
+}
+
+func TestWho5_ReducedScoreOffersPhq9(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	// 5 × "Less than half the time" (2) → raw 10 → 40 → low.
+	driveWho5(t, runner, st, sender, 1, rep("Less than half the time", 5))
+
+	d := st.Get(1)
+	if d.State != state.StateMoodOfferPhq9 {
+		t.Fatalf("a reduced score must offer the PHQ-9, got %q", d.State)
+	}
+	res := d.Who5Result
+	if res == nil || res.Score != 40 || res.Band != "low" {
+		t.Fatalf("result: %+v", res)
+	}
+	texts := sentTexts(sender)
+	result, offer := texts[len(texts)-2], texts[len(texts)-1]
+	if !contains(result, "WHO-5: 40 of 100.") || !contains(result, "wb low") {
+		t.Errorf("result wrong:\n%s", result)
+	}
+	if !contains(offer, "offer phq9 low") || contains(offer, "very low") {
+		t.Errorf("expected the regular offer wording:\n%s", offer)
+	}
+
+	// One tap starts the PHQ-9 — consent is NOT re-asked.
+	say(runner, sender, 1, "Take the PHQ-9")
+	if got := st.Get(1).State; got != state.StateMoodQuestion {
+		t.Fatalf("offer must start the PHQ-9, got %q", got)
+	}
+	if got := sender.lastText(); !contains(got, "Question 1 of 9") {
+		t.Errorf("PHQ-9 must start from question 1, got %q", got)
+	}
+	if contains(sender.lastText(), "mood consent body") {
+		t.Error("consent must not be re-asked on the offer path")
+	}
+}
+
+func TestWho5_MarkedReductionInsistentOffer(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	// 5 × "Some of the time" (1) → raw 5 → 20 → very_low.
+	driveWho5(t, runner, st, sender, 1, rep("Some of the time", 5))
+
+	d := st.Get(1)
+	if d.State != state.StateMoodOfferPhq9 {
+		t.Fatalf("expected the PHQ-9 offer, got %q", d.State)
+	}
+	if res := d.Who5Result; res == nil || res.Score != 20 || res.Band != "very_low" {
+		t.Fatalf("result: %+v", res)
+	}
+	if offer := sender.lastText(); !contains(offer, "offer phq9 very low") {
+		t.Errorf("expected the insistent offer wording:\n%s", offer)
+	}
+
+	// Declining lands home; the result stays stored.
+	say(runner, sender, 1, "Skip")
+	d = st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after declining, got %q", d.State)
+	}
+	if d.Who5Result == nil {
+		t.Error("declining the offer must keep the WHO-5 result")
+	}
+}
+
+// TestWho5_OfferResumesPausedPhq9Run pins the no-data-loss rule: the offer's
+// start button continues a paused PHQ-9 run instead of wiping it.
+func TestWho5_OfferResumesPausedPhq9Run(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
+	say(runner, sender, 1, "Several days")
+	runner.HandleStart(sender, newMsg(1, "/start")) // pause with 1 answer
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Quick check")
+	for _, l := range rep("Less than half the time", 5) {
+		say(runner, sender, 1, l)
+	}
+	say(runner, sender, 1, "Take the PHQ-9")
+
+	d := st.Get(1)
+	if d.State != state.StateMoodQuestion {
+		t.Fatalf("expected the PHQ-9 question, got %q", d.State)
+	}
+	if d.Mood == nil || len(d.Mood.Answers) != 1 {
+		t.Fatalf("the paused run must be resumed, not wiped: %+v", d.Mood)
+	}
+	if got := sender.lastText(); !contains(got, "Question 2 of 9") {
+		t.Errorf("resume must land on question 2, got %q", got)
+	}
+}
+
+// --- GAD-7 anxiety test -----------------------------------------------------
+
+func TestGad7_FlowAndCombinedReport(t *testing.T) {
+	runner, st, sender, backend := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Anxiety test")
+	q1 := sender.lastText()
+	for _, want := range []string{"Anxiety check", "Over the last 14 days?", "Question 1 of 7", "G question 1?"} {
+		if !contains(q1, want) {
+			t.Errorf("first question missing %q:\n%s", want, q1)
+		}
+	}
+
+	// 7 × "More than half" (2) → 14 → moderate.
+	for _, l := range rep("More than half", 7) {
+		say(runner, sender, 1, l)
+	}
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("GAD-7 completion must land home (no further offer), got %q", d.State)
+	}
+	if d.Gad7 != nil {
+		t.Error("Gad7 progress must be wiped on completion")
+	}
+	res := d.Gad7Result
+	if res == nil || res.Score != 14 || res.Severity != "moderate" {
+		t.Fatalf("result: %+v", res)
+	}
+
+	texts := sentTexts(sender)
+	// The final chain is result → combined doctor report → landing prompt.
+	result, report := texts[len(texts)-3], texts[len(texts)-2]
+	for _, want := range []string{"GAD-7: 14 of 21.", "g moderate - discuss", "MOOD-DISCLAIMER", "GAD7-ATTR-LINE"} {
+		if !contains(result, want) {
+			t.Errorf("result missing %q:\n%s", want, result)
+		}
+	}
+	for _, want := range []string{
+		"MOOD SUMMARY REPORT",
+		"GAD7 " + res.TakenAt.Format("02.01.2006") + ": 14/21 - g moderate - discuss",
+		"REPORT-FOOTER",
+	} {
+		if !contains(report, want) {
+			t.Errorf("report missing %q:\n%s", want, report)
+		}
+	}
+	if contains(report, "PHQ9 ") || contains(report, "WHO5 ") {
+		t.Errorf("report must list only completed instruments:\n%s", report)
+	}
+	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"answers"`) {
+		t.Errorf("raw answers must not survive completion:\n%s", raw)
+	}
+}
+
+func TestGad7_SevereBandWording(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Anxiety test")
+	for _, l := range rep("Nearly every day", 7) {
+		say(runner, sender, 1, l)
+	}
+	res := st.Get(1).Gad7Result
+	if res == nil || res.Score != 21 || res.Severity != "severe" {
+		t.Fatalf("result: %+v", res)
+	}
+	texts := sentTexts(sender)
+	if result := texts[len(texts)-3]; !contains(result, "g severe - see a specialist") {
+		t.Errorf("severe wording missing:\n%s", result)
+	}
+}
+
+// --- the offer chain --------------------------------------------------------
+
+// TestMood_OfferChainWho5ToPhq9ToGad7 walks the full link chain: a reduced
+// quick check offers the PHQ-9; the PHQ-9 report offers the GAD-7; the
+// final combined report carries all three instruments with dates.
+func TestMood_OfferChainWho5ToPhq9ToGad7(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	driveWho5(t, runner, st, sender, 1, rep("Less than half the time", 5))
+	say(runner, sender, 1, "Take the PHQ-9")
+	for _, l := range moodAnswers("Several days", "Not at all") {
+		say(runner, sender, 1, l)
+	}
+	say(runner, sender, 1, "Somewhat difficult") // the functional question
+	if got := st.Get(1).State; got != state.StateMoodOfferGad7 {
+		t.Fatalf("expected the GAD-7 offer, got %q", got)
+	}
+	say(runner, sender, 1, "Take the GAD-7")
+	for _, l := range rep("Several days", 7) {
+		say(runner, sender, 1, l)
+	}
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("the chain must close on the landing, got %q", d.State)
+	}
+	if d.Who5Result == nil || d.MoodResult == nil || d.Gad7Result == nil {
+		t.Fatal("all three results must be stored")
+	}
+
+	texts := sentTexts(sender)
+	report := texts[len(texts)-2] // the combined report before the landing
+	date := d.Gad7Result.TakenAt.Format("02.01.2006")
+	for _, want := range []string{
+		"MOOD SUMMARY REPORT",
+		"PHQ9 " + date + ": 8/27 - band mild",
+		"q9: not marked",
+		"q10: Somewhat difficult",
+		"GAD7 " + date + ": 7/21 - g mild",
+		"WHO5 " + date + ": 40/100 - wb low",
+		"REPORT-FOOTER",
+	} {
+		if !contains(report, want) {
+			t.Errorf("combined report missing %q:\n%s", want, report)
+		}
+	}
+}
+
+// --- /report ----------------------------------------------------------------
+
+func TestMood_ReportIncludesAllInstrumentLines(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
 	taken := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
@@ -816,22 +1265,29 @@ func TestMood_ReportIncludesMoodLine(t *testing.T) {
 		t.Errorf("report missing the mood line:\n%s", got)
 	}
 
-	// Alongside the ADHD line and products.
+	// Alongside the ADHD line, products, and the other two instruments.
 	d := st.Get(1)
 	d.Products = map[string]state.ProductProgress{"Apple": {Status: "completed"}}
 	d.ScreeningResult = &state.ScreeningResult{
 		TakenAt: taken, AsrsASignificant: 4, AsrsAThreshold: 4, AsrsAPositive: true,
 		WursScore: 47, WursCutoff: 46, WursPositive: true, Verdict: "consistent",
 	}
+	d.Gad7Result = &state.Gad7Result{TakenAt: taken, Score: 9, Severity: "mild"}
+	d.Who5Result = &state.Who5Result{TakenAt: taken, Score: 48, Band: "low"}
 	st.Set(1, d)
 	runner.HandleReport(sender, newMsg(1, "/report"))
 	got = sender.lastText()
-	for _, want := range []string{"done: Apple", "ADHD 25.08.2026", "Mood 25.08.2026: 11 of 27"} {
+	for _, want := range []string{
+		"done: Apple", "ADHD 25.08.2026", "Mood 25.08.2026: 11 of 27",
+		"Anxiety 25.08.2026: 9 of 21", "WHO5 25.08.2026: 48 of 100",
+	} {
 		if !contains(got, want) {
 			t.Errorf("combined report missing %q:\n%s", want, got)
 		}
 	}
 }
+
+// --- guards -----------------------------------------------------------------
 
 func TestMood_InvalidInputsKeepState(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
@@ -851,6 +1307,9 @@ func TestMood_InvalidInputsKeepState(t *testing.T) {
 	check(state.StateMoodConsent, "Tap a screening button.")
 
 	say(runner, sender, 1, "Begin")
+	check(state.StateMoodMenu, "Tap a screening button.")
+
+	say(runner, sender, 1, "PHQ-9 test")
 	check(state.StateMoodQuestion, "Tap a scale button.")
 
 	for _, l := range rep("Not at all", 8) {
@@ -859,6 +1318,10 @@ func TestMood_InvalidInputsKeepState(t *testing.T) {
 	say(runner, sender, 1, "Nearly every day")
 	check(state.StateMoodCrisis, "Tap a screening button.")
 	say(runner, sender, 1, "Continue")
+	check(state.StateMoodQ10, "Tap a scale button.")
+	say(runner, sender, 1, "Not difficult at all")
+	check(state.StateMoodOfferGad7, "Tap a screening button.")
+	say(runner, sender, 1, "Skip")
 
 	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
 	check(state.StateMoodDeleteConfirm, "Tap a screening button.")
@@ -867,7 +1330,7 @@ func TestMood_InvalidInputsKeepState(t *testing.T) {
 func TestMood_BrokenStateGuards(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
-	// Question phase with no Mood → funnels back to consent.
+	// Question phase with no Mood and no consent → funnels back to consent.
 	st.Set(1, state.UserData{State: state.StateMoodQuestion, ChatID: 100, Locale: "en"})
 	say(runner, sender, 1, "Several days")
 	if got := st.Get(1).State; got != state.StateMoodConsent {
@@ -887,23 +1350,53 @@ func TestMood_BrokenStateGuards(t *testing.T) {
 		t.Errorf("crisis guard: got %q", got)
 	}
 
-	// Overfilled answers → finalize without re-asking (and land home, as
-	// every completion does).
+	// Functional question with an incomplete run → back to the questions.
 	st.Set(3, state.UserData{
-		State: state.StateMoodQuestion, ChatID: 300, Locale: "en",
-		Mood: &state.MoodProgress{Answers: rep0(12)},
+		State: state.StateMoodQ10, ChatID: 300, Locale: "en",
+		Mood: &state.MoodProgress{Answers: []int{1, 1, 1}},
 	})
 	runner.HandleMood(sender, newMsg(3, "/mood"))
-	d := st.Get(3)
-	if d.State != state.StateAwaitingModeChoice || d.MoodResult == nil {
+	if got := st.Get(3).State; got != state.StateMoodQuestion {
+		t.Errorf("q10 guard: got %q", got)
+	}
+
+	// Overfilled answers → finalize without re-asking; the PHQ-9 completion
+	// routes to the GAD-7 offer as usual.
+	st.Set(4, state.UserData{
+		State: state.StateMoodQuestion, ChatID: 400, Locale: "en",
+		Mood: &state.MoodProgress{Answers: rep0(12)},
+	})
+	runner.HandleMood(sender, newMsg(4, "/mood"))
+	d := st.Get(4)
+	if d.State != state.StateMoodOfferGad7 || d.MoodResult == nil {
 		t.Errorf("overfilled guard: state %q, result %+v", d.State, d.MoodResult)
 	}
 
 	// Report with no result → idle, no panic.
-	st.Set(4, state.UserData{State: state.StateMoodReport, ChatID: 400, Locale: "en"})
-	runner.HandleMood(sender, newMsg(4, "/mood"))
-	if got := st.Get(4).State; got != state.StateIdle {
+	st.Set(5, state.UserData{State: state.StateMoodReport, ChatID: 500, Locale: "en"})
+	runner.HandleMood(sender, newMsg(5, "/mood"))
+	if got := st.Get(5).State; got != state.StateIdle {
 		t.Errorf("report guard: got %q", got)
+	}
+
+	// WHO-5 / GAD-7 question states without a run → back to the menu (the
+	// stored result implies consent, so the menu renders).
+	taken := time.Now()
+	st.Set(6, state.UserData{
+		State: state.StateMoodWho5Question, ChatID: 600, Locale: "en",
+		Who5Result: &state.Who5Result{TakenAt: taken, Score: 80, Band: "ok"},
+	})
+	runner.HandleMood(sender, newMsg(6, "/mood"))
+	if got := st.Get(6).State; got != state.StateMoodMenu {
+		t.Errorf("who5 guard: got %q", got)
+	}
+	st.Set(7, state.UserData{
+		State: state.StateMoodGad7Question, ChatID: 700, Locale: "en",
+		Gad7Result: &state.Gad7Result{TakenAt: taken, Score: 3, Severity: "minimal"},
+	})
+	runner.HandleMood(sender, newMsg(7, "/mood"))
+	if got := st.Get(7).State; got != state.StateMoodMenu {
+		t.Errorf("gad7 guard: got %q", got)
 	}
 }
 
@@ -911,7 +1404,7 @@ func TestMood_AdhdAndMoodDataIndependent(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 
 	drive(t, runner, sender, 1, happyRun())
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 
 	d := st.Get(1)
 	if d.ScreeningResult == nil || d.MoodResult == nil {

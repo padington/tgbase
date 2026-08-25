@@ -255,10 +255,22 @@ func TestLanding_EscapeFromEveryState(t *testing.T) {
 			},
 		},
 		{
+			name: "mood menu",
+			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
+				openMoodMenu(t, runner, st, sender, 1)
+			},
+			from: state.StateMoodMenu,
+			check: func(t *testing.T, d state.UserData) {
+				if d.MoodConsentAt == nil {
+					t.Error("the module consent must survive the escape")
+				}
+			},
+		},
+		{
 			name: "mood question",
 			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
-				runner.HandleMood(sender, newMsg(1, "/mood"))
-				say(runner, sender, 1, "Begin")
+				openMoodMenu(t, runner, st, sender, 1)
+				say(runner, sender, 1, "PHQ-9 test")
 				say(runner, sender, 1, "Several days")
 				say(runner, sender, 1, "Several days")
 			},
@@ -275,8 +287,8 @@ func TestLanding_EscapeFromEveryState(t *testing.T) {
 		{
 			name: "mood crisis card",
 			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
-				runner.HandleMood(sender, newMsg(1, "/mood"))
-				say(runner, sender, 1, "Begin")
+				openMoodMenu(t, runner, st, sender, 1)
+				say(runner, sender, 1, "PHQ-9 test")
 				for _, l := range rep("Not at all", 8) {
 					say(runner, sender, 1, l)
 				}
@@ -293,9 +305,56 @@ func TestLanding_EscapeFromEveryState(t *testing.T) {
 			},
 		},
 		{
+			name: "mood functional question",
+			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
+				openMoodMenu(t, runner, st, sender, 1)
+				say(runner, sender, 1, "PHQ-9 test")
+				for _, l := range moodAnswers("Several days", "Not at all") {
+					say(runner, sender, 1, l)
+				}
+			},
+			from: state.StateMoodQ10,
+			check: func(t *testing.T, d state.UserData) {
+				if d.Mood == nil || len(d.Mood.Answers) != 9 {
+					t.Fatalf("answers must survive the escape: %+v", d.Mood)
+				}
+				if d.Mood.ResumeState != state.StateMoodQ10 {
+					t.Errorf("a run paused on the functional question must resume there, got %q", d.Mood.ResumeState)
+				}
+			},
+		},
+		{
+			name: "who5 statement",
+			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
+				openMoodMenu(t, runner, st, sender, 1)
+				say(runner, sender, 1, "Quick check")
+				say(runner, sender, 1, "All the time")
+			},
+			from: state.StateMoodWho5Question,
+			check: func(t *testing.T, d state.UserData) {
+				if d.Who5 == nil || len(d.Who5.Answers) != 1 {
+					t.Fatalf("WHO-5 answers must survive the escape: %+v", d.Who5)
+				}
+			},
+		},
+		{
+			name: "gad7 question",
+			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
+				openMoodMenu(t, runner, st, sender, 1)
+				say(runner, sender, 1, "Anxiety test")
+				say(runner, sender, 1, "Several days")
+			},
+			from: state.StateMoodGad7Question,
+			check: func(t *testing.T, d state.UserData) {
+				if d.Gad7 == nil || len(d.Gad7.Answers) != 1 {
+					t.Fatalf("GAD-7 answers must survive the escape: %+v", d.Gad7)
+				}
+			},
+		},
+		{
 			name: "mood delete confirm",
 			arrange: func(t *testing.T, runner *journey.Runner, st *state.Store, sender *mockSender) {
-				driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+				driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 				runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
 			},
 			from: state.StateMoodDeleteConfirm,
@@ -375,9 +434,9 @@ func TestLanding_ContextualButtons(t *testing.T) {
 	})
 
 	t.Run("unfinished mood run adds a resume button", func(t *testing.T) {
-		runner, _, sender, _ := setupScr(t)
-		runner.HandleMood(sender, newMsg(1, "/mood"))
-		say(runner, sender, 1, "Begin")
+		runner, st, sender, _ := setupScr(t)
+		openMoodMenu(t, runner, st, sender, 1)
+		say(runner, sender, 1, "PHQ-9 test")
 		say(runner, sender, 1, "Several days")
 		runner.HandleStart(sender, newMsg(1, "/start"))
 		kb := lastKeyboard(sender)
@@ -409,6 +468,7 @@ func TestLanding_ContextualButtons(t *testing.T) {
 		runner.HandleStart(sender, newMsg(1, "/start"))
 		say(runner, sender, 1, "Mood")
 		say(runner, sender, 1, "Begin")
+		say(runner, sender, 1, "PHQ-9 test")
 		say(runner, sender, 1, "Several days")
 		runner.HandleStart(sender, newMsg(1, "/start"))
 		kb := lastKeyboard(sender)
@@ -440,8 +500,8 @@ func TestLanding_ResumeReturnsToSamePosition(t *testing.T) {
 
 	t.Run("mood: same question", func(t *testing.T) {
 		runner, st, sender, _ := setupScr(t)
-		runner.HandleMood(sender, newMsg(1, "/mood"))
-		say(runner, sender, 1, "Begin")
+		openMoodMenu(t, runner, st, sender, 1)
+		say(runner, sender, 1, "PHQ-9 test")
 		say(runner, sender, 1, "Several days")
 		say(runner, sender, 1, "Several days")
 		runner.HandleStart(sender, newMsg(1, "/start"))
@@ -456,8 +516,8 @@ func TestLanding_ResumeReturnsToSamePosition(t *testing.T) {
 
 	t.Run("mood: crisis card again", func(t *testing.T) {
 		runner, st, sender, _ := setupScr(t)
-		runner.HandleMood(sender, newMsg(1, "/mood"))
-		say(runner, sender, 1, "Begin")
+		openMoodMenu(t, runner, st, sender, 1)
+		say(runner, sender, 1, "PHQ-9 test")
 		for _, l := range rep("Not at all", 8) {
 			say(runner, sender, 1, l)
 		}
@@ -469,6 +529,33 @@ func TestLanding_ResumeReturnsToSamePosition(t *testing.T) {
 		}
 		if got := sender.lastText(); !contains(got, "crisis lead") {
 			t.Errorf("crisis card must be re-shown, got %q", got)
+		}
+	})
+
+	t.Run("mood: several paused runs disambiguate via the menu", func(t *testing.T) {
+		runner, st, sender, _ := setupScr(t)
+		openMoodMenu(t, runner, st, sender, 1)
+		say(runner, sender, 1, "PHQ-9 test")
+		say(runner, sender, 1, "Several days")
+		runner.HandleStart(sender, newMsg(1, "/start")) // pause run 1
+		openMoodMenu(t, runner, st, sender, 1)
+		say(runner, sender, 1, "Quick check")
+		say(runner, sender, 1, "All the time")
+		runner.HandleStart(sender, newMsg(1, "/start")) // pause run 2
+
+		say(runner, sender, 1, "Resume mood")
+		if got := st.Get(1).State; got != state.StateMoodMenu {
+			t.Fatalf("two paused runs must land on the menu, got %q", got)
+		}
+		kb := lastKeyboard(sender)
+		for _, want := range []string{"Resume PHQ-9 run", "Resume quick check"} {
+			if !keyboardHas(kb, want) {
+				t.Errorf("menu must offer %q, got %v", want, kb)
+			}
+		}
+		say(runner, sender, 1, "Resume quick check")
+		if got := sender.lastText(); !contains(got, "Statement 2 of 5") {
+			t.Errorf("resume must land on statement 2, got %q", got)
 		}
 	})
 
@@ -505,7 +592,7 @@ func TestLanding_ReportButton(t *testing.T) {
 		t.Errorf("report must not leave the landing, got %q", got)
 	}
 
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	say(runner, sender, 1, "Report")
 	if got := sender.lastText(); !contains(got, "Mood ") || !contains(got, "of 27") {
@@ -551,9 +638,9 @@ func TestMood_DeleteCancelMidCrisisReturnsToCard(t *testing.T) {
 
 	// A previous completed run gives /mood_delete something to offer even
 	// mid-test; then a fresh run paused on the crisis card.
-	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	driveMood(t, runner, st, sender, 1, moodAnswers("Several days", "Not at all"))
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	for _, l := range rep("Not at all", 8) {
 		say(runner, sender, 1, l)
 	}
@@ -612,8 +699,8 @@ func TestMood_DeleteConfirmMidTestLandsHome(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 	driveToCheckin(t, runner, st, sender, 1)
 
-	runner.HandleMood(sender, newMsg(1, "/mood"))
-	say(runner, sender, 1, "Begin")
+	openMoodMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "PHQ-9 test")
 	say(runner, sender, 1, "Several days")
 
 	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
@@ -623,7 +710,7 @@ func TestMood_DeleteConfirmMidTestLandsHome(t *testing.T) {
 	if d.State != state.StateAwaitingModeChoice {
 		t.Fatalf("mid-test delete confirm must land home, got %q", d.State)
 	}
-	if d.Mood != nil || d.MoodResult != nil {
+	if d.Mood != nil || d.MoodResult != nil || d.MoodConsentAt != nil {
 		t.Error("confirm must wipe mood data")
 	}
 	if d.ReturnState != state.StateAwaitingStageCheckin {

@@ -68,7 +68,7 @@ func (ModeChoicePhase) Setup(ctx Context) Outcome {
 	if ctx.User.Screening != nil {
 		kb = append(kb, []string{ctx.Trans.T("button.mode.resume_screening", ctx.Locale, nil)})
 	}
-	if ctx.User.Mood != nil {
+	if anyMoodProgress(ctx.User) {
 		kb = append(kb, []string{ctx.Trans.T("button.mode.resume_mood", ctx.Locale, nil)})
 	}
 	kb = append(kb,
@@ -104,15 +104,11 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 			next = ctx.User.Screening.ResumeState
 		}
 		return Outcome{NextState: next}
-	case ctx.User.Mood != nil && labelIs(in, ctx.Trans.T("button.mode.resume_mood", ctx.Locale, nil)):
-		// Straight back to the recorded position (the crisis card when the
-		// run paused there); the question phase derives the index from the
-		// recorded answers when no usable ResumeState exists.
-		next := state.StateMoodQuestion
-		if resumableMoodState(ctx.User.Mood.ResumeState) {
-			next = ctx.User.Mood.ResumeState
-		}
-		return Outcome{NextState: next}
+	case anyMoodProgress(ctx.User) && labelIs(in, ctx.Trans.T("button.mode.resume_mood", ctx.Locale, nil)):
+		// Straight back into the single unfinished run (the crisis card /
+		// functional question when the PHQ-9 paused there); with several
+		// paused runs the module menu disambiguates via its resume rows.
+		return Outcome{NextState: moodResumeTarget(ctx.User)}
 	case labelIs(in, ctx.Trans.T("button.mode.report", ctx.Locale, nil)):
 		// Render the /report breakdown and stay on the landing.
 		return Outcome{
@@ -153,9 +149,9 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 		// unfinished Screening exists.
 		return Outcome{NextState: state.StateScrConsent}
 	case labelIs(in, ctx.Trans.T("button.mode.mood", ctx.Locale, nil)):
-		// The mood consent phase renders in resume mode by itself when an
-		// unfinished Mood run exists.
-		return Outcome{NextState: state.StateMoodConsent}
+		// The mood module: the one-time consent for fresh users, the module
+		// menu (with its per-instrument resume rows) afterwards.
+		return Outcome{NextState: moodEntryState(ctx.User)}
 	default:
 		return Outcome{ReplyKey: "phase.mode.invalid"}
 	}
