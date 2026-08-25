@@ -10,7 +10,17 @@ Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatch
 - **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 (one short yes/no question per domain) → result → referral → doctor report; plus the delete-confirmation phase.
 - **Mood self-check** (`mood_*` phases, PHQ-9): consent (also the resume gate) → 9 questions one by one → deterministic crisis card when item 9 > 0 → result (score, band, retest delta, contacts) → doctor report; plus the delete-confirmation phase.
 
-`/start` lands on `ModeChoicePhase` (the three-way fork). The screening phases receive a `*screening.Content` / `*screening.MoodContent` via their constructors; `journey.New` is unchanged.
+`/start` (and its alias `/menu`) lands on `ModeChoicePhase` — the **home landing**: a short greeting, one button per mode, a report button, and contextual resume buttons («Продолжить тест СДВГ» / «Продолжить тест настроения» when an unfinished run exists, «Вернуться к дневнику: <product> (<stage>)» when a trial is active). The screening phases receive a `*screening.Content` / `*screening.MoodContent` via their constructors; `journey.New` is unchanged.
+
+## Landing & universal escape
+
+- `Runner.routeToLanding` (shared by `/start`, `/menu` and the `button.menu.home` 🏠 tap, which `HandleText` intercepts before phase dispatch) works from ANY state without losing progress: a FODMAP journey state is recorded to `ReturnState`, a **resumable** screening/mood state to the run's `ResumeState`. Non-resumable states (consent/intro gates, delete confirmations) never overwrite an earlier recorded position.
+- Resumable sets: `resumableScrState` = all `scr_*` except consent/intro/delete-confirm; `resumableMoodState` = `mood_question` | `mood_crisis`.
+- The landing's resume buttons jump straight back to the recorded position (same question; a run paused on the crisis card lands on the card). Without a usable `ResumeState` the target is derived from the actual answers (`screeningResumeState`; the mood question phase derives its index from `len(Mood.Answers)` natively).
+- The intro's resume mode is decided by the ACTUAL presence of answers (`screeningHasAnswers`), not just by `ResumeState` — a run that lost its `ResumeState` still offers Continue instead of silently wiping progress on «Начать».
+- `/adhd_delete` / `/mood_delete` record the interrupted mid-test position to `ResumeState` on entry; «Оставить» returns straight to that question / crisis card (the FODMAP detour bookkeeping in `ReturnState` is kept for the eventual test exit). With no unfinished run the cancel exits to `ReturnState` | idle as before.
+- The landing's report button renders the same text as `/report` (`reportText`, a free function shared with `HandleReport`) and stays on the landing.
+- Reminder isolation: `Runner.Remind` scans only defecation/check-in states, so a user parked on the landing gets no nudges (`ModeChoicePhase.Remind` is silent by design).
 
 ## Public API
 
@@ -36,7 +46,7 @@ type Context struct { UserID int64; User UserData; Catalog *products.Catalog; Se
 func New(stateStore *state.Store, sender router.Sender, catalog *products.Catalog,
         settingsStore *settings.Store, trans i18n.Translator) *Runner
 func (r *Runner) Register(p Phase)
-func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message)   // /start → mode fork (legacy path when the fork is unregistered)
+func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message)   // /start + /menu → landing (legacy path when the fork is unregistered)
 func (r *Runner) HandleText(s router.Sender, msg *tgbotapi.Message)    // generic text dispatcher
 func (r *Runner) HandleAbout / HandleReport / HandleAbandon
 func (r *Runner) HandleAdhd / HandleAdhdDelete                          // ADHD entry / data deletion (no-ops when unwired)
@@ -75,7 +85,7 @@ func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
 | `ProductChoicePhase` | `StateAwaitingProductChoice` | 4×3 paged grid scoped to `User.PickerCategory`, plus Back / Prev / Next. Bounces to category state when category is empty or unset. |
 | `StageChoicePhase` | `StateAwaitingStageChoice` | 3-button volume picker (low/med/high). Renders the product's localized note (when set) as a "💡 …" line above the keyboard so the user can read prep / pathway / swap context before committing to a dose. |
 | `StageCheckinPhase` | `StateAwaitingStageCheckin` | yes/no; advances stage, completes product, or marks not_tolerated. Reminder prompts the check-in question after `Settings.CheckinInterval`. |
-| `ModeChoicePhase` | `StateAwaitingModeChoice` | /start fork, three buttons. The FODMAP button owns the legacy /start semantics (interrupt + reset); both self-check buttons leave the diary intact. Silent `Remind` — users parked on the fork get no nudges (accepted trade-off). |
+| `ModeChoicePhase` | `StateAwaitingModeChoice` | The home landing (/start, /menu, 🏠): three mode buttons + report + contextual resume buttons (unfinished ADHD/mood run, active trial with product+stage in the label). The FODMAP MODE button owns the legacy /start semantics (interrupt + reset); resume buttons and both self-check buttons leave everything intact. Silent `Remind` — users parked on the landing get no nudges (accepted trade-off). |
 | `ScrConsentPhase` … `ScrDeleteConfirmPhase` | `scr_*` | The ADHD self-check chain. All `Remind`s are empty — the reminder loop never selects `scr_*` states by construction (pinned by test). Texts are assembled from `screening.Content` and sent via the `scr.text` pass-through i18n key. |
 | `MoodConsentPhase` | `mood_consent` | Consent for fresh runs (short body + disclaimer); resume gate (Continue / start over / later) when an unfinished `Mood` exists — consent is never re-asked. Declining creates nothing. |
 | `MoodQuestionPhase` | `mood_question` | Index-driven series of the 9 official PHQ-9 questions (position derived from `len(Mood.Answers)`), 4-option scale keyboard. An answer > 0 on the crisis item (q9) transitions to `mood_crisis` immediately; the last non-crisis answer finalizes. |
@@ -87,7 +97,7 @@ func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
 
 - **Privacy**: raw per-question answers live only in `UserData.Screening` (transient); completion writes `ScreeningResult` and wipes `Screening` in the same `Set`. The doctor report is rendered on the fly and never stored. The WURS wording form (m/f) never reaches the result.
 - **Detour bookkeeping**: `/start` or `/adhd` from a FODMAP state records `ReturnState`; every screening exit (pause, decline, finish, delete, `/abandon`) returns there (re-firing that phase's Setup — which restarts the stage timer, an accepted trade-off pinned by test) or to idle, clearing `ReturnState`.
-- **Pause/resume**: gates set `Screening.ResumeState`; `/start` mid-screening records the current state there. `/adhd` resumes via the intro in resume mode without re-asking consent. "Start" on the resume intro means "start over" (wipes raw answers, keeps the previous result until a new completion).
+- **Pause/resume**: gates set `Screening.ResumeState`; `/start`, `/menu` and 🏠 mid-screening record the current state there (resumable states only). `/adhd` resumes via the intro in resume mode without re-asking consent; the landing's resume button jumps straight to the recorded question. "Start" on the resume intro means "start over" (wipes raw answers, keeps the previous result until a new completion); resume mode itself is detected by the actual presence of answers, so a lost `ResumeState` can never turn "Start" into a silent wipe.
 - **Life domains one at a time**: each domain of each pass is a single short message (position line + title + one "e.g.:" line + yes/no), driven by the `AdultDomainIdx` / `ChildDomainIdx` cursor exactly like the ASRS/WURS question series — no multi-select, no redrawn walls of text. Only "yes" ids are kept; the ≥2-domains scoring rule and the stored result shape are unchanged. A `/start` or pause mid-section resumes on the exact domain.
 - **Lean texts** (owner decision): no methodology caveats (translation status, validation notes, criterion-E hedging) anywhere user-visible. The intro and result carry only the short screening-not-a-diagnosis disclaimer; the result footer adds the single compact `results.attribution_line`; the referral is a two-line route to a specialist.
 - **No combined score**: each instrument renders its own block with its own threshold; the overall wording maps `screening.OverallVerdict` keys onto content templates.

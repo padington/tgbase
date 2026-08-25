@@ -65,8 +65,22 @@ func NewScrIntroPhase(c *screening.Content) *ScrIntroPhase { return &ScrIntroPha
 
 func (ScrIntroPhase) State() state.StateKind { return state.StateScrIntro }
 
+// resumeMode is decided by the ACTUAL presence of answers, not just by a
+// recorded ResumeState — a run that lost its ResumeState (e.g. a cancelled
+// /adhd_delete in older versions) must still offer Continue instead of
+// silently wiping progress on "Start".
 func (p *ScrIntroPhase) resumeMode(u state.UserData) bool {
-	return u.Screening != nil && u.Screening.ResumeState != ""
+	s := u.Screening
+	return s != nil && (resumableScrState(s.ResumeState) || screeningHasAnswers(s))
+}
+
+// resumeTarget is where Continue lands: the recorded position when usable,
+// otherwise the state derived from the recorded answers.
+func (p *ScrIntroPhase) resumeTarget(s *state.ScreeningProgress) state.StateKind {
+	if s != nil && resumableScrState(s.ResumeState) {
+		return s.ResumeState
+	}
+	return screeningResumeState(p.c, s)
 }
 
 func (p *ScrIntroPhase) Setup(ctx Context) Outcome {
@@ -76,7 +90,7 @@ func (p *ScrIntroPhase) Setup(ctx Context) Outcome {
 	m := p.c.Module
 	if p.resumeMode(ctx.User) {
 		text := m.Intro.Title + "\n\n" + m.UI.Resumed + "\n" +
-			blockTitle(p.c, ctx.User.Screening.ResumeState)
+			blockTitle(p.c, p.resumeTarget(ctx.User.Screening))
 		oc := scrText(text)
 		oc.Keyboard = [][]string{
 			{m.UI.ContinueButton},
@@ -111,11 +125,7 @@ func (p *ScrIntroPhase) Collect(ctx Context, input string) Outcome {
 			},
 		}
 	case labelIs(in, m.UI.ContinueButton):
-		next := state.StateScrAsrsA
-		if s := ctx.User.Screening; s != nil && isScreeningState(s.ResumeState) {
-			next = s.ResumeState
-		}
-		return Outcome{NextState: next}
+		return Outcome{NextState: p.resumeTarget(ctx.User.Screening)}
 	case labelIs(in, m.Intro.PostponeButton):
 		// Progress and consent are kept — /adhd resumes straight away.
 		oc := scrText(m.UI.Paused)

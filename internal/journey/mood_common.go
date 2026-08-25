@@ -30,6 +30,14 @@ func isMoodState(kind state.StateKind) bool {
 	return false
 }
 
+// resumableMoodState reports whether kind is a mood_* state a paused run can
+// meaningfully return to: the question series or the crisis card — not the
+// consent/resume gate, the report transit, or the delete confirmation. Only
+// these are ever recorded as Mood.ResumeState.
+func resumableMoodState(kind state.StateKind) bool {
+	return kind == state.StateMoodQuestion || kind == state.StateMoodCrisis
+}
+
 // moodProgressLine renders the "Question N of M" service line from the mood
 // module.
 func moodProgressLine(c *screening.MoodContent, current, total int) string {

@@ -84,6 +84,53 @@ func isScreeningState(kind state.StateKind) bool {
 	return false
 }
 
+// resumableScrState reports whether kind is a scr_* state a paused run can
+// meaningfully return to: the question, gate and follow-up states — not the
+// consent/intro gates themselves and not the delete confirmation. Only these
+// are ever recorded as Screening.ResumeState.
+func resumableScrState(kind state.StateKind) bool {
+	return isScreeningState(kind) &&
+		kind != state.StateScrConsent &&
+		kind != state.StateScrIntro &&
+		kind != state.StateScrDeleteConfirm
+}
+
+// screeningHasAnswers reports whether the run holds any actual progress —
+// the resume-mode signal that survives a lost ResumeState (e.g. after a
+// cancelled /adhd_delete in older versions).
+func screeningHasAnswers(s *state.ScreeningProgress) bool {
+	return s != nil && (len(s.AsrsAnswers) > 0 || s.WursForm != "" ||
+		len(s.WursAnswers) > 0 || s.OnsetChild != nil ||
+		s.AdultDomainIdx > 0 || s.ChildDomainIdx > 0)
+}
+
+// screeningResumeState derives the state a run should continue at purely
+// from the recorded answers — the fallback when no usable ResumeState is
+// recorded. Gates are skipped: their intermediate texts re-appear in the
+// final summary anyway.
+func screeningResumeState(c *screening.Content, s *state.ScreeningProgress) state.StateKind {
+	switch {
+	case s == nil:
+		return state.StateScrAsrsA
+	case len(s.AsrsAnswers) < len(c.ASRS.PartA.Items):
+		return state.StateScrAsrsA
+	case len(s.AsrsAnswers) < len(c.ASRS.PartA.Items)+len(c.ASRS.PartB.Items):
+		return state.StateScrAsrsB
+	case s.WursForm == "":
+		return state.StateScrWursForm
+	case len(s.WursAnswers) < len(c.WURS.Items):
+		return state.StateScrWurs
+	case s.OnsetChild == nil:
+		return state.StateScrOnset
+	case !*s.OnsetChild && s.OnsetAge == 0:
+		return state.StateScrOnsetAge
+	case s.AdultDomainIdx < len(c.Module.Domains.Items):
+		return state.StateScrDomainsAdult
+	default:
+		return state.StateScrDomainsChild
+	}
+}
+
 // isFodmapJourneyState reports whether kind is a FODMAP-diary journey state
 // worth returning to after a screening detour.
 func isFodmapJourneyState(kind state.StateKind) bool {

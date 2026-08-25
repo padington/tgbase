@@ -50,11 +50,10 @@ func (r *Runner) Register(p Phase) {
 	r.phases[p.State()] = p
 }
 
-// HandleStart implements router.HandlerFunc for /start. With the screening
-// mode wired it routes the user to the mode-choice fork, remembering where
-// to come back: a FODMAP journey state is saved to ReturnState, a screening
-// state to Screening.ResumeState, a mood state to Mood.ResumeState. Nothing
-// is interrupted here — the FODMAP button of the fork owns the legacy
+// HandleStart implements router.HandlerFunc for /start and its alias /menu.
+// With the screening mode wired it routes the user to the landing (the
+// mode-choice phase) from ANY state without losing progress. Nothing is
+// interrupted here — the FODMAP mode button of the landing owns the legacy
 // interrupt semantics.
 func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
@@ -66,44 +65,53 @@ func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 		r.legacyStart(msg)
 		return
 	}
-	user := r.store.Get(msg.From.ID)
+	r.routeToLanding(msg.From.ID, msg.Chat.ID, msg.From.LanguageCode)
+}
+
+// routeToLanding is the universal escape shared by /start, /menu and the 🏠
+// button: it records how to come back — a FODMAP journey state to
+// ReturnState, a resumable screening/mood state to the run's ResumeState —
+// then shows the landing. Non-resumable states (delete confirmations, the
+// consent/intro gates) never overwrite an earlier recorded position.
+func (r *Runner) routeToLanding(userID, chatID int64, langCode string) {
+	user := r.store.Get(userID)
 
 	cur := user.State
 	switch {
 	case isScreeningState(cur):
-		// /start mid-screening: "Continue" must land back here.
-		if user.Screening != nil {
+		// Escape mid-screening: "Continue" must land back here.
+		if user.Screening != nil && resumableScrState(cur) {
 			sc := user.Screening.Clone()
 			sc.ResumeState = cur
 			user.Screening = sc
 		}
 	case isMoodState(cur):
-		// /start mid-mood-test: same resume bookkeeping (matters for the
+		// Escape mid-mood-test: same resume bookkeeping (matters for the
 		// crisis card — a paused run must land back on the card).
-		if user.Mood != nil {
+		if user.Mood != nil && resumableMoodState(cur) {
 			mc := user.Mood.Clone()
 			mc.ResumeState = cur
 			user.Mood = mc
 		}
 	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
-		// Remember where to return after a screening detour. A repeated
-		// /start from the fork itself is idempotent — ReturnState is kept.
+		// Remember where to return after a detour. A repeated escape from
+		// the landing itself is idempotent — ReturnState is kept.
 		user.ReturnState = cur
 	}
 	// The active trial is NOT marked interrupted here — only the FODMAP
 	// button does that.
 
-	user.ChatID = msg.Chat.ID
+	user.ChatID = chatID
 	if user.Locale == "" {
-		user.Locale = string(r.detectLocale(msg.From.LanguageCode))
+		user.Locale = string(r.detectLocale(langCode))
 	}
 	user.State = state.StateAwaitingModeChoice
 	user.EnteredAt = r.now()
-	r.store.Set(msg.From.ID, user)
+	r.store.Set(userID, user)
 
 	phase := r.phases[state.StateAwaitingModeChoice]
-	ctx := r.contextFor(msg.From.ID, user)
-	r.applyOutcome(ctx, phase.Setup(ctx), msg.Chat.ID)
+	ctx := r.contextFor(userID, user)
+	r.applyOutcome(ctx, phase.Setup(ctx), chatID)
 }
 
 // legacyStart is the pre-fork /start: route to the defecation phase, marking
@@ -149,11 +157,17 @@ func (r *Runner) legacyStart(msg *tgbotapi.Message) {
 
 // HandleText implements router.HandlerFunc for the journey text predicate.
 // It dispatches to the phase whose State matches the user's current state.
+// A tap on the 🏠 button is honored BEFORE phase dispatch, so the escape to
+// the landing works from every journey state, including confirmations.
 func (r *Runner) HandleText(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
 	}
 	user := r.store.Get(msg.From.ID)
+	if r.isHomeEscape(user, msg.Text) {
+		r.routeToLanding(msg.From.ID, msg.Chat.ID, msg.From.LanguageCode)
+		return
+	}
 	phase, ok := r.phases[user.State]
 	if !ok {
 		log.Printf("journey: no phase registered for state %q", user.State)
@@ -161,6 +175,19 @@ func (r *Runner) HandleText(s router.Sender, msg *tgbotapi.Message) {
 	}
 	ctx := r.contextFor(msg.From.ID, user)
 	r.applyOutcome(ctx, phase.Collect(ctx, msg.Text), msg.Chat.ID)
+}
+
+// isHomeEscape reports whether the input is a tap on the 🏠 menu button —
+// the keyboard twin of /menu. On the landing itself the label falls through
+// to the phase (which answers with the invalid-button hint).
+func (r *Runner) isHomeEscape(user state.UserData, input string) bool {
+	if _, ok := r.phases[state.StateAwaitingModeChoice]; !ok {
+		return false
+	}
+	if user.State == state.StateAwaitingModeChoice {
+		return false
+	}
+	return labelIs(normText(input), r.trans.T("button.menu.home", r.localeForUser(user), nil))
 }
 
 // IsJourneyState returns true when the user is currently inside a journey
