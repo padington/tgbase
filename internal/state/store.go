@@ -69,16 +69,22 @@ type ProductProgress struct {
 // they reach disk (users.json) only while the test is unfinished and are
 // erased in the same Set that persists the final ScreeningResult.
 type ScreeningProgress struct {
-	AsrsAnswers  []int     `json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = question id - 1
-	WursAnswers  []int     `json:"wurs_answers,omitempty"` // append-only, scores 0..4
-	WursForm     string    `json:"wurs_form,omitempty"`    // "m" | "f"; transient, never copied to the result
-	OnsetChild   *bool     `json:"onset_child,omitempty"`  // nil = not asked yet
-	OnsetAge     int       `json:"onset_age,omitempty"`    // >0 when OnsetChild == false
-	AdultDomains []string  `json:"adult_domains,omitempty"`
-	ChildDomains []string  `json:"child_domains,omitempty"`
-	ResumeState  StateKind `json:"resume_state,omitempty"`
-	ConsentAt    time.Time `json:"consent_at,omitempty"`
-	StartedAt    time.Time `json:"started_at,omitempty"`
+	AsrsAnswers []int  `json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = question id - 1
+	WursAnswers []int  `json:"wurs_answers,omitempty"` // append-only, scores 0..4
+	WursForm    string `json:"wurs_form,omitempty"`    // "m" | "f"; transient, never copied to the result
+	OnsetChild  *bool  `json:"onset_child,omitempty"`  // nil = not asked yet
+	OnsetAge    int    `json:"onset_age,omitempty"`    // >0 when OnsetChild == false
+	// Life domains are asked one at a time (yes/no per domain). The *Idx
+	// cursors count domains ANSWERED so far in each pass (both yes and no),
+	// so a paused run resumes at the right domain; the *Domains lists keep
+	// only the ids answered "yes" — the shape the final result stores.
+	AdultDomainIdx int       `json:"adult_domain_idx,omitempty"`
+	ChildDomainIdx int       `json:"child_domain_idx,omitempty"`
+	AdultDomains   []string  `json:"adult_domains,omitempty"`
+	ChildDomains   []string  `json:"child_domains,omitempty"`
+	ResumeState    StateKind `json:"resume_state,omitempty"`
+	ConsentAt      time.Time `json:"consent_at,omitempty"`
+	StartedAt      time.Time `json:"started_at,omitempty"`
 }
 
 // Clone returns a deep copy (slices and the OnsetChild pointer are copied),
