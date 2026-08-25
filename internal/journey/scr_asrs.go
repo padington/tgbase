@@ -217,17 +217,19 @@ func (p *ScrGatePhase) Collect(ctx Context, input string) Outcome {
 	case labelIs(in, ui.ContinueButton):
 		return Outcome{NextState: p.next()}
 	case labelIs(in, ui.PauseButton):
+		// Same bookkeeping as a /start escape: record the gate as the
+		// resume position and land home, keeping the FODMAP detour for the
+		// landing's diary button.
 		gateState := p.State()
 		oc := scrText(ui.Paused)
 		oc.RemoveKeyboard = true
-		oc.NextState = exitState(ctx.User)
+		oc.NextState = testExitState
 		oc.Mutate = func(u *state.UserData) {
 			if u.Screening != nil {
 				sc := u.Screening.Clone()
 				sc.ResumeState = gateState
 				u.Screening = sc
 			}
-			u.ReturnState = ""
 		}
 		return oc
 	default:

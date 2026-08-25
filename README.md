@@ -54,7 +54,10 @@ state is recorded to `ReturnState`, a resumable test position to the run's
 `ResumeState`. The landing is contextual — an unfinished ADHD/mood run adds
 a «▶️ Продолжить …» button (back to the exact question, or the crisis card),
 an active trial adds «▶️ Вернуться к дневнику: <product> (<stage>)»; «📊
-Отчёт» renders the /report breakdown in place. Reminder nudges never reach a
+Отчёт» renders the /report breakdown in place. Every test exit (result
+screens, pause, decline, `/abandon`, mid-test delete) also lands here —
+never straight into a mid-diary question: the recorded diary position stays
+one tap away via «▶️ Вернуться к дневнику». Reminder nudges never reach a
 user parked on the landing.
 
 ```mermaid
@@ -83,8 +86,9 @@ stateDiagram-v2
 
 ### State machine — ADHD self-check
 
-Exits marked `[*]` land in `ReturnState` (the recorded FODMAP state, whose
-Setup re-fires) or idle. `scr_*` states get no reminder nudges. `/abandon`,
+Exits marked `[*]` land on the home landing (`awaiting_mode_choice`); the
+FODMAP detour recorded in `ReturnState` is kept, and the landing offers it
+via «▶️ Вернуться к дневнику». `scr_*` states get no reminder nudges. `/abandon`,
 `/start` and `/menu` work at any point (the escape records the position in
 `Screening.ResumeState` — resumable states only, never the consent/intro
 gates or the delete confirmation). The landing's «▶️ Продолжить тест СДВГ»
@@ -101,7 +105,7 @@ stateDiagram-v2
     awaiting_mode_choice --> resume: «▶️ Продолжить тест СДВГ» (to the recorded question)
     [*] --> scr_consent: /adhd
     scr_consent --> scr_intro: «Согласен(а), начинаем» (resume: intro in resume mode)
-    scr_consent --> [*]: «Не сейчас» → ReturnState | idle
+    scr_consent --> [*]: «Не сейчас» → home landing
     scr_intro --> scr_asrs_a: «Начать» / restart
     scr_intro --> resume: «Продолжить» (to Screening.ResumeState)
     scr_intro --> [*]: «Вернусь позже»
@@ -126,7 +130,7 @@ stateDiagram-v2
     scr_domains_child --> scr_domains_child: «Да»/«Нет», domains 1..4
     scr_domains_child --> scr_referral: «Да»/«Нет» on the 5th → summary message, Screening := nil
     scr_referral --> scr_report: Setup sends the route to a specialist
-    scr_report --> [*]: Setup sends the doctor report → ReturnState (re-Setup) | idle
+    scr_report --> [*]: Setup sends the doctor report → home landing (diary one tap away)
 ```
 
 Each life-domain step is one short message — position («Сфера N из 5 ·
@@ -141,6 +145,9 @@ both the unfinished progress and the stored result; «Оставить» changes
 nothing — and mid-test it returns straight to the interrupted question
 (`/adhd_delete` records the position in `Screening.ResumeState` on entry),
 so the confirmation can never strand the user or lose the resume position.
+Closing the dialog otherwise returns to what the command interrupted (the
+FODMAP question or the landing); a mid-test «Да, удалить» abandons the run
+and therefore lands on the home landing.
 Privacy: raw per-question answers exist only while a run is
 unfinished and are erased in the same write that stores the final
 `ScreeningResult` (scores + applied thresholds + facts only); the doctor
@@ -148,8 +155,9 @@ report is rendered on the fly and never stored.
 
 ### State machine — Mood self-check (PHQ-9)
 
-Exits marked `[*]` land in `ReturnState` (the recorded FODMAP state, whose
-Setup re-fires) or idle. `mood_*` states get no reminder nudges. `/abandon`,
+Exits marked `[*]` land on the home landing (`awaiting_mode_choice`); the
+FODMAP detour recorded in `ReturnState` is kept, and the landing offers it
+via «▶️ Вернуться к дневнику». `mood_*` states get no reminder nudges. `/abandon`,
 `/start` and `/menu` work at any point (the escape records the position in
 `Mood.ResumeState` — a run paused on the crisis card resumes on the card;
 only `mood_question` / `mood_crisis` are ever recorded). The landing's
@@ -166,12 +174,12 @@ stateDiagram-v2
     awaiting_mode_choice --> resume: «▶️ Продолжить тест настроения» (same question / crisis card)
     [*] --> mood_consent: /mood
     mood_consent --> mood_question: «Начать» (fresh) / «Продолжить» / «Начать заново» (resume mode)
-    mood_consent --> [*]: «Не сейчас» / «Вернусь позже» → ReturnState | idle
+    mood_consent --> [*]: «Не сейчас» / «Вернусь позже» → home landing
     mood_question --> mood_question: scale answer, questions 1..8
     mood_question --> mood_crisis: answer > 0 on question 9 → crisis card IMMEDIATELY
     mood_question --> mood_report: question 9 = 0 → result message, Mood := nil
     mood_crisis --> mood_report: «Продолжить» → result message (contacts repeated), Mood := nil
-    mood_report --> [*]: Setup sends the doctor report → ReturnState (re-Setup) | idle
+    mood_report --> [*]: Setup sends the doctor report → home landing (diary one tap away)
 ```
 
 Crisis protocol (all deterministic, in code, unit-tested per branch): the

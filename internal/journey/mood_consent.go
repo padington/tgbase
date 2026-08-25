@@ -83,11 +83,11 @@ func (p *MoodConsentPhase) Collect(ctx Context, input string) Outcome {
 				},
 			}
 		case labelIs(in, m.Resume.LaterButton):
-			// Progress and consent are kept — /mood resumes straight away.
+			// Progress and consent are kept — /mood and the landing's
+			// resume button pick the run straight up. Land home.
 			oc := scrText(m.UI.Paused)
 			oc.RemoveKeyboard = true
-			oc.NextState = exitState(ctx.User)
-			oc.Mutate = clearReturnState
+			oc.NextState = testExitState
 			return oc
 		default:
 			return Outcome{ReplyKey: "scr.invalid_button"}
@@ -104,11 +104,11 @@ func (p *MoodConsentPhase) Collect(ctx Context, input string) Outcome {
 			},
 		}
 	case labelIs(in, m.Consent.LaterButton):
-		// Nothing was recorded — Mood was never created.
+		// Nothing was recorded — Mood was never created. Land home; an
+		// active diary position stays reachable from the landing.
 		oc := scrText(m.Consent.Declined)
 		oc.RemoveKeyboard = true
-		oc.NextState = exitState(ctx.User)
-		oc.Mutate = clearReturnState
+		oc.NextState = testExitState
 		return oc
 	default:
 		return Outcome{ReplyKey: "scr.invalid_button"}

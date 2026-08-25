@@ -41,11 +41,11 @@ func (p *ScrConsentPhase) Collect(ctx Context, input string) Outcome {
 			},
 		}
 	case labelIs(in, con.LaterButton):
-		// Nothing was recorded — Screening was never created.
+		// Nothing was recorded — Screening was never created. Land home;
+		// an active diary position stays reachable from the landing.
 		oc := scrText(con.Declined)
 		oc.RemoveKeyboard = true
-		oc.NextState = exitState(ctx.User)
-		oc.Mutate = clearReturnState
+		oc.NextState = testExitState
 		return oc
 	default:
 		return Outcome{ReplyKey: "scr.invalid_button"}
@@ -127,11 +127,11 @@ func (p *ScrIntroPhase) Collect(ctx Context, input string) Outcome {
 	case labelIs(in, m.UI.ContinueButton):
 		return Outcome{NextState: p.resumeTarget(ctx.User.Screening)}
 	case labelIs(in, m.Intro.PostponeButton):
-		// Progress and consent are kept — /adhd resumes straight away.
+		// Progress and consent are kept — /adhd and the landing's resume
+		// button pick the run straight up. Land home.
 		oc := scrText(m.UI.Paused)
 		oc.RemoveKeyboard = true
-		oc.NextState = exitState(ctx.User)
-		oc.Mutate = clearReturnState
+		oc.NextState = testExitState
 		return oc
 	default:
 		return Outcome{ReplyKey: "scr.invalid_button"}

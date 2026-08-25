@@ -190,7 +190,10 @@ type UserData struct {
 
 	// ADHD screening. Screening is the transient in-progress run (nil when
 	// none); ScreeningResult is the last completed run. ReturnState remembers
-	// the FODMAP journey state to restore after the screening detour.
+	// the state a detour interrupted: a FODMAP journey state (recorded when a
+	// self-check starts from one; test exits keep it so the home landing can
+	// offer the way back) or the landing itself (recorded when a delete
+	// confirmation is entered from it).
 	Screening       *ScreeningProgress `json:"screening,omitempty"`
 	ScreeningResult *ScreeningResult   `json:"screening_result,omitempty"`
 	ReturnState     StateKind          `json:"return_state,omitempty"`

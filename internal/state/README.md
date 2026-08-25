@@ -64,7 +64,7 @@ type UserData struct {
     Products map[string]ProductProgress
     Screening *ScreeningProgress                   // nil when no screening in progress
     ScreeningResult *ScreeningResult               // nil until first completion
-    ReturnState StateKind                          // FODMAP state to restore after a screening detour (shared by both modes)
+    ReturnState StateKind                          // state a detour interrupted: FODMAP position (kept across test exits; consumed by the landing's diary button) or the landing (delete-confirm entry); shared by both modes
     Mood *MoodProgress                             // nil when no mood test in progress
     MoodResult *MoodResult                         // nil until first completion
     ChatID int64

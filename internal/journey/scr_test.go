@@ -467,14 +467,20 @@ func TestScr_AdhdFromIdle_ConsentDeclineLeavesNoTrace(t *testing.T) {
 
 	say(runner, sender, 1, "Later")
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after decline, got %q", d.State)
+	// Every test exit lands on the home landing (never mid-diary, never a
+	// dead idle): the decline text is followed by the landing prompt.
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after decline, got %q", d.State)
 	}
 	if d.Screening != nil {
 		t.Error("decline must not create Screening")
 	}
-	if !contains(sender.lastText(), "declined text") {
-		t.Errorf("declined text not sent, got %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "declined text") {
+		t.Errorf("declined text not sent, got %q", texts)
+	}
+	if !contains(sender.lastText(), "Mode?") {
+		t.Errorf("landing prompt must follow the decline, got %q", sender.lastText())
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, "screening") {
 		t.Errorf("persisted JSON must not mention screening after decline:\n%s", raw)
@@ -517,8 +523,8 @@ func TestScr_HappyPathEndToEnd(t *testing.T) {
 	drive(t, runner, sender, 1, happyRun())
 
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after completion, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after completion, got %q", d.State)
 	}
 	if d.Screening != nil {
 		t.Error("Screening must be wiped on completion")
@@ -555,10 +561,14 @@ func TestScr_HappyPathEndToEnd(t *testing.T) {
 	}
 
 	texts := sentTexts(sender)
-	if len(texts) < 3 {
-		t.Fatalf("expected at least 3 final messages, got %d", len(texts))
+	if len(texts) < 4 {
+		t.Fatalf("expected at least 3 final messages + the landing, got %d", len(texts))
 	}
-	summary, referral, report := texts[len(texts)-3], texts[len(texts)-2], texts[len(texts)-1]
+	// The final chain is summary → referral → doctor report → home landing.
+	summary, referral, report := texts[len(texts)-4], texts[len(texts)-3], texts[len(texts)-2]
+	if !contains(texts[len(texts)-1], "Mode?") {
+		t.Errorf("the landing prompt must close the test, got %q", texts[len(texts)-1])
+	}
 	for _, want := range []string{
 		"Your result",
 		"ASRS part A", "6 of 6 significant", "screen positive",
@@ -672,7 +682,7 @@ func TestScr_AsrsABoundary_4PositiveVs3Negative(t *testing.T) {
 		t.Errorf("verdict: got %q/%q", res2.Verdict, res2.GapHint)
 	}
 	texts := sentTexts(sender2)
-	summary := texts[len(texts)-3]
+	summary := texts[len(texts)-4] // summary → referral → report → landing
 	if !contains(summary, "overall partial - no current symptoms hint") {
 		t.Errorf("summary missing rendered gap hint:\n%s", summary)
 	}
@@ -688,7 +698,7 @@ func TestScr_WursBoundary_46PositiveVs45Negative(t *testing.T) {
 		t.Fatalf("want 46/positive, got %+v", res)
 	}
 	texts := sentTexts(sender)
-	if !contains(texts[len(texts)-3], "above cutoff") {
+	if !contains(texts[len(texts)-4], "above cutoff") { // summary is 4th from the end
 		t.Error("summary should render the positive WURS line")
 	}
 
@@ -700,7 +710,7 @@ func TestScr_WursBoundary_46PositiveVs45Negative(t *testing.T) {
 	if res2 == nil || res2.WursScore != 45 || res2.WursPositive {
 		t.Fatalf("want 45/negative, got %+v", res2)
 	}
-	if !contains(sentTexts(sender2)[len(sentTexts(sender2))-3], "below cutoff") {
+	if !contains(sentTexts(sender2)[len(sentTexts(sender2))-4], "below cutoff") {
 		t.Error("summary should render the negative WURS line")
 	}
 }
@@ -752,8 +762,8 @@ func TestScr_OnsetAgeValidationAndFact(t *testing.T) {
 		t.Fatalf("onset fact: got %+v", res)
 	}
 	texts := sentTexts(sender)
-	if !contains(texts[len(texts)-3], "appeared around 16") {
-		t.Errorf("summary missing onset_fact_later:\n%s", texts[len(texts)-3])
+	if !contains(texts[len(texts)-4], "appeared around 16") { // summary is 4th from the end
+		t.Errorf("summary missing onset_fact_later:\n%s", texts[len(texts)-4])
 	}
 }
 
@@ -769,14 +779,15 @@ func TestScr_GatePauseAndResumeWithoutReconsent(t *testing.T) {
 	say(runner, sender, 1, "Pause")
 
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after pause, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after pause, got %q", d.State)
 	}
 	if d.Screening == nil || d.Screening.ResumeState != state.StateScrAsrsAGate {
 		t.Fatalf("ResumeState not recorded: %+v", d.Screening)
 	}
-	if !contains(sender.lastText(), "paused text") {
-		t.Errorf("paused text not sent: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "paused text") {
+		t.Errorf("paused text not sent: %q", texts)
 	}
 
 	resetSender(sender)
@@ -874,8 +885,8 @@ func TestScr_AbandonMidScreeningKeepsOldResult(t *testing.T) {
 
 	runner.HandleAbandon(sender, newMsg(1, "/abandon"))
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing, got %q", d.State)
 	}
 	if d.Screening != nil {
 		t.Error("Screening must be wiped by /abandon")
@@ -883,8 +894,9 @@ func TestScr_AbandonMidScreeningKeepsOldResult(t *testing.T) {
 	if d.ScreeningResult == nil {
 		t.Error("previous ScreeningResult must survive /abandon")
 	}
-	if !contains(sender.lastText(), "screening abandoned") {
-		t.Errorf("abandon confirmation missing: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "screening abandoned") {
+		t.Errorf("abandon confirmation missing: %q", texts)
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, "asrs_answers") {
 		t.Errorf("raw answers must be gone from JSON after abandon:\n%s", raw)
@@ -921,7 +933,9 @@ func TestScr_AdhdDeleteFlow(t *testing.T) {
 		t.Errorf("state must not change, got %q", got)
 	}
 
-	// Cancel keeps everything.
+	// Cancel keeps everything. The command was issued from the landing (a
+	// finished test parks the user there), so closing the dialog returns to
+	// the landing — never to a dead idle.
 	drive(t, runner, sender, 1, happyRun())
 	runner.HandleAdhdDelete(sender, newMsg(1, "/adhd_delete"))
 	if !contains(sender.lastText(), "delete everything?") {
@@ -931,19 +945,28 @@ func TestScr_AdhdDeleteFlow(t *testing.T) {
 	if st.Get(1).ScreeningResult == nil {
 		t.Error("cancel must keep the result")
 	}
-	if !contains(sender.lastText(), "kept everything") {
-		t.Errorf("cancel reply missing: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "kept everything") {
+		t.Errorf("cancel reply missing: %q", texts)
+	}
+	if got := st.Get(1).State; got != state.StateAwaitingModeChoice {
+		t.Errorf("cancel must return to the landing it interrupted, got %q", got)
 	}
 
-	// Confirm wipes both fields from the persisted JSON.
+	// Confirm wipes both fields from the persisted JSON and returns to the
+	// landing as well.
 	runner.HandleAdhdDelete(sender, newMsg(1, "/adhd_delete"))
 	say(runner, sender, 1, "Yes, delete")
 	d := st.Get(1)
 	if d.Screening != nil || d.ScreeningResult != nil {
 		t.Error("confirm must wipe screening data")
 	}
-	if !contains(sender.lastText(), "deleted") {
-		t.Errorf("delete_done missing: %q", sender.lastText())
+	texts = sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "deleted") {
+		t.Errorf("delete_done missing: %q", texts)
+	}
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("confirm must return to the landing it interrupted, got %q", d.State)
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, "screening") {
 		t.Errorf("persisted JSON still mentions screening:\n%s", raw)
@@ -1098,7 +1121,12 @@ func TestScr_DomainsPauseAndResumeMidSection(t *testing.T) {
 	}
 }
 
-func TestScr_ReturnsToStageCheckinAfterDetour(t *testing.T) {
+// TestScr_DetourFinishLandsHomeDiaryOneTapAway pins the post-landing exit
+// contract (the owner-reported bug: right after the test the bot used to
+// fire the FODMAP diary question). Finishing a test started mid-diary lands
+// on the home landing — never straight into the diary question — and the
+// recorded diary position stays one tap away via «▶️ Вернуться к дневнику».
+func TestScr_DetourFinishLandsHomeDiaryOneTapAway(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 	startDiary(runner, sender, 1)
 	say(runner, sender, 1, "2")
@@ -1135,17 +1163,69 @@ func TestScr_ReturnsToStageCheckinAfterDetour(t *testing.T) {
 	answerDomains(runner, sender, 1, nil)
 
 	d := st.Get(1)
-	if d.State != state.StateAwaitingStageCheckin {
-		t.Errorf("expected to return to stage checkin, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after the test, got %q", d.State)
 	}
-	if d.ReturnState != "" {
-		t.Errorf("ReturnState must be cleared, got %q", d.ReturnState)
+	if d.ReturnState != state.StateAwaitingStageCheckin {
+		t.Errorf("diary detour must stay recorded for the landing, got %q", d.ReturnState)
 	}
 	if d.CurrentProduct != picked {
 		t.Errorf("trial must survive the detour, got %q", d.CurrentProduct)
 	}
+	texts := sentTexts(sender)
+	last, prev := texts[len(texts)-1], texts[len(texts)-2]
+	if !contains(last, "Mode? active "+picked) {
+		t.Errorf("landing prompt (naming the trial) must close the test, got %q", last)
+	}
+	if contains(last, "Take ") || contains(prev, "Take ") {
+		t.Errorf("the diary question must NOT fire right after the test:\n%q\n%q", prev, last)
+	}
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Resume diary: "+picked+" (low)") {
+		t.Fatalf("landing must offer the diary resume button, got %v", kb)
+	}
+
+	// One tap on the contextual button returns to the saved diary phase.
+	say(runner, sender, 1, "Resume diary: "+picked+" (low)")
+	d = st.Get(1)
+	if d.State != state.StateAwaitingStageCheckin {
+		t.Errorf("expected to return to stage checkin, got %q", d.State)
+	}
+	if d.ReturnState != "" {
+		t.Errorf("ReturnState must be consumed by the button, got %q", d.ReturnState)
+	}
 	if got := sender.lastText(); !contains(got, "Take ") {
-		t.Errorf("stage Setup should re-fire after the report, got %q", got)
+		t.Errorf("stage Setup should re-fire on return, got %q", got)
+	}
+}
+
+// TestScr_FinishFromDefecationLandsHome replays the exact reported bug:
+// the user was on the defecation question, took the ADHD self-check, and
+// right after the report the bot asked the diary question again. Now the
+// finish lands on the landing and the diary question is not re-asked.
+func TestScr_FinishFromDefecationLandsHome(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	startDiary(runner, sender, 1) // parked on the defecation question
+
+	drive(t, runner, sender, 1, happyRun()) // /adhd detour + full run
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Fatalf("expected the landing after the test, got %q", d.State)
+	}
+	if d.ReturnState != state.StateAwaitingDefecation {
+		t.Errorf("diary detour must stay recorded, got %q", d.ReturnState)
+	}
+	prompts := 0
+	for _, txt := range sentTexts(sender) {
+		if contains(txt, "Defecation?") {
+			prompts++
+		}
+	}
+	if prompts != 1 {
+		t.Errorf("the diary question must not be re-asked after the test: asked %d times", prompts)
+	}
+	if got := sender.lastText(); !contains(got, "Mode?") {
+		t.Errorf("landing prompt must close the test, got %q", got)
 	}
 }
 

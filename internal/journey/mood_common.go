@@ -12,8 +12,8 @@ import (
 // scr_* chain, all texts come from the content bundle (screening.MoodContent)
 // and reach the user through the "scr.text" pass-through i18n key — nothing
 // user-visible is hardcoded here. Generic helpers (normText, labelIs,
-// renderContent, scrText, exitState, scaleKeyboard, matchScale) are shared
-// with scr_common.go.
+// renderContent, scrText, testExitState, deleteReturnState, scaleKeyboard,
+// matchScale) are shared with scr_common.go.
 
 // isMoodState reports whether kind is one of the mood_* states. A deliberate
 // enumeration, not a lookup over registered phases: the answer must not

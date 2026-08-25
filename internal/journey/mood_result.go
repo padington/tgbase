@@ -100,8 +100,9 @@ func moodFinalize(c *screening.MoodContent, ctx Context, answers []int) Outcome 
 }
 
 // MoodReportPhase owns StateMoodReport — the final transit phase: sends the
-// doctor report and returns the user to the recorded FODMAP state (re-Setup)
-// or idle.
+// doctor report and lands the user on the home landing. A recorded FODMAP
+// detour stays reachable there via the contextual «back to the diary»
+// button — the test finish never drops the user into a mid-diary question.
 type MoodReportPhase struct {
 	c *screening.MoodContent
 }
@@ -120,8 +121,7 @@ func (p *MoodReportPhase) Setup(ctx Context) Outcome {
 	text := p.c.Module.DoctorReport.LeadIn + "\n\n" + moodDoctorReport(p.c, res)
 	oc := scrText(text)
 	oc.RemoveKeyboard = true
-	oc.NextState = exitState(ctx.User)
-	oc.Mutate = clearReturnState
+	oc.NextState = testExitState
 	return oc
 }
 

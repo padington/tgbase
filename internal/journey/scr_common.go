@@ -42,17 +42,29 @@ func scrText(text string) Outcome {
 	}
 }
 
-// exitState is where a screening exit (pause, decline, finish, delete)
-// lands: the recorded FODMAP detour state, or idle. Callers must clear
-// ReturnState via Mutate on the same outcome.
-func exitState(u state.UserData) state.StateKind {
+// testExitState is where every exit from a self-check lands — finish (the
+// result/report chain), gate pause, consent decline, postpone, /abandon and
+// mid-test delete: the home landing. The recorded FODMAP detour
+// (ReturnState) is deliberately KEPT: the landing offers it through the
+// contextual «back to the diary» button (diaryResumeState) instead of
+// auto-dropping the user into a mid-diary question — that auto-drop was the
+// pre-landing legacy behavior and read as a non-sequitur right after a test.
+const testExitState = state.StateAwaitingModeChoice
+
+// deleteReturnState is where a closed delete-confirmation returns when it
+// was NOT entered mid-test: the state the command interrupted — recorded to
+// ReturnState by enterDeleteConfirm (a FODMAP question or the landing
+// itself) — or idle. Callers must clear ReturnState via Mutate on the same
+// outcome.
+func deleteReturnState(u state.UserData) state.StateKind {
 	if u.ReturnState != "" {
 		return u.ReturnState
 	}
 	return state.StateIdle
 }
 
-// clearReturnState is the Mutate counterpart of exitState.
+// clearReturnState is the Mutate counterpart of deleteReturnState; also used
+// by the landing's resume-diary button, which consumes the detour.
 func clearReturnState(u *state.UserData) {
 	u.ReturnState = ""
 }
