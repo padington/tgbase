@@ -55,6 +55,12 @@ const (
 	StateKind_STATE_MOOD_CRISIS               StateKind = 26
 	StateKind_STATE_MOOD_REPORT               StateKind = 27
 	StateKind_STATE_MOOD_DELETE_CONFIRM       StateKind = 28
+	StateKind_STATE_MOOD_MENU                 StateKind = 29
+	StateKind_STATE_MOOD_Q10                  StateKind = 30
+	StateKind_STATE_MOOD_WHO5_QUESTION        StateKind = 31
+	StateKind_STATE_MOOD_OFFER_PHQ9           StateKind = 32
+	StateKind_STATE_MOOD_GAD7_QUESTION        StateKind = 33
+	StateKind_STATE_MOOD_OFFER_GAD7           StateKind = 34
 )
 
 // Enum value maps for StateKind.
@@ -89,6 +95,12 @@ var (
 		26: "STATE_MOOD_CRISIS",
 		27: "STATE_MOOD_REPORT",
 		28: "STATE_MOOD_DELETE_CONFIRM",
+		29: "STATE_MOOD_MENU",
+		30: "STATE_MOOD_Q10",
+		31: "STATE_MOOD_WHO5_QUESTION",
+		32: "STATE_MOOD_OFFER_PHQ9",
+		33: "STATE_MOOD_GAD7_QUESTION",
+		34: "STATE_MOOD_OFFER_GAD7",
 	}
 	StateKind_value = map[string]int32{
 		"STATE_UNSPECIFIED":               0,
@@ -120,6 +132,12 @@ var (
 		"STATE_MOOD_CRISIS":               26,
 		"STATE_MOOD_REPORT":               27,
 		"STATE_MOOD_DELETE_CONFIRM":       28,
+		"STATE_MOOD_MENU":                 29,
+		"STATE_MOOD_Q10":                  30,
+		"STATE_MOOD_WHO5_QUESTION":        31,
+		"STATE_MOOD_OFFER_PHQ9":           32,
+		"STATE_MOOD_GAD7_QUESTION":        33,
+		"STATE_MOOD_OFFER_GAD7":           34,
 	}
 )
 
@@ -547,14 +565,15 @@ func (x *ScreeningResult) GetGapHint() string {
 	return ""
 }
 
-// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished PHQ-9
-// mood-screening run (raw per-question answers live only here; wiped on
-// completion / restart / abandon / delete).
+// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished run of
+// one mood-module instrument (PHQ-9 in `mood`, WHO-5 in `who5`, GAD-7 in
+// `gad7`; raw per-question answers live only here; wiped on completion /
+// restart / abandon / delete).
 type MoodProgress struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Answers       []int32                `protobuf:"varint,1,rep,packed,name=answers,proto3" json:"answers,omitempty"` // append-only, scores 0..3; index = id-1
-	ResumeState   StateKind              `protobuf:"varint,2,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"`
-	ConsentAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`
+	Answers       []int32                `protobuf:"varint,1,rep,packed,name=answers,proto3" json:"answers,omitempty"`                                                    // append-only; index = id-1 (PHQ-9 index 9 = the functional item)
+	ResumeState   StateKind              `protobuf:"varint,2,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"` // recorded escape position (PHQ-9 question/crisis/q10, WHO-5/GAD-7 question)
+	ConsentAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`                                       // legacy (v1 per-run consent); module consent lives on UserData
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -619,13 +638,16 @@ func (x *MoodProgress) GetStartedAt() *timestamppb.Timestamp {
 }
 
 // MoodResult mirrors state.MoodResult — the last completed PHQ-9 run: total
-// score + applied severity band + the item-9 flag, never per-question answers.
+// score + applied severity band + the item-9 flag + the answer to the
+// functional (10th) item, never the per-question answers 1..9.
 type MoodResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
-	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`                             // 0..27
-	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`                        // applied severity-band id
-	Q9Positive    bool                   `protobuf:"varint,4,opt,name=q9_positive,json=q9Positive,proto3" json:"q9_positive,omitempty"` // self-harm item answered > 0
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`                                // 0..27 (functional item NOT included)
+	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`                           // applied severity-band id
+	Q9Positive    bool                   `protobuf:"varint,4,opt,name=q9_positive,json=q9Positive,proto3" json:"q9_positive,omitempty"`    // self-harm item answered > 0
+	Q10Answered   bool                   `protobuf:"varint,5,opt,name=q10_answered,json=q10Answered,proto3" json:"q10_answered,omitempty"` // functional item was shown and answered
+	Q10Answer     int32                  `protobuf:"varint,6,opt,name=q10_answer,json=q10Answer,proto3" json:"q10_answer,omitempty"`       // 0..3, meaningful only when q10_answered
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -688,6 +710,144 @@ func (x *MoodResult) GetQ9Positive() bool {
 	return false
 }
 
+func (x *MoodResult) GetQ10Answered() bool {
+	if x != nil {
+		return x.Q10Answered
+	}
+	return false
+}
+
+func (x *MoodResult) GetQ10Answer() int32 {
+	if x != nil {
+		return x.Q10Answer
+	}
+	return 0
+}
+
+// Who5Result mirrors state.Who5Result — the last completed WHO-5 quick check:
+// the 0–100 score (raw 0–25 sum × 4) + the applied interpretation band.
+type Who5Result struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"` // 0..100
+	Band          string                 `protobuf:"bytes,3,opt,name=band,proto3" json:"band,omitempty"`    // ok | low | very_low
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Who5Result) Reset() {
+	*x = Who5Result{}
+	mi := &file_state_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Who5Result) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Who5Result) ProtoMessage() {}
+
+func (x *Who5Result) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Who5Result.ProtoReflect.Descriptor instead.
+func (*Who5Result) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Who5Result) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *Who5Result) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *Who5Result) GetBand() string {
+	if x != nil {
+		return x.Band
+	}
+	return ""
+}
+
+// Gad7Result mirrors state.Gad7Result — the last completed GAD-7 run: total
+// score + applied severity band, never per-question answers.
+type Gad7Result struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`      // 0..21
+	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"` // minimal | mild | moderate | severe
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Gad7Result) Reset() {
+	*x = Gad7Result{}
+	mi := &file_state_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Gad7Result) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Gad7Result) ProtoMessage() {}
+
+func (x *Gad7Result) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Gad7Result.ProtoReflect.Descriptor instead.
+func (*Gad7Result) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Gad7Result) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *Gad7Result) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *Gad7Result) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
 type UserData struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	State           StateKind                   `protobuf:"varint,1,opt,name=state,proto3,enum=tgbase.state.v1.StateKind" json:"state,omitempty"`
@@ -707,13 +867,20 @@ type UserData struct {
 	ReturnState     StateKind                   `protobuf:"varint,15,opt,name=return_state,json=returnState,proto3,enum=tgbase.state.v1.StateKind" json:"return_state,omitempty"`
 	Mood            *MoodProgress               `protobuf:"bytes,16,opt,name=mood,proto3" json:"mood,omitempty"`
 	MoodResult      *MoodResult                 `protobuf:"bytes,17,opt,name=mood_result,json=moodResult,proto3" json:"mood_result,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Mood module v2: one consent for the whole module (wiped by /mood_delete),
+	// per-instrument transient runs and last completed results.
+	MoodConsentAt *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=mood_consent_at,json=moodConsentAt,proto3" json:"mood_consent_at,omitempty"`
+	Who5          *MoodProgress          `protobuf:"bytes,19,opt,name=who5,proto3" json:"who5,omitempty"`
+	Gad7          *MoodProgress          `protobuf:"bytes,20,opt,name=gad7,proto3" json:"gad7,omitempty"`
+	Who5Result    *Who5Result            `protobuf:"bytes,21,opt,name=who5_result,json=who5Result,proto3" json:"who5_result,omitempty"`
+	Gad7Result    *Gad7Result            `protobuf:"bytes,22,opt,name=gad7_result,json=gad7Result,proto3" json:"gad7_result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserData) Reset() {
 	*x = UserData{}
-	mi := &file_state_proto_msgTypes[5]
+	mi := &file_state_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -725,7 +892,7 @@ func (x *UserData) String() string {
 func (*UserData) ProtoMessage() {}
 
 func (x *UserData) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[5]
+	mi := &file_state_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -738,7 +905,7 @@ func (x *UserData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserData.ProtoReflect.Descriptor instead.
 func (*UserData) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{5}
+	return file_state_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UserData) GetState() StateKind {
@@ -860,6 +1027,41 @@ func (x *UserData) GetMoodResult() *MoodResult {
 	return nil
 }
 
+func (x *UserData) GetMoodConsentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.MoodConsentAt
+	}
+	return nil
+}
+
+func (x *UserData) GetWho5() *MoodProgress {
+	if x != nil {
+		return x.Who5
+	}
+	return nil
+}
+
+func (x *UserData) GetGad7() *MoodProgress {
+	if x != nil {
+		return x.Gad7
+	}
+	return nil
+}
+
+func (x *UserData) GetWho5Result() *Who5Result {
+	if x != nil {
+		return x.Who5Result
+	}
+	return nil
+}
+
+func (x *UserData) GetGad7Result() *Gad7Result {
+	if x != nil {
+		return x.Gad7Result
+	}
+	return nil
+}
+
 type UserMap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         map[int64]*UserData    `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -869,7 +1071,7 @@ type UserMap struct {
 
 func (x *UserMap) Reset() {
 	*x = UserMap{}
-	mi := &file_state_proto_msgTypes[6]
+	mi := &file_state_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -881,7 +1083,7 @@ func (x *UserMap) String() string {
 func (*UserMap) ProtoMessage() {}
 
 func (x *UserMap) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[6]
+	mi := &file_state_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -894,7 +1096,7 @@ func (x *UserMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMap.ProtoReflect.Descriptor instead.
 func (*UserMap) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{6}
+	return file_state_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UserMap) GetUsers() map[int64]*UserData {
@@ -957,14 +1159,28 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"consent_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tconsentAt\x129\n" +
 	"\n" +
-	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\x96\x01\n" +
+	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\xd8\x01\n" +
 	"\n" +
 	"MoodResult\x125\n" +
 	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
 	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x1a\n" +
 	"\bseverity\x18\x03 \x01(\tR\bseverity\x12\x1f\n" +
 	"\vq9_positive\x18\x04 \x01(\bR\n" +
-	"q9Positive\"\xfb\a\n" +
+	"q9Positive\x12!\n" +
+	"\fq10_answered\x18\x05 \x01(\bR\vq10Answered\x12\x1d\n" +
+	"\n" +
+	"q10_answer\x18\x06 \x01(\x05R\tq10Answer\"m\n" +
+	"\n" +
+	"Who5Result\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x12\n" +
+	"\x04band\x18\x03 \x01(\tR\x04band\"u\n" +
+	"\n" +
+	"Gad7Result\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x1a\n" +
+	"\bseverity\x18\x03 \x01(\tR\bseverity\"\xa1\n" +
+	"\n" +
 	"\bUserData\x120\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\x05state\x12J\n" +
 	"\x10defecation_state\x18\x02 \x01(\x0e2\x1f.tgbase.state.v1.DefecationKindR\x0fdefecationState\x12'\n" +
@@ -985,7 +1201,14 @@ const file_state_proto_rawDesc = "" +
 	"\freturn_state\x18\x0f \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vreturnState\x121\n" +
 	"\x04mood\x18\x10 \x01(\v2\x1d.tgbase.state.v1.MoodProgressR\x04mood\x12<\n" +
 	"\vmood_result\x18\x11 \x01(\v2\x1b.tgbase.state.v1.MoodResultR\n" +
-	"moodResult\x1a]\n" +
+	"moodResult\x12B\n" +
+	"\x0fmood_consent_at\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\rmoodConsentAt\x121\n" +
+	"\x04who5\x18\x13 \x01(\v2\x1d.tgbase.state.v1.MoodProgressR\x04who5\x121\n" +
+	"\x04gad7\x18\x14 \x01(\v2\x1d.tgbase.state.v1.MoodProgressR\x04gad7\x12<\n" +
+	"\vwho5_result\x18\x15 \x01(\v2\x1b.tgbase.state.v1.Who5ResultR\n" +
+	"who5Result\x12<\n" +
+	"\vgad7_result\x18\x16 \x01(\v2\x1b.tgbase.state.v1.Gad7ResultR\n" +
+	"gad7Result\x1a]\n" +
 	"\rProductsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
 	"\x05value\x18\x02 \x01(\v2 .tgbase.state.v1.ProductProgressR\x05value:\x028\x01\"\x99\x01\n" +
@@ -994,7 +1217,7 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x82\x06\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x9d\a\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1026,7 +1249,13 @@ const file_state_proto_rawDesc = "" +
 	"\x13STATE_MOOD_QUESTION\x10\x19\x12\x15\n" +
 	"\x11STATE_MOOD_CRISIS\x10\x1a\x12\x15\n" +
 	"\x11STATE_MOOD_REPORT\x10\x1b\x12\x1d\n" +
-	"\x19STATE_MOOD_DELETE_CONFIRM\x10\x1c*p\n" +
+	"\x19STATE_MOOD_DELETE_CONFIRM\x10\x1c\x12\x13\n" +
+	"\x0fSTATE_MOOD_MENU\x10\x1d\x12\x12\n" +
+	"\x0eSTATE_MOOD_Q10\x10\x1e\x12\x1c\n" +
+	"\x18STATE_MOOD_WHO5_QUESTION\x10\x1f\x12\x19\n" +
+	"\x15STATE_MOOD_OFFER_PHQ9\x10 \x12\x1c\n" +
+	"\x18STATE_MOOD_GAD7_QUESTION\x10!\x12\x19\n" +
+	"\x15STATE_MOOD_OFFER_GAD7\x10\"*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
@@ -1046,7 +1275,7 @@ func file_state_proto_rawDescGZIP() []byte {
 }
 
 var file_state_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_state_proto_goTypes = []any{
 	(StateKind)(0),                // 0: tgbase.state.v1.StateKind
 	(DefecationKind)(0),           // 1: tgbase.state.v1.DefecationKind
@@ -1055,43 +1284,52 @@ var file_state_proto_goTypes = []any{
 	(*ScreeningResult)(nil),       // 4: tgbase.state.v1.ScreeningResult
 	(*MoodProgress)(nil),          // 5: tgbase.state.v1.MoodProgress
 	(*MoodResult)(nil),            // 6: tgbase.state.v1.MoodResult
-	(*UserData)(nil),              // 7: tgbase.state.v1.UserData
-	(*UserMap)(nil),               // 8: tgbase.state.v1.UserMap
-	nil,                           // 9: tgbase.state.v1.UserData.ProductsEntry
-	nil,                           // 10: tgbase.state.v1.UserMap.UsersEntry
-	(pb.Stage)(0),                 // 11: tgbase.products.v1.Stage
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*Who5Result)(nil),            // 7: tgbase.state.v1.Who5Result
+	(*Gad7Result)(nil),            // 8: tgbase.state.v1.Gad7Result
+	(*UserData)(nil),              // 9: tgbase.state.v1.UserData
+	(*UserMap)(nil),               // 10: tgbase.state.v1.UserMap
+	nil,                           // 11: tgbase.state.v1.UserData.ProductsEntry
+	nil,                           // 12: tgbase.state.v1.UserMap.UsersEntry
+	(pb.Stage)(0),                 // 13: tgbase.products.v1.Stage
+	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
 }
 var file_state_proto_depIdxs = []int32{
-	11, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
-	12, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
+	14, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: tgbase.state.v1.ScreeningProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	12, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
-	12, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
-	12, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
+	14, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
+	14, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
+	14, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: tgbase.state.v1.MoodProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	12, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
-	12, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
-	12, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
-	0,  // 10: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
-	1,  // 11: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
-	11, // 12: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
-	12, // 13: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
-	9,  // 14: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
-	12, // 15: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
-	3,  // 16: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
-	4,  // 17: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
-	0,  // 18: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
-	5,  // 19: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
-	6,  // 20: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
-	10, // 21: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
-	2,  // 22: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
-	7,  // 23: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	14, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
+	14, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
+	14, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
+	14, // 10: tgbase.state.v1.Who5Result.taken_at:type_name -> google.protobuf.Timestamp
+	14, // 11: tgbase.state.v1.Gad7Result.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 12: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
+	1,  // 13: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
+	13, // 14: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
+	14, // 15: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
+	11, // 16: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
+	14, // 17: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
+	3,  // 18: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
+	4,  // 19: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
+	0,  // 20: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
+	5,  // 21: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
+	6,  // 22: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
+	14, // 23: tgbase.state.v1.UserData.mood_consent_at:type_name -> google.protobuf.Timestamp
+	5,  // 24: tgbase.state.v1.UserData.who5:type_name -> tgbase.state.v1.MoodProgress
+	5,  // 25: tgbase.state.v1.UserData.gad7:type_name -> tgbase.state.v1.MoodProgress
+	7,  // 26: tgbase.state.v1.UserData.who5_result:type_name -> tgbase.state.v1.Who5Result
+	8,  // 27: tgbase.state.v1.UserData.gad7_result:type_name -> tgbase.state.v1.Gad7Result
+	12, // 28: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
+	2,  // 29: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
+	9,  // 30: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
+	31, // [31:31] is the sub-list for method output_type
+	31, // [31:31] is the sub-list for method input_type
+	31, // [31:31] is the sub-list for extension type_name
+	31, // [31:31] is the sub-list for extension extendee
+	0,  // [0:31] is the sub-list for field type_name
 }
 
 func init() { file_state_proto_init() }
@@ -1106,7 +1344,7 @@ func file_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_state_proto_rawDesc), len(file_state_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
