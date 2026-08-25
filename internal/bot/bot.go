@@ -173,6 +173,11 @@ func New(cfg Config) (*Bot, error) {
 		return runner.IsJourneyState(msg.From.ID)
 	}, runner.HandleText)
 
+	// Self-register the client command menu (setMyCommands) so the hint in
+	// Telegram always matches what this binary actually handles. Best-effort:
+	// a failure is a warning, not a boot error.
+	registerCommands(api, trans, scrContent != nil, moodContent != nil)
+
 	return &Bot{
 		api:      api,
 		cfg:      cfg,

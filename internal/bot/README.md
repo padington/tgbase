@@ -8,6 +8,7 @@ Composition root. The only package that imports every other internal package and
 - Build `store.Backend` from `Config.DataDir` (or fall back to memory).
 - Construct typed stores (`state.Store`, `products.Catalog`, `settings.Store`).
 - Construct `journey.Runner`, register all phases, register router handlers.
+- Self-register the Telegram command menu (`setMyCommands`) on boot.
 - Drive the update loop and the reminder worker.
 
 ## Public API
@@ -30,6 +31,19 @@ falls back when the fork phase is unregistered).
 
 `/menu` is registered as an alias of `/start` (`runner.HandleStart`), not as
 a meta command — both escape to the landing from any state.
+
+## Command menu self-registration (commands.go)
+
+`New` calls `registerCommands` at the end of wiring: two `setMyCommands`
+payloads (default scope with ru = default-locale descriptions, plus a
+`language_code="en"` override) built by `menuConfigs` from i18n keys
+`cmd.<name>.desc`. The menu lists, in usage-frequency order: `menu`, `adhd`,
+`mood`, `report`, `about`, `abandon`, `adhd_delete`, `mood_delete` — the
+adhd/mood entries only when the corresponding mode is wired, so the client
+hint always matches the running binary. `/start` is omitted (Telegram shows
+its own Start button); `/ping` and `/whoami` are operator commands and stay
+out of the menu. Registration is **best-effort**: an API error is logged as a
+warning and never prevents boot.
 
 ## Backend selection (buildBackend)
 
