@@ -40,8 +40,7 @@ cmd.report.not_tolerated: "Непереносимые: {names}"
 cmd.report.interrupted: "Прерванные: {names}"
 cmd.report.empty: "Пока ничего не отслеживается. Отправь /start, чтобы начать."
 
-button.menu.ping: "Пинг"
-button.menu.whoami: "Кто я"
+button.menu.home: "🏠 Меню"
 button.yes: "да"
 button.no: "нет"
 
@@ -55,14 +54,18 @@ product.amount_template.grams:  "{value}г"
 product.amount_template.ml:     "{value}мл"
 product.amount_template.spoons: "{value} ст.л."
 
-# Развилка режимов на /start: FODMAP-дневник, самопроверка СДВГ или
-# самопроверка настроения (PHQ-9).
-phase.mode.prompt: "Привет! Что будем делать?"
-phase.mode.prompt_active_trial: "Привет! Сейчас идёт испытание: {name} ({stage}).\n\n«FODMAP-дневник» начнёт день заново — текущее испытание будет прервано, как раньше при /start. Самопроверки не тронут прогресс дневника: после них вернёмся к испытанию.\n\nЧто будем делать?"
+# Лендинг (домашнее меню) на /start и /menu: FODMAP-дневник, тест СДВГ,
+# настроение (PHQ-9), отчёт + контекстные кнопки возврата.
+phase.mode.prompt: "Привет! Я помогу вести FODMAP-дневник и пройти самопроверки — СДВГ и настроение (PHQ-9).\nЧто будем делать?"
+phase.mode.prompt_active_trial: "Привет! Идёт проба: {trial}.\n«▶️ Вернуться к дневнику» продолжит её; «🥦 FODMAP-дневник» начнёт день заново — проба будет прервана.\n\nЧто будем делать?"
 phase.mode.invalid: "Пожалуйста, нажми одну из кнопок ниже."
-button.mode.fodmap: "🍽 FODMAP-дневник"
-button.mode.screening: "🧠 Самопроверка СДВГ"
-button.mode.mood: "🌤 Самопроверка настроения"
+button.mode.fodmap: "🥦 FODMAP-дневник"
+button.mode.screening: "🧠 Тест СДВГ"
+button.mode.mood: "🌤 Настроение"
+button.mode.report: "📊 Отчёт"
+button.mode.resume_fodmap: "▶️ Вернуться к дневнику: {trial}"
+button.mode.resume_screening: "▶️ Продолжить тест СДВГ"
+button.mode.resume_mood: "▶️ Продолжить тест настроения"
 
 # Скрининг: владельческие тексты живут в screening/*.yaml; фазы собирают
 # готовую строку и шлют её через pass-through ключ scr.text. В i18n — только
