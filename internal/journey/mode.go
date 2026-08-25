@@ -18,6 +18,13 @@ func NewModeChoicePhase() *ModeChoicePhase { return &ModeChoicePhase{} }
 
 func (ModeChoicePhase) State() state.StateKind { return state.StateAwaitingModeChoice }
 
+// homeLabel is the 🏠 button label — appended to the FODMAP keyboards as the
+// visible twin of /menu. Runner.HandleText intercepts a tap on it in every
+// journey state and routes to the landing.
+func homeLabel(ctx Context) string {
+	return ctx.Trans.T("button.menu.home", ctx.Locale, nil)
+}
+
 // trialLabel renders the active trial as "Name" or "Name (stage)" for the
 // landing prompt and the resume-diary button.
 func trialLabel(ctx Context) string {

@@ -639,6 +639,54 @@ func rep4(n int) []int {
 	return out
 }
 
+// TestLanding_HomeButtonOnFodmapKeyboards pins the 🏠 button presence on
+// every FODMAP keyboard (defecation, product picker, stage choice) and its
+// escape behavior when tapped.
+func TestLanding_HomeButtonOnFodmapKeyboards(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	startDiary(runner, sender, 1)
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Home") {
+		t.Errorf("defecation keyboard must offer 🏠, got %v", kb)
+	}
+
+	say(runner, sender, 1, "2")
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Home") {
+		t.Errorf("product picker keyboard must offer 🏠, got %v", kb)
+	}
+
+	say(runner, sender, 1, st.Get(1).OfferedProducts[0])
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Home") {
+		t.Errorf("stage choice keyboard must offer 🏠, got %v", kb)
+	}
+
+	say(runner, sender, 1, "Home")
+	if got := st.Get(1).State; got != state.StateAwaitingModeChoice {
+		t.Fatalf("🏠 tap must land on the landing, got %q", got)
+	}
+	if d := st.Get(1); d.CurrentProduct == "" || d.ReturnState != state.StateAwaitingStageChoice {
+		t.Errorf("🏠 must preserve the picked product and record the way back: %+v", d.State)
+	}
+}
+
+// TestLanding_HomeButtonOnCategoryKeyboard needs a multi-category catalog —
+// the two-product default auto-skips the category step.
+func TestLanding_HomeButtonOnCategoryKeyboard(t *testing.T) {
+	runner, st, sender := setupWithCategories(t)
+	startDiary(runner, sender, 1)
+	say(runner, sender, 1, "2")
+	if got := st.Get(1).State; got != state.StateAwaitingProductCategory {
+		t.Fatalf("precondition: category state, got %q", got)
+	}
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Home") {
+		t.Errorf("category keyboard must offer 🏠, got %v", kb)
+	}
+	say(runner, sender, 1, "Home")
+	if got := st.Get(1).State; got != state.StateAwaitingModeChoice {
+		t.Fatalf("🏠 tap must land on the landing, got %q", got)
+	}
+}
+
 // TestLanding_NoRemindersOnLanding pins the reminder isolation: a user who
 // escaped mid-diary to the landing gets no nudges while parked there.
 func TestLanding_NoRemindersOnLanding(t *testing.T) {

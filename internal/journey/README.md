@@ -15,6 +15,7 @@ Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatch
 ## Landing & universal escape
 
 - `Runner.routeToLanding` (shared by `/start`, `/menu` and the `button.menu.home` 🏠 tap, which `HandleText` intercepts before phase dispatch) works from ANY state without losing progress: a FODMAP journey state is recorded to `ReturnState`, a **resumable** screening/mood state to the run's `ResumeState`. Non-resumable states (consent/intro gates, delete confirmations) never overwrite an earlier recorded position.
+- The FODMAP keyboards carry the 🏠 button (`homeLabel`): defecation gets its own row, category/stage-choice append it to the Back row, the picker appends it to the nav row. Screening/mood question keyboards stay content-only — there the escape is `/start` / `/menu`.
 - Resumable sets: `resumableScrState` = all `scr_*` except consent/intro/delete-confirm; `resumableMoodState` = `mood_question` | `mood_crisis`.
 - The landing's resume buttons jump straight back to the recorded position (same question; a run paused on the crisis card lands on the card). Without a usable `ResumeState` the target is derived from the actual answers (`screeningResumeState`; the mood question phase derives its index from `len(Mood.Answers)` natively).
 - The intro's resume mode is decided by the ACTUAL presence of answers (`screeningHasAnswers`), not just by `ResumeState` — a run that lost its `ResumeState` still offers Continue instead of silently wiping progress on «Начать».
