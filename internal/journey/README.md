@@ -8,7 +8,7 @@ Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatch
 
 - **FODMAP diary**: defecation → product category → product choice → stage choice → stage check-in.
 - **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 (one short yes/no question per domain) → result → referral → doctor report; plus the delete-confirmation phase.
-- **Mood self-check** (`mood_*` phases, PHQ-9): consent (also the resume gate) → 9 questions one by one → deterministic crisis card when item 9 > 0 → result (score, band, retest delta, contacts) → doctor report; plus the delete-confirmation phase.
+- **Mood module** (`mood_*` phases, WHO-5 + PHQ-9 + GAD-7): one module-wide consent → mini-menu (⚡ quick check / 📋 PHQ-9 / 😰 GAD-7 + per-instrument resume rows + 🏠) → the chosen instrument's question series → per-instrument result. PHQ-9 keeps the deterministic crisis card (item 9 > 0) and adds the official functional (10th) question when any answer > 0; its completion sends the combined doctor report and offers the GAD-7; a reduced WHO-5 (≤ 50) offers the PHQ-9; GAD-7 completion sends the combined report and lands home. Plus the delete-confirmation phase (wipes all three instruments + the consent).
 
 `/start` (and its alias `/menu`) lands on `ModeChoicePhase` — the **home landing**: a short greeting, one button per mode, a report button, and contextual resume buttons («Продолжить тест СДВГ» / «Продолжить тест настроения» when an unfinished run exists, «Вернуться к дневнику: <product> (<stage>)» when a trial is active). The screening phases receive a `*screening.Content` / `*screening.MoodContent` via their constructors; `journey.New` is unchanged.
 
@@ -17,8 +17,8 @@ Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatch
 - `Runner.routeToLanding` (shared by `/start`, `/menu` and the `button.menu.home` 🏠 tap, which `HandleText` intercepts before phase dispatch) works from ANY state without losing progress: a FODMAP journey state is recorded to `ReturnState`, a **resumable** screening/mood state to the run's `ResumeState`. Non-resumable states (consent/intro gates, delete confirmations) never overwrite an earlier recorded position.
 - **Every test exit lands on the landing** (`testExitState`): the result/report chain of both modes, gate pause, consent decline, postpone/later, `/abandon` mid-test, and a mid-test delete confirm. `ReturnState` is deliberately KEPT on these exits — the landing's «Вернуться к дневнику» button consumes it (`diaryResumeState`), instead of the pre-landing legacy auto-drop into a mid-diary question right after a test.
 - The FODMAP keyboards carry the 🏠 button (`homeLabel`): defecation gets its own row, category/stage-choice append it to the Back row, the picker appends it to the nav row. Screening/mood question keyboards stay content-only — there the escape is `/start` / `/menu`.
-- Resumable sets: `resumableScrState` = all `scr_*` except consent/intro/delete-confirm; `resumableMoodState` = `mood_question` | `mood_crisis`.
-- The landing's resume buttons jump straight back to the recorded position (same question; a run paused on the crisis card lands on the card). Without a usable `ResumeState` the target is derived from the actual answers (`screeningResumeState`; the mood question phase derives its index from `len(Mood.Answers)` natively).
+- Resumable sets: `resumableScrState` = all `scr_*` except consent/intro/delete-confirm; `resumableMoodState` (PHQ-9-owned positions, recorded in `Mood.ResumeState`) = `mood_question` | `mood_crisis` | `mood_q10`. WHO-5/GAD-7 runs derive their position from the answer count — no recorded position needed.
+- The landing's resume buttons jump straight back to the recorded position (same question; a run paused on the crisis card lands on the card). Without a usable `ResumeState` the target is derived from the actual answers (`screeningResumeState`; the mood question phases derive their index from the answer count natively). The mood resume button targets the single unfinished run directly, or the module menu when several instruments are paused (`moodResumeTarget`).
 - The intro's resume mode is decided by the ACTUAL presence of answers (`screeningHasAnswers`), not just by `ResumeState` — a run that lost its `ResumeState` still offers Continue instead of silently wiping progress on «Начать».
 - `/adhd_delete` / `/mood_delete` record the way back on entry: a mid-test position to the run's `ResumeState`, the interrupted FODMAP question or the landing itself to `ReturnState`. «Оставить» returns straight to the recorded question / crisis card; without one it closes to `ReturnState` | idle (`deleteReturnState`). Confirming mid-test destroys the position the cancel would return to — that run is abandoned, so it lands on the landing (`ReturnState` kept for the diary button); otherwise the confirm returns to whatever the command interrupted.
 - The landing's report button renders the same text as `/report` (`reportText`, a free function shared with `HandleReport`) and stays on the landing.
@@ -68,8 +68,12 @@ func NewScrConsentPhase(c), NewScrIntroPhase(c),
     NewScrDomainsAdultPhase(c), NewScrDomainsChildPhase(c),
     NewScrReferralPhase(c), NewScrReportPhase(c), NewScrDeleteConfirmPhase(c)
 // Mood phases (all take *screening.MoodContent):
-func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
-    NewMoodReportPhase(mc), NewMoodDeleteConfirmPhase(mc)
+func NewMoodConsentPhase(mc), NewMoodMenuPhase(mc),
+    NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc), NewMoodQ10Phase(mc),
+    NewMoodReportPhase(mc),
+    NewMoodWho5Phase(mc), NewMoodOfferPhq9Phase(mc),
+    NewMoodGad7Phase(mc), NewMoodOfferGad7Phase(mc),
+    NewMoodDeleteConfirmPhase(mc)
 ```
 
 ## Runner contracts (important)
@@ -89,11 +93,17 @@ func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
 | `StageCheckinPhase` | `StateAwaitingStageCheckin` | yes/no; advances stage, completes product, or marks not_tolerated. Reminder prompts the check-in question after `Settings.CheckinInterval`. |
 | `ModeChoicePhase` | `StateAwaitingModeChoice` | The home landing (/start, /menu, 🏠): three mode buttons + report + contextual resume buttons (unfinished ADHD/mood run, active trial with product+stage in the label). The FODMAP MODE button owns the legacy /start semantics (interrupt + reset); resume buttons and both self-check buttons leave everything intact. Silent `Remind` — users parked on the landing get no nudges (accepted trade-off). |
 | `ScrConsentPhase` … `ScrDeleteConfirmPhase` | `scr_*` | The ADHD self-check chain. All `Remind`s are empty — the reminder loop never selects `scr_*` states by construction (pinned by test). Texts are assembled from `screening.Content` and sent via the `scr.text` pass-through i18n key. |
-| `MoodConsentPhase` | `mood_consent` | Consent for fresh runs (short body + disclaimer); resume gate (Continue / start over / later) when an unfinished `Mood` exists — consent is never re-asked. Declining creates nothing. |
-| `MoodQuestionPhase` | `mood_question` | Index-driven series of the 9 official PHQ-9 questions (position derived from `len(Mood.Answers)`), 4-option scale keyboard. An answer > 0 on the crisis item (q9) transitions to `mood_crisis` immediately; the last non-crisis answer finalizes. |
-| `MoodCrisisPhase` | `mood_crisis` | Deterministic crisis card: warm lead + adult support contacts, plus one direct line when the answer was 2–3. Not blocking — Continue proceeds to the result. Pause here resumes here. |
-| `MoodReportPhase` | `mood_report` | Transit: sends the doctor report, lands on the home landing (`ReturnState` kept for the diary button). |
-| `MoodDeleteConfirmPhase` | `mood_delete_confirm` | `/mood_delete` confirmation; confirm wipes `Mood` + `MoodResult` in one `Set`. |
+| `MoodConsentPhase` | `mood_consent` | The ONE module-wide consent (short body + disclaimer): agreeing records `MoodConsentAt` and opens the menu; declining creates nothing. Already-consented users (incl. any stored mood data — the v1 migration) bounce straight to the menu. |
+| `MoodMenuPhase` | `mood_menu` | The module mini-menu: per-instrument resume rows on top, then ⚡/📋/😰 instrument buttons + 🏠. An instrument button always starts FRESH (the visible resume row makes it an explicit start-over). |
+| `MoodQuestionPhase` | `mood_question` | Index-driven series of the 9 official PHQ-9 questions (position derived from `len(Mood.Answers)`), 4-option scale keyboard. An answer > 0 on the crisis item (q9) transitions to `mood_crisis` immediately; nine answers with any positive route to `mood_q10`, an all-zero run finalizes. |
+| `MoodCrisisPhase` | `mood_crisis` | Deterministic crisis card: warm lead + adult support contacts, plus one direct line when the answer was 2–3. Not blocking — Continue proceeds (to the functional question). Pause here resumes here. |
+| `MoodQ10Phase` | `mood_q10` | The official functional-impairment (10th) question, shown only when ≥ 1 of the nine answers is > 0. Recorded as `Answers[9]`, never in the 0–27 score; reaches the doctor report as its own line. |
+| `MoodReportPhase` | `mood_report` | Transit after PHQ-9/GAD-7 completions: sends the COMBINED doctor report (PHQ-9 + q10 + GAD-7 + WHO-5, with dates), then the GAD-7 offer when the PHQ-9 was just completed (`phq9JustCompleted`, timestamp rule), else the home landing. |
+| `MoodWho5Phase` | `mood_who5_question` | The five WHO-5 statements (6-option scale, form order 5 → 0). Completion: raw sum × 4 → 0–100; > 50 lands home, ≤ 50 routes to the PHQ-9 offer. |
+| `MoodOfferPhq9Phase` | `mood_offer_phq9` | One-button WHO-5 → PHQ-9 link; wording more insistent for ≤ 28. Start resumes a paused PHQ-9 run instead of wiping it; decline lands home. |
+| `MoodGad7Phase` | `mood_gad7_question` | The seven GAD-7 questions (same 4-option scale as PHQ-9). Completion sends the result + combined report and lands home. |
+| `MoodOfferGad7Phase` | `mood_offer_gad7` | One-button PHQ-9 → GAD-7 link («часто идут вместе», no clinical terms). Start resumes a paused GAD-7 run; decline lands home. |
+| `MoodDeleteConfirmPhase` | `mood_delete_confirm` | `/mood_delete` confirmation; confirm wipes all six mood fields + `MoodConsentAt` in one `Set`. |
 
 ## Screening-specific contracts
 
@@ -106,13 +116,17 @@ func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
 - **Reply keyboards** (v1 compromise): the user's taps stay visible in their Telegram chat history; the bot neither reads nor stores it. Inline buttons + CallbackQuery support in `internal/router` would remove that trace — a v2 privacy improvement, out of scope here.
 - **No nudges / no TTL** for unfinished screenings in v1 — a future extension point.
 
-## Mood-specific contracts (PHQ-9)
+## Mood-module contracts (WHO-5 / PHQ-9 / GAD-7)
 
-- **Crisis protocol is deterministic and code-driven**: any answer > 0 on item 9 → the crisis card right after the answer (never delayed to the result); answer 2–3 adds the one direct talk-to-someone-today line; the contacts block is repeated in the final result whenever the item-9 flag is set, regardless of the total score. The test is never blocked by the card. All branches are unit-tested.
-- **Privacy**: raw answers live only in `UserData.Mood` (transient); completion writes `MoodResult` (score, band id, date, item-9 flag — the single per-question fact kept) and wipes `Mood` in the same `Set`. The doctor report is rendered on the fly and never stored.
-- **Retest dynamics**: on a repeat completion the result renders a delta line against the previous stored result (`сегодня` / days / weeks ago) before overwriting it, plus the fixed repeat-in-2–4-weeks line.
-- **Detour and resume**: same bookkeeping as `scr_*` — `ReturnState` for the FODMAP detour (kept on every test exit; consumed only by the landing's diary button), `Mood.ResumeState` for `/start` mid-test (a run paused on the crisis card resumes on the card). The consent phase doubles as the resume gate; "start over" wipes only the raw answers.
-- **Command naming**: `/mood` + `/mood_delete` (not `/depression`) — matches the user-facing mode name «Самопроверка настроения», avoids a self-labeling diagnosis word in the command menu, and pairs with `/adhd`/`/adhd_delete`.
+- **One consent, three instruments**: consent is asked once per module (`MoodConsentAt`), covers all three instruments and both offer links, and is wiped by `/mood_delete` (after which it is asked again). Any stored mood data implies consent — v1 users are never re-asked.
+- **Crisis protocol is deterministic and code-driven** (PHQ-9 only): any answer > 0 on item 9 → the crisis card right after the answer (never delayed to the result); answer 2–3 adds the one direct talk-to-someone-today line; the contacts block is repeated in the final result whenever the item-9 flag is set, regardless of the total score. The test is never blocked by the card. WHO-5 and GAD-7 have no crisis items — no crisis logic there by design. All branches are unit-tested.
+- **Functional (10th) question**: asked only when ≥ 1 of the nine PHQ-9 answers is > 0 (the form's own instruction), never part of the 0–27 score, stored as `MoodResult.Q10Answer(ed)` and rendered in the doctor report as the picked option label.
+- **Privacy**: raw answers live only in the per-instrument `MoodProgress` (transient); completion writes the per-instrument result (totals + band ids + dates + the two allowed PHQ-9 facts) and wipes the progress in the same `Set`. The combined doctor report is rendered on the fly and never stored.
+- **No combined index**: each instrument renders its own result with its own score/band; the combined report is a list of separate lines, never a summary number.
+- **Offers**: WHO-5 ≤ 50 → one-button PHQ-9 offer (insistent below ≤ 28); PHQ-9 completion → one-button GAD-7 offer after the report. Offer starts NEVER wipe a paused run of the target instrument — they resume it. Declines land home.
+- **Retest dynamics** (PHQ-9): on a repeat completion the result renders a delta line against the previous stored result (`сегодня` / days / weeks ago) before overwriting it, plus the fixed repeat-in-2–4-weeks line.
+- **Detour and resume**: same bookkeeping as `scr_*` — `ReturnState` for the FODMAP detour (kept on every test exit; consumed only by the landing's diary button), `Mood.ResumeState` for `/start` mid-test (a run paused on the crisis card or the functional question resumes there). WHO-5/GAD-7 positions derive from the answer count. The menu shows resume rows; its instrument buttons are the explicit start-over.
+- **Command naming**: `/mood` + `/mood_delete` (not `/depression`) — matches the user-facing mode name, avoids a self-labeling diagnosis word in the command menu, and pairs with `/adhd`/`/adhd_delete`. `/report` renders one lean line per completed instrument.
 
 ## Picker label rendering
 

@@ -132,9 +132,15 @@ func New(cfg Config) (*Bot, error) {
 	}
 	if moodContent != nil {
 		runner.Register(journey.NewMoodConsentPhase(moodContent))
+		runner.Register(journey.NewMoodMenuPhase(moodContent))
 		runner.Register(journey.NewMoodQuestionPhase(moodContent))
 		runner.Register(journey.NewMoodCrisisPhase(moodContent))
+		runner.Register(journey.NewMoodQ10Phase(moodContent))
 		runner.Register(journey.NewMoodReportPhase(moodContent))
+		runner.Register(journey.NewMoodWho5Phase(moodContent))
+		runner.Register(journey.NewMoodOfferPhq9Phase(moodContent))
+		runner.Register(journey.NewMoodGad7Phase(moodContent))
+		runner.Register(journey.NewMoodOfferGad7Phase(moodContent))
 		runner.Register(journey.NewMoodDeleteConfirmPhase(moodContent))
 	}
 

@@ -8,6 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mood module v2 — WHO-5 quick check, GAD-7, PHQ-9 functional item.** The
+  mood mode becomes a three-instrument hub behind one consent and a
+  mini-menu («⚡ Быстрый чек (1 мин)» / «📋 Настроение (PHQ-9)» / «😰 Тревога
+  (GAD-7)» + resume rows for unfinished runs).
+  - **WHO-5** (official Russian text from WHO publication
+    WHO-UCN-MSD-MHE-2024.01, verbatim, provenance pinned): 5 statements,
+    6-option scale in the form's order, raw sum × 4 → 0–100. > 50 —
+    «самочувствие в норме»; ≤ 50 — «снижено» + a one-button offer to take
+    the full PHQ-9; ≤ 28 — a more insistent offer. One-line © WHO
+    attribution. No crisis item by design.
+  - **GAD-7** (official Russian version from phqscreeners.com, verbatim,
+    provenance pinned): 7 items, the PHQ-9 scale, 0–21 with the published
+    0–4/5–9/10–14/15–21 gradations (10–14 suggests discussing with a
+    doctor, 15–21 recommends a specialist). No crisis item.
+  - **PHQ-9 functional (10th) question** — the official form's follow-up
+    («насколько трудно Вам было работать…», 4 options, verbatim from the
+    already-pinned PDF): asked only when at least one of the nine answers
+    is > 0, never part of the 0–27 score, stored and surfaced as its own
+    line in the doctor report.
+  - **Links**: the PHQ-9 report offers the GAD-7 with one button (no
+    clinical terms); offers resume paused runs instead of wiping them.
+    Each instrument keeps its own result and band wording — no combined
+    index.
+  - **Combined doctor report**: everything completed (PHQ-9 + item-9 fact +
+    functional answer, GAD-7, WHO-5) with dates, rendered on the fly.
+  - One consent per module (`MoodConsentAt`; stored mood data implies it,
+    so v1 users are never re-asked); `/mood_delete` wipes all three
+    instruments plus the consent; `/abandon` wipes only the active
+    instrument's run; `/report` gains lean GAD-7/WHO-5 lines; the `/mood`
+    command-menu description becomes «самопроверка настроения и тревоги».
+
+### Changed (mood v2)
+- The v1 per-run consent/resume gate is folded into the module menu: resume
+  rows continue at the exact position (crisis card and functional question
+  included); tapping an instrument button with its own run paused is the
+  explicit start-over.
 - **Command-menu self-registration** — on boot the bot calls `setMyCommands`
   (default scope, ru descriptions as default + a `language_code="en"`
   variant from the i18n bundles) so the client command menu always matches

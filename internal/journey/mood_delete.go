@@ -6,9 +6,10 @@ import (
 )
 
 // MoodDeleteConfirmPhase owns StateMoodDeleteConfirm — the /mood_delete
-// confirmation. Confirming wipes both the transient progress and the stored
-// result in one Set; cancelling leaves everything intact (an unfinished run
-// stays resumable via /mood).
+// confirmation. Confirming wipes ALL mood-module data in one Set: the three
+// transient runs, the three stored results, and the module-wide consent
+// timestamp (consent will be asked again on the next entry). Cancelling
+// leaves everything intact (unfinished runs stay resumable via /mood).
 type MoodDeleteConfirmPhase struct {
 	c *screening.MoodContent
 }
@@ -18,6 +19,14 @@ func NewMoodDeleteConfirmPhase(c *screening.MoodContent) *MoodDeleteConfirmPhase
 }
 
 func (MoodDeleteConfirmPhase) State() state.StateKind { return state.StateMoodDeleteConfirm }
+
+// wipeMoodData clears every persisted trace of the mood module.
+func wipeMoodData(u *state.UserData) {
+	u.Mood, u.MoodResult = nil, nil
+	u.Who5, u.Who5Result = nil, nil
+	u.Gad7, u.Gad7Result = nil, nil
+	u.MoodConsentAt = nil
+}
 
 func (p *MoodDeleteConfirmPhase) Setup(ctx Context) Outcome {
 	ui := p.c.Module.UI
@@ -33,36 +42,32 @@ func (p *MoodDeleteConfirmPhase) Collect(ctx Context, input string) Outcome {
 	case labelIs(in, ui.DeleteConfirmButton):
 		oc := scrText(ui.DeleteDone)
 		oc.RemoveKeyboard = true
-		if s := ctx.User.Mood; s != nil && resumableMoodState(s.ResumeState) {
-			// Confirming mid-test destroys the very position the flow
-			// would return to — that run is abandoned, so land home. The
-			// FODMAP detour (if any) stays reachable via the landing's
-			// diary button.
+		if _, midTest := moodDeleteResumeTarget(ctx.User); midTest {
+			// Confirming mid-test destroys the very position the flow would
+			// return to — that run is abandoned, so land home. The FODMAP
+			// detour (if any) stays reachable via the landing's diary button.
 			oc.NextState = testExitState
-			oc.Mutate = func(u *state.UserData) {
-				u.Mood = nil
-				u.MoodResult = nil
-			}
+			oc.Mutate = wipeMoodData
 			return oc
 		}
 		// Not mid-test: return to the state the command interrupted (the
 		// FODMAP question or the landing, recorded by enterDeleteConfirm).
 		oc.NextState = deleteReturnState(ctx.User)
 		oc.Mutate = func(u *state.UserData) {
-			u.Mood = nil
-			u.MoodResult = nil
+			wipeMoodData(u)
 			u.ReturnState = ""
 		}
 		return oc
 	case labelIs(in, ui.DeleteCancelButton):
-		// Cancelling mid-test returns to the interrupted question or crisis
-		// card (recorded by enterDeleteConfirm) — never eject the user from
-		// the run. The detour bookkeeping stays for the eventual test exit.
-		if s := ctx.User.Mood; s != nil && resumableMoodState(s.ResumeState) {
+		// Cancelling mid-test returns to the interrupted position (recorded
+		// by enterDeleteConfirm into the run's ResumeState) — never eject
+		// the user from the run. The detour bookkeeping stays for the
+		// eventual test exit.
+		if target, midTest := moodDeleteResumeTarget(ctx.User); midTest {
 			return Outcome{
 				ReplyKey:       "scr.delete.cancelled",
 				RemoveKeyboard: true,
-				NextState:      s.ResumeState,
+				NextState:      target,
 			}
 		}
 		return Outcome{

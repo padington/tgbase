@@ -44,7 +44,7 @@ cmd.report.empty: "Nothing tracked yet. Send /start to begin."
 # boot). Order is defined in internal/bot; /start is rendered by Telegram.
 cmd.menu.desc: "main menu"
 cmd.adhd.desc: "ADHD self-check"
-cmd.mood.desc: "mood self-check (PHQ-9)"
+cmd.mood.desc: "mood & anxiety self-check"
 cmd.report.desc: "progress report"
 cmd.about.desc: "what this bot can do"
 cmd.abandon.desc: "abandon the current trial or test"
@@ -67,7 +67,7 @@ product.amount_template.spoons: "{value} tbsp"
 
 # Home landing on /start and /menu. The screenings themselves are ru-only in
 # v1: every other scr.* key falls back per-key to the default (ru) bundle.
-phase.mode.prompt: "Hi! I can run your FODMAP diary and the ADHD / mood (PHQ-9) self-checks.\nWhat shall we do?"
+phase.mode.prompt: "Hi! I can run your FODMAP diary and the ADHD / mood & anxiety self-checks.\nWhat shall we do?"
 phase.mode.prompt_active_trial: "Hi! A trial is in progress: {trial}.\n\"▶️ Back to the diary\" resumes it; \"🥦 FODMAP diary\" restarts the day — the trial will be marked interrupted.\n\nWhat shall we do?"
 phase.mode.invalid: "Please tap one of the buttons below."
 button.mode.fodmap: "🥦 FODMAP diary"

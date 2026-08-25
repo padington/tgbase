@@ -37,6 +37,12 @@ enum StateKind {
   STATE_MOOD_CRISIS = 26;
   STATE_MOOD_REPORT = 27;
   STATE_MOOD_DELETE_CONFIRM = 28;
+  STATE_MOOD_MENU = 29;
+  STATE_MOOD_Q10 = 30;
+  STATE_MOOD_WHO5_QUESTION = 31;
+  STATE_MOOD_OFFER_PHQ9 = 32;
+  STATE_MOOD_GAD7_QUESTION = 33;
+  STATE_MOOD_OFFER_GAD7 = 34;
 }
 
 enum DefecationKind {
@@ -89,23 +95,43 @@ message ScreeningResult {
   string gap_hint = 14;              // gap-hint key when partial
 }
 
-// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished PHQ-9
-// mood-screening run (raw per-question answers live only here; wiped on
-// completion / restart / abandon / delete).
+// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished run of
+// one mood-module instrument (PHQ-9 in `mood`, WHO-5 in `who5`, GAD-7 in
+// `gad7`; raw per-question answers live only here; wiped on completion /
+// restart / abandon / delete).
 message MoodProgress {
-  repeated int32 answers = 1;        // append-only, scores 0..3; index = id-1
-  StateKind resume_state = 2;
-  google.protobuf.Timestamp consent_at = 3;
+  repeated int32 answers = 1;        // append-only; index = id-1 (PHQ-9 index 9 = the functional item)
+  StateKind resume_state = 2;        // recorded escape position (PHQ-9 question/crisis/q10, WHO-5/GAD-7 question)
+  google.protobuf.Timestamp consent_at = 3;  // legacy (v1 per-run consent); module consent lives on UserData
   google.protobuf.Timestamp started_at = 4;
 }
 
 // MoodResult mirrors state.MoodResult — the last completed PHQ-9 run: total
-// score + applied severity band + the item-9 flag, never per-question answers.
+// score + applied severity band + the item-9 flag + the answer to the
+// functional (10th) item, never the per-question answers 1..9.
 message MoodResult {
   google.protobuf.Timestamp taken_at = 1;
-  int32 score = 2;                   // 0..27
+  int32 score = 2;                   // 0..27 (functional item NOT included)
   string severity = 3;               // applied severity-band id
   bool q9_positive = 4;              // self-harm item answered > 0
+  bool q10_answered = 5;             // functional item was shown and answered
+  int32 q10_answer = 6;              // 0..3, meaningful only when q10_answered
+}
+
+// Who5Result mirrors state.Who5Result — the last completed WHO-5 quick check:
+// the 0–100 score (raw 0–25 sum × 4) + the applied interpretation band.
+message Who5Result {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 score = 2;                   // 0..100
+  string band = 3;                   // ok | low | very_low
+}
+
+// Gad7Result mirrors state.Gad7Result — the last completed GAD-7 run: total
+// score + applied severity band, never per-question answers.
+message Gad7Result {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 score = 2;                   // 0..21
+  string severity = 3;               // minimal | mild | moderate | severe
 }
 
 message UserData {
@@ -126,6 +152,13 @@ message UserData {
   StateKind return_state = 15;
   MoodProgress mood = 16;
   MoodResult mood_result = 17;
+  // Mood module v2: one consent for the whole module (wiped by /mood_delete),
+  // per-instrument transient runs and last completed results.
+  google.protobuf.Timestamp mood_consent_at = 18;
+  MoodProgress who5 = 19;
+  MoodProgress gad7 = 20;
+  Who5Result who5_result = 21;
+  Gad7Result gad7_result = 22;
 }
 
 message UserMap {

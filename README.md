@@ -4,7 +4,7 @@ A Telegram bot with three modes:
 
 - **Low-FODMAP diary** — helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
 - **Adult ADHD self-check** (ru-only, v1) — a staged screening: ASRS v1.1 part A (official Russian WHO text, verbatim) → ASRS part B → WURS-25 childhood retrospective → the bot's own DSM-5-shaped context questions (onset + five life domains, one short yes/no question per domain per life phase). Each instrument is scored separately with its own published threshold; there is deliberately **no combined score**. The result is a wording («pattern is / is not consistent with DSM-5 criteria»), a short screening-not-a-diagnosis disclaimer, a two-line route to a specialist, a shareable doctor report, and one compact attribution line (ASRS © WHO/Kessler; WURS-25 — Ward et al.; DSM-5-based context) in the result footer. User texts stay lean by owner decision: methodology notes (translation status, validation caveats) live in content-file comments and docs, never in messages.
-- **Mood self-check** (ru-only, v1) — depression screening on the **PHQ-9** (official Russian version from phqscreeners.com, verbatim; PHQ-9 is free to use — Pfizer removed all restrictions): short consent → 9 questions one at a time («Вопрос N из 9» + the official item + the 4-option scale) → result with the 0–27 score and a severity wording without diagnosis labels, a repeat-in-2–4-weeks line, the delta against the previous run («В прошлый раз … было X, сейчас Y»), a compact doctor report, and the one-line attribution (PHQ-9 — Spitzer, Williams, Kroenke). **Deterministic crisis protocol in code:** any answer > 0 on item 9 (thoughts of death / self-harm) shows a warm support-contacts card immediately after the answer — the test is not blocked (Continue proceeds), an answer of 2–3 adds one direct talk-to-someone-today line, and the contacts repeat in the final result regardless of the total score. The children's helpline is deliberately excluded, pinned by tests.
+- **Mood module** (ru-only, v2) — three instruments behind one consent and one mini-menu: the **WHO-5** well-being quick check (official Russian text from WHO publication WHO-UCN-MSD-MHE-2024.01, verbatim; 5 statements, raw sum × 4 → 0–100), the **PHQ-9** depression screening (official Russian version from phqscreeners.com, verbatim; free to use — Pfizer removed all restrictions) now including the form's official functional (10th) question — asked only when at least one answer is positive, never counted into the 0–27 score, surfaced in the doctor report — and the **GAD-7** anxiety screening (official Russian version, same free PHQ family; 0–21 with the published 0–4/5–9/10–14/15–21 gradations). Each instrument yields its own result with its own score and band wording — **no combined index**. The links: a reduced WHO-5 (≤ 50) offers the PHQ-9 with one button (insistently below ≤ 28); the PHQ-9 report offers the GAD-7 («настроение и тревога часто идут вместе» — no clinical terms). The **combined doctor report** lists everything completed with dates. **Deterministic crisis protocol in code** (PHQ-9 only — WHO-5/GAD-7 carry no crisis items): any answer > 0 on item 9 (thoughts of death / self-harm) shows a warm support-contacts card immediately after the answer — the test is not blocked (Continue proceeds), an answer of 2–3 adds one direct talk-to-someone-today line, and the contacts repeat in the final result regardless of the total score. The children's helpline is deliberately excluded, pinned by tests.
 
 ## Commands
 
@@ -13,8 +13,8 @@ A Telegram bot with three modes:
 | `/start`       | Home landing: short greeting + mode buttons (FODMAP diary / ADHD test / mood) + 📊 report + contextual resume buttons (unfinished test, active trial). Works from ANY state as a universal escape — progress is never lost |
 | `/adhd`        | Enter / resume the ADHD self-check (consent first, progress survives pauses) |
 | `/adhd_delete` | Delete all stored ADHD self-check data (with confirmation)                |
-| `/mood`        | Enter / resume the mood self-check — PHQ-9 (consent first, progress survives pauses). Named `/mood`, not `/depression`: it matches the mode's user-facing name and keeps a diagnosis word out of the command menu; `/mood_delete` pairs with `/adhd_delete` |
-| `/mood_delete` | Delete all stored mood self-check data (with confirmation)                |
+| `/mood`        | Enter the mood module — one-time consent, then the mini-menu: «⚡ Быстрый чек (1 мин)» (WHO-5) / «📋 Настроение (PHQ-9)» / «😰 Тревога (GAD-7)» + resume rows for unfinished runs. Named `/mood`, not `/depression`: it matches the mode's user-facing name and keeps a diagnosis word out of the command menu; `/mood_delete` pairs with `/adhd_delete` |
+| `/mood_delete` | Delete all stored mood-module data — all three instruments plus the consent (with confirmation) |
 | `/about`       | Short bot description (localized)                                         |
 | `/report`      | Per-user breakdown: completed / in-progress / not tolerated / interrupted, plus the last self-check summary lines |
 | `/abandon`     | Mid-self-check (either mode): wipes the unfinished run (keeps the last completed result). Otherwise: marks the current trial as interrupted |
@@ -39,7 +39,7 @@ internal/state      per-user UserData on top of store.Backend (key="users")
 internal/products   FODMAP catalog with metadata, mutable at runtime (key="products")
 internal/settings   reminder/check-in tunables, mutable at runtime (key="settings")
 internal/i18n       per-locale UI strings loaded from i18n/<locale>.yaml
-internal/screening  read-only self-check content (ASRS/WURS/DSM + PHQ-9/mood bundles) + pure scoring
+internal/screening  read-only self-check content (ASRS/WURS/DSM + PHQ-9/WHO-5/GAD-7 mood bundles) + pure scoring
 internal/journey    Phase-based interaction framework + concrete phases (both modes)
 internal/reminder   scan loop that delegates per-user nudges to journey.Runner
 internal/router     Telegram update dispatcher
@@ -71,7 +71,7 @@ stateDiagram-v2
     Idle --> awaiting_mode_choice : /start | /menu | 🏠 (from ANY state; FODMAP position → ReturnState)
     awaiting_mode_choice --> AwaitingDefecation : «🥦 FODMAP-дневник» (interrupts the active trial — legacy /start)
     awaiting_mode_choice --> scr_consent : «🧠 Тест СДВГ» (diary progress untouched)
-    awaiting_mode_choice --> mood_consent : «🌤 Настроение» (diary progress untouched)
+    awaiting_mode_choice --> mood_menu : «🌤 Настроение» (consent first for fresh users; diary progress untouched)
     awaiting_mode_choice --> awaiting_mode_choice : «📊 Отчёт» (stays on the landing)
     awaiting_mode_choice --> AwaitingStageCheckin : «▶️ Вернуться к дневнику» (ReturnState consumed, nothing interrupted)
     awaiting_mode_choice --> resume_test : «▶️ Продолжить тест …» (same question / crisis card)
@@ -158,33 +158,54 @@ unfinished and are erased in the same write that stores the final
 `ScreeningResult` (scores + applied thresholds + facts only); the doctor
 report is rendered on the fly and never stored.
 
-### State machine — Mood self-check (PHQ-9)
+### State machine — Mood module (WHO-5 / PHQ-9 / GAD-7)
 
 Exits marked `[*]` land on the home landing (`awaiting_mode_choice`); the
 FODMAP detour recorded in `ReturnState` is kept, and the landing offers it
-via «▶️ Вернуться к дневнику». `mood_*` states get no reminder nudges. `/abandon`,
-`/start` and `/menu` work at any point (the escape records the position in
-`Mood.ResumeState` — a run paused on the crisis card resumes on the card;
-only `mood_question` / `mood_crisis` are ever recorded). The landing's
-«▶️ Продолжить тест настроения» button jumps straight back to the recorded
-position. The consent phase doubles as the resume gate: with an unfinished
-run it offers Continue / start over / later and never re-asks consent.
-`/mood_delete` mid-test records the position too, and «Оставить» returns
-straight to the interrupted question or crisis card.
+via «▶️ Вернуться к дневнику». `mood_*` states get no reminder nudges.
+Consent is asked ONCE for the whole module (`MoodConsentAt`; any stored
+mood data implies it, so v1 users are never re-asked) and opens the
+mini-menu: the three instrument buttons plus contextual «▶️ Продолжить…»
+rows for unfinished runs (an instrument button is the explicit start-over
+when its own run is paused). `/abandon`, `/start` and `/menu` work at any
+point — the escape records a PHQ-9 position in `Mood.ResumeState`
+(`mood_question` / `mood_crisis` / `mood_q10`; a run paused on the crisis
+card or the functional question resumes there), while WHO-5/GAD-7 positions
+derive from the answer count. The landing's «▶️ Продолжить тест настроения»
+button jumps straight into the single unfinished run, or to the menu when
+several are paused. `/mood_delete` mid-test records the position too, and
+«Оставить» returns straight to the interrupted question / card.
 
 ```mermaid
 stateDiagram-v2
     [*] --> awaiting_mode_choice: /start | /menu (ReturnState := prior FODMAP state)
-    awaiting_mode_choice --> mood_consent: «🌤 Настроение»
-    awaiting_mode_choice --> resume: «▶️ Продолжить тест настроения» (same question / crisis card)
-    [*] --> mood_consent: /mood
-    mood_consent --> mood_question: «Начать» (fresh) / «Продолжить» / «Начать заново» (resume mode)
-    mood_consent --> [*]: «Не сейчас» / «Вернусь позже» → home landing
+    awaiting_mode_choice --> mood_consent: «🌤 Настроение» (fresh user)
+    awaiting_mode_choice --> mood_menu: «🌤 Настроение» (consent already given)
+    awaiting_mode_choice --> resume: «▶️ Продолжить тест настроения» (single run → its position)
+    [*] --> mood_consent: /mood (fresh user; else straight to the menu)
+    mood_consent --> mood_menu: «Понятно, дальше» (MoodConsentAt := now — once per module)
+    mood_consent --> [*]: «Не сейчас» → home landing
+    mood_menu --> mood_who5_question: «⚡ Быстрый чек (1 мин)»
+    mood_menu --> mood_question: «📋 Настроение (PHQ-9)»
+    mood_menu --> mood_gad7_question: «😰 Тревога (GAD-7)»
+    mood_menu --> resume2: «▶️ Продолжить…» rows (per unfinished instrument)
+    mood_who5_question --> mood_who5_question: scale answer, statements 1..4
+    mood_who5_question --> [*]: 5th answer, score > 50 → result «в норме», Who5 := nil
+    mood_who5_question --> mood_offer_phq9: 5th answer, score ≤ 50 → result + offer (insistent ≤ 28)
+    mood_offer_phq9 --> mood_question: «📋 Пройти тест настроения» (resumes a paused run)
+    mood_offer_phq9 --> [*]: «Не сейчас»
     mood_question --> mood_question: scale answer, questions 1..8
     mood_question --> mood_crisis: answer > 0 on question 9 → crisis card IMMEDIATELY
-    mood_question --> mood_report: question 9 = 0 → result message, Mood := nil
-    mood_crisis --> mood_report: «Продолжить» → result message (contacts repeated), Mood := nil
-    mood_report --> [*]: Setup sends the doctor report → home landing (diary one tap away)
+    mood_question --> mood_q10: 9 answers, any > 0 → the official functional question
+    mood_question --> mood_report: all 9 answers = 0 → result, Mood := nil
+    mood_crisis --> mood_q10: «Продолжить» (q9 > 0 always opens the q10 gate)
+    mood_q10 --> mood_report: option tapped → result (q10 stored outside the 0–27 score), Mood := nil
+    mood_report --> mood_offer_gad7: combined doctor report → GAD-7 offer (after a PHQ-9 completion)
+    mood_offer_gad7 --> mood_gad7_question: «😰 Пройти тест тревоги» (resumes a paused run)
+    mood_offer_gad7 --> [*]: «Не сейчас»
+    mood_gad7_question --> mood_gad7_question: scale answer, questions 1..6
+    mood_gad7_question --> mood_report: 7th answer → result, Gad7 := nil
+    mood_report --> [*]: after a GAD-7 completion → home landing (diary one tap away)
 ```
 
 Crisis protocol (all deterministic, in code, unit-tested per branch): the
@@ -197,15 +218,21 @@ inside the final result, whatever the total score. The card never blocks
 the test. The children's helpline 8-800-2000-122 must never appear —
 refused by the content validator and pinned by canonical tests.
 
-Result & retest: total 0–27 plus a severity wording without diagnosis
-labels (0–4 / 5–9 / 10–14 / 15–19 / 20–27); a repeat-in-2–4-weeks line; on
-a repeat run — the delta against the previous stored result («В прошлый
-раз (N нед. назад) было X, сейчас Y»), rendered before the old result is
-overwritten. Deleting data: `/mood_delete` → `mood_delete_confirm`, same
-semantics as `/adhd_delete`. Privacy: raw answers exist only while the run
-is unfinished and are erased in the same write that stores the final
-`MoodResult` (score, band id, date, item-9 flag — the only per-question
-fact kept); the doctor report is rendered on the fly and never stored.
+Results & retest: each instrument renders its own result — PHQ-9 0–27
+with the published bands (0–4 / 5–9 / 10–14 / 15–19 / 20–27) and, on a
+repeat run, the delta against the previous stored result plus the
+repeat-in-2–4-weeks line; WHO-5 0–100 with > 50 «в норме» / ≤ 50 «снижено»
+/ ≤ 28 «выраженное снижение»; GAD-7 0–21 with 0–4 / 5–9 / 10–14 / 15–21 —
+all wordings without diagnosis labels, each with one compact attribution
+line (PHQ-9, GAD-7 — Spitzer, Williams, Kroenke; WHO-5 — © ВОЗ). The
+combined doctor report lists everything completed with dates, the item-9
+fact and the functional (10th) answer. Deleting data: `/mood_delete` →
+`mood_delete_confirm`, same semantics as `/adhd_delete` — confirm wipes all
+three instruments' runs and results plus the module consent. Privacy: raw
+answers exist only while a run is unfinished and are erased in the same
+write that stores the final result (totals + band ids + dates + the two
+allowed PHQ-9 facts); the doctor report is rendered on the fly and never
+stored.
 
 ### Sequence — happy path with reminder
 
@@ -379,7 +406,7 @@ internal/
   flows/meta/             stateless commands (/ping, /whoami)
 proto/                    canonical .proto schemas
 i18n/                     bundled UI string yamls
-screening/                bundled read-only self-check content yamls (ADHD + PHQ-9/mood)
+screening/                bundled read-only self-check content yamls (ADHD + PHQ-9/WHO-5/GAD-7 mood)
 products.yaml             first-boot product catalog seed
 settings.yaml             first-boot settings seed
 config.yaml               boot-only paths + state flush interval

@@ -47,6 +47,12 @@ func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData) 
 	if line := moodReportLine(trans, locale, user); line != "" {
 		extraLines = append(extraLines, line)
 	}
+	if line := gad7ReportLine(trans, locale, user); line != "" {
+		extraLines = append(extraLines, line)
+	}
+	if line := who5ReportLine(trans, locale, user); line != "" {
+		extraLines = append(extraLines, line)
+	}
 
 	if len(user.Products) == 0 {
 		if len(extraLines) == 0 {
@@ -123,7 +129,7 @@ func screeningReportLine(trans i18n.Translator, locale i18n.Locale, user state.U
 	})
 }
 
-// moodReportLine renders the /report line for the last completed mood
+// moodReportLine renders the /report line for the last completed PHQ-9
 // self-check: the date and the 0–27 score — lean by design.
 func moodReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
 	res := user.MoodResult
@@ -131,6 +137,30 @@ func moodReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserDa
 		return ""
 	}
 	return trans.T("cmd.report.mood", locale, map[string]any{
+		"date":  res.TakenAt.Format(reportDateLayout),
+		"score": res.Score,
+	})
+}
+
+// gad7ReportLine / who5ReportLine — the same lean per-instrument lines for
+// the other two mood-module instruments.
+func gad7ReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
+	res := user.Gad7Result
+	if res == nil {
+		return ""
+	}
+	return trans.T("cmd.report.gad7", locale, map[string]any{
+		"date":  res.TakenAt.Format(reportDateLayout),
+		"score": res.Score,
+	})
+}
+
+func who5ReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
+	res := user.Who5Result
+	if res == nil {
+		return ""
+	}
+	return trans.T("cmd.report.who5", locale, map[string]any{
 		"date":  res.TakenAt.Format(reportDateLayout),
 		"score": res.Score,
 	})
@@ -159,16 +189,17 @@ func (r *Runner) moodContent() *screening.MoodContent {
 // enterScreeningMode is the shared direct-entry routine of the screening
 // commands (/adhd, /mood). Mid-mode it re-fires the current phase's Setup
 // (redraws the question and keyboard); from a FODMAP state it records the
-// detour and routes to the mode's consent gate (which itself renders in
-// resume mode when an unfinished run exists).
-func (r *Runner) enterScreeningMode(msg *tgbotapi.Message, entry state.StateKind, inMode func(state.StateKind) bool) {
+// detour and routes to the mode's entry gate (computed from the user's
+// data: the ADHD consent, or the mood consent/menu).
+func (r *Runner) enterScreeningMode(msg *tgbotapi.Message, entryFor func(state.UserData) state.StateKind, inMode func(state.StateKind) bool) {
 	if msg.From == nil {
 		return
 	}
+	user := r.store.Get(msg.From.ID)
+	entry := entryFor(user)
 	if _, ok := r.phases[entry]; !ok {
 		return // mode not wired
 	}
-	user := r.store.Get(msg.From.ID)
 	user.ChatID = msg.Chat.ID
 	if user.Locale == "" {
 		user.Locale = string(r.detectLocale(msg.From.LanguageCode))
@@ -197,12 +228,15 @@ func (r *Runner) enterScreeningMode(msg *tgbotapi.Message, entry state.StateKind
 
 // HandleAdhd is the direct entry into the ADHD self-check.
 func (r *Runner) HandleAdhd(s router.Sender, msg *tgbotapi.Message) {
-	r.enterScreeningMode(msg, state.StateScrConsent, isScreeningState)
+	r.enterScreeningMode(msg,
+		func(state.UserData) state.StateKind { return state.StateScrConsent },
+		isScreeningState)
 }
 
-// HandleMood is the direct entry into the mood self-check (PHQ-9).
+// HandleMood is the direct entry into the mood module (WHO-5 / PHQ-9 /
+// GAD-7): the consent gate for fresh users, the module menu afterwards.
 func (r *Runner) HandleMood(s router.Sender, msg *tgbotapi.Message) {
-	r.enterScreeningMode(msg, state.StateMoodConsent, isMoodState)
+	r.enterScreeningMode(msg, moodEntryState, isMoodState)
 }
 
 // enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
@@ -233,6 +267,14 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		mc := user.Mood.Clone()
 		mc.ResumeState = user.State
 		user.Mood = mc
+	case user.Who5 != nil && user.State == state.StateMoodWho5Question:
+		mc := user.Who5.Clone()
+		mc.ResumeState = user.State
+		user.Who5 = mc
+	case user.Gad7 != nil && user.State == state.StateMoodGad7Question:
+		mc := user.Gad7.Clone()
+		mc.ResumeState = user.State
+		user.Gad7 = mc
 	}
 	user.ChatID = msg.Chat.ID
 	user.State = confirm
@@ -259,8 +301,8 @@ func (r *Runner) HandleAdhdDelete(s router.Sender, msg *tgbotapi.Message) {
 		c.Module.UI.DeleteNothing)
 }
 
-// HandleMoodDelete starts the delete-confirmation flow for all stored mood
-// self-check data.
+// HandleMoodDelete starts the delete-confirmation flow for all stored
+// mood-module data (all three instruments plus the module consent).
 func (r *Runner) HandleMoodDelete(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
@@ -270,7 +312,7 @@ func (r *Runner) HandleMoodDelete(s router.Sender, msg *tgbotapi.Message) {
 		return // mood mode not wired
 	}
 	r.enterDeleteConfirm(s, msg, state.StateMoodDeleteConfirm,
-		func(u state.UserData) bool { return u.Mood != nil || u.MoodResult != nil },
+		hasMoodConsent, // any stored mood data, incl. the consent timestamp
 		c.Module.UI.DeleteNothing)
 }
 
@@ -294,7 +336,16 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 		// button (see testExitState).
 		var confirmText string
 		if isMoodState(user.State) {
-			user.Mood = nil
+			// Only the run the current state belongs to is wiped — a paused
+			// run of another instrument stays resumable.
+			switch user.State {
+			case state.StateMoodWho5Question:
+				user.Who5 = nil
+			case state.StateMoodGad7Question:
+				user.Gad7 = nil
+			case state.StateMoodQuestion, state.StateMoodCrisis, state.StateMoodQ10:
+				user.Mood = nil
+			}
 			if c := r.moodContent(); c != nil {
 				confirmText = c.Module.UI.AbandonConfirmed
 			}
