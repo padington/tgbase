@@ -55,13 +55,14 @@ product.amount_template.grams:  "{value}g"
 product.amount_template.ml:     "{value}ml"
 product.amount_template.spoons: "{value} tbsp"
 
-# Mode fork on /start. The screening itself is ru-only in v1: every other
-# scr.* key falls back per-key to the default (ru) bundle.
+# Mode fork on /start. The screenings themselves are ru-only in v1: every
+# other scr.* key falls back per-key to the default (ru) bundle.
 phase.mode.prompt: "Hi! What shall we do?"
-phase.mode.prompt_active_trial: "Hi! A trial is in progress: {name} ({stage}).\n\n\"FODMAP diary\" restarts the day — the current trial will be marked interrupted, as /start always did. \"ADHD self-check\" does not touch the diary progress: we'll come back to the trial afterwards.\n\nWhat shall we do?"
+phase.mode.prompt_active_trial: "Hi! A trial is in progress: {name} ({stage}).\n\n\"FODMAP diary\" restarts the day — the current trial will be marked interrupted, as /start always did. The self-checks do not touch the diary progress: we'll come back to the trial afterwards.\n\nWhat shall we do?"
 phase.mode.invalid: "Please tap one of the buttons below."
 button.mode.fodmap: "🍽 FODMAP diary"
 button.mode.screening: "🧠 ADHD self-check"
+button.mode.mood: "🌤 Mood self-check"
 
 # Pass-through key for screening texts assembled from content by the phases.
 # Must exist in every bundle a user can land on so the assembled text is
