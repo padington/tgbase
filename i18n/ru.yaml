@@ -40,6 +40,17 @@ cmd.report.not_tolerated: "Непереносимые: {names}"
 cmd.report.interrupted: "Прерванные: {names}"
 cmd.report.empty: "Пока ничего не отслеживается. Отправь /start, чтобы начать."
 
+# Описания для меню команд Telegram (setMyCommands, регистрируется при
+# старте бота). Порядок задаёт internal/bot; /start Telegram показывает сам.
+cmd.menu.desc: "главное меню"
+cmd.adhd.desc: "самопроверка СДВГ"
+cmd.mood.desc: "самопроверка настроения (PHQ-9)"
+cmd.report.desc: "отчёт о прогрессе"
+cmd.about.desc: "что умеет бот"
+cmd.abandon.desc: "прервать текущую пробу или тест"
+cmd.adhd_delete.desc: "удалить данные самопроверки СДВГ"
+cmd.mood_delete.desc: "удалить данные самопроверки настроения"
+
 button.menu.home: "🏠 Меню"
 button.yes: "да"
 button.no: "нет"

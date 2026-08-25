@@ -40,6 +40,17 @@ cmd.report.not_tolerated: "Not tolerated: {names}"
 cmd.report.interrupted: "Interrupted: {names}"
 cmd.report.empty: "Nothing tracked yet. Send /start to begin."
 
+# Descriptions for the Telegram command menu (setMyCommands, registered on
+# boot). Order is defined in internal/bot; /start is rendered by Telegram.
+cmd.menu.desc: "main menu"
+cmd.adhd.desc: "ADHD self-check"
+cmd.mood.desc: "mood self-check (PHQ-9)"
+cmd.report.desc: "progress report"
+cmd.about.desc: "what this bot can do"
+cmd.abandon.desc: "abandon the current trial or test"
+cmd.adhd_delete.desc: "delete ADHD self-check data"
+cmd.mood_delete.desc: "delete mood self-check data"
+
 button.menu.home: "🏠 Menu"
 button.yes: "yes"
 button.no: "no"

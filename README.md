@@ -22,9 +22,14 @@ A Telegram bot with three modes:
 | `/whoami`      | env label, hostname, OS/arch                                              |
 | `/menu`        | alias of `/start` — the same home landing                                 |
 
-> Ops note: after deploying, update the BotFather command list
-> (`menu — главное меню`, `adhd — самопроверка СДВГ`, `adhd_delete — удалить данные самопроверки СДВГ`,
-> `mood — самопроверка настроения (PHQ-9)`, `mood_delete — удалить данные самопроверки настроения`).
+On boot the bot self-registers the client command menu via the Bot API
+(`setMyCommands`): `menu`, `adhd`, `mood`, `report`, `about`, `abandon`,
+`adhd_delete`, `mood_delete` in usage-frequency order, with ru descriptions as
+the default and an English `language_code="en"` variant, both taken from the
+i18n bundles. No manual BotFather step is needed — the menu always matches the
+deployed binary (`/start` is omitted because Telegram shows its own Start
+button; `/ping` and `/whoami` are operator commands and stay out of the menu).
+Registration failure is a logged warning, never a boot error.
 
 ## Architecture
 

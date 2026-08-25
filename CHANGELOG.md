@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Command-menu self-registration** — on boot the bot calls `setMyCommands`
+  (default scope, ru descriptions as default + a `language_code="en"`
+  variant from the i18n bundles) so the client command menu always matches
+  the deployed binary; the manual BotFather step is gone. Registration
+  failure is a logged warning, never a boot error.
 - **Mood self-check mode (PHQ-9, ru-only v1)** — third branch of the `/start`
   mode fork; direct entry via `/mood`, data deletion via `/mood_delete`.
   - Official Russian PHQ-9 («Russian for Russia», phqscreeners.com) verbatim:
