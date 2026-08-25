@@ -215,8 +215,9 @@ func (ScrReferralPhase) Collect(ctx Context, input string) Outcome {
 func (ScrReferralPhase) Remind(ctx Context) Outcome { return Outcome{} }
 
 // ScrReportPhase owns StateScrReport — the final transit phase: sends the
-// doctor report and returns the user to the recorded FODMAP state (re-Setup)
-// or idle.
+// doctor report and lands the user on the home landing. A recorded FODMAP
+// detour stays reachable there via the contextual «back to the diary»
+// button — the test finish never drops the user into a mid-diary question.
 type ScrReportPhase struct {
 	c *screening.Content
 }
@@ -234,8 +235,7 @@ func (p *ScrReportPhase) Setup(ctx Context) Outcome {
 		doctorReport(p.c, ctx.Trans, ctx.Locale, res)
 	oc := scrText(text)
 	oc.RemoveKeyboard = true
-	oc.NextState = exitState(ctx.User)
-	oc.Mutate = clearReturnState
+	oc.NextState = testExitState
 	return oc
 }
 

@@ -33,7 +33,21 @@ func (p *MoodDeleteConfirmPhase) Collect(ctx Context, input string) Outcome {
 	case labelIs(in, ui.DeleteConfirmButton):
 		oc := scrText(ui.DeleteDone)
 		oc.RemoveKeyboard = true
-		oc.NextState = exitState(ctx.User)
+		if s := ctx.User.Mood; s != nil && resumableMoodState(s.ResumeState) {
+			// Confirming mid-test destroys the very position the flow
+			// would return to — that run is abandoned, so land home. The
+			// FODMAP detour (if any) stays reachable via the landing's
+			// diary button.
+			oc.NextState = testExitState
+			oc.Mutate = func(u *state.UserData) {
+				u.Mood = nil
+				u.MoodResult = nil
+			}
+			return oc
+		}
+		// Not mid-test: return to the state the command interrupted (the
+		// FODMAP question or the landing, recorded by enterDeleteConfirm).
+		oc.NextState = deleteReturnState(ctx.User)
 		oc.Mutate = func(u *state.UserData) {
 			u.Mood = nil
 			u.MoodResult = nil
@@ -54,7 +68,7 @@ func (p *MoodDeleteConfirmPhase) Collect(ctx Context, input string) Outcome {
 		return Outcome{
 			ReplyKey:       "scr.delete.cancelled",
 			RemoveKeyboard: true,
-			NextState:      exitState(ctx.User),
+			NextState:      deleteReturnState(ctx.User),
 			Mutate:         clearReturnState,
 		}
 	default:

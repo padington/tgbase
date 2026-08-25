@@ -207,10 +207,12 @@ func (r *Runner) HandleMood(s router.Sender, msg *tgbotapi.Message) {
 
 // enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
 // /mood_delete): with nothing stored it answers immediately and does not
-// change state, otherwise it records the way back — a FODMAP detour to
-// ReturnState, a mid-test position to the run's ResumeState (so cancelling
-// returns to the exact question) — and routes to the mode's confirmation
-// phase.
+// change state, otherwise it records the way back — the interrupted FODMAP
+// question or the landing itself to ReturnState, a mid-test position to the
+// run's ResumeState (so cancelling returns to the exact question) — and
+// routes to the mode's confirmation phase. The landing case matters because
+// test exits park the user there: closing the dialog must not eject them
+// into a stale diary detour.
 func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 	confirm state.StateKind, hasData func(state.UserData) bool, nothingText string) {
 	user := r.store.Get(msg.From.ID)
@@ -221,7 +223,7 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 	}
 
 	switch {
-	case isFodmapJourneyState(user.State):
+	case isFodmapJourneyState(user.State), user.State == state.StateAwaitingModeChoice:
 		user.ReturnState = user.State
 	case user.Screening != nil && resumableScrState(user.State):
 		sc := user.Screening.Clone()
@@ -274,9 +276,10 @@ func (r *Runner) HandleMoodDelete(s router.Sender, msg *tgbotapi.Message) {
 
 // HandleAbandon aborts the current activity. Mid-screening it wipes the
 // transient raw answers (the previous completed ScreeningResult is kept) and
-// returns to the recorded FODMAP state or idle. Otherwise it marks the
-// active trial as interrupted and re-routes to the product selection phase,
-// exactly as before.
+// lands the user on the home landing — a recorded FODMAP detour stays
+// reachable there via the diary button. Otherwise it marks the active trial
+// as interrupted and re-routes to the product selection phase, exactly as
+// before.
 func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
@@ -286,8 +289,9 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 
 	if isScreeningState(user.State) || isMoodState(user.State) {
 		// Abandon the active self-check: wipe the transient raw answers
-		// (the previous completed result is kept) and return to the
-		// recorded FODMAP state or idle.
+		// (the previous completed result is kept) and land home. The
+		// FODMAP detour in ReturnState is kept for the landing's diary
+		// button (see testExitState).
 		var confirmText string
 		if isMoodState(user.State) {
 			user.Mood = nil
@@ -300,11 +304,7 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 				confirmText = c.Module.UI.AbandonConfirmed
 			}
 		}
-		next := state.StateIdle
-		if user.ReturnState != "" {
-			next = user.ReturnState
-		}
-		user.ReturnState = ""
+		next := testExitState
 		user.State = next
 		r.store.Set(msg.From.ID, user)
 

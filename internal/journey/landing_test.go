@@ -574,6 +574,63 @@ func TestMood_DeleteCancelMidCrisisReturnsToCard(t *testing.T) {
 	}
 }
 
+// TestScr_DeleteConfirmMidTestLandsHome pins the mid-test delete-confirm
+// exit: the confirmed deletion kills the run the user was inside, so it is
+// a test exit — land on the home landing, with the recorded diary detour
+// still offered by the contextual button (never a drop into the diary
+// question, never a dead idle).
+func TestScr_DeleteConfirmMidTestLandsHome(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	picked := driveToCheckin(t, runner, st, sender, 1)
+
+	runner.HandleAdhd(sender, newMsg(1, "/adhd"))
+	say(runner, sender, 1, "Agree")
+	say(runner, sender, 1, "Start")
+	say(runner, sender, 1, "Very Often")
+
+	runner.HandleAdhdDelete(sender, newMsg(1, "/adhd_delete"))
+	say(runner, sender, 1, "Yes, delete")
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Fatalf("mid-test delete confirm must land home, got %q", d.State)
+	}
+	if d.Screening != nil || d.ScreeningResult != nil {
+		t.Error("confirm must wipe screening data")
+	}
+	if d.ReturnState != state.StateAwaitingStageCheckin {
+		t.Errorf("diary detour must stay recorded for the landing, got %q", d.ReturnState)
+	}
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Resume diary: "+picked+" (low)") {
+		t.Errorf("landing must offer the diary resume button, got %v", kb)
+	}
+}
+
+// TestMood_DeleteConfirmMidTestLandsHome is the mood twin of the mid-test
+// delete-confirm exit pin.
+func TestMood_DeleteConfirmMidTestLandsHome(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	driveToCheckin(t, runner, st, sender, 1)
+
+	runner.HandleMood(sender, newMsg(1, "/mood"))
+	say(runner, sender, 1, "Begin")
+	say(runner, sender, 1, "Several days")
+
+	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
+	say(runner, sender, 1, "Yes, delete")
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Fatalf("mid-test delete confirm must land home, got %q", d.State)
+	}
+	if d.Mood != nil || d.MoodResult != nil {
+		t.Error("confirm must wipe mood data")
+	}
+	if d.ReturnState != state.StateAwaitingStageCheckin {
+		t.Errorf("diary detour must stay recorded for the landing, got %q", d.ReturnState)
+	}
+}
+
 // TestScr_ResumeSurvivesLostResumeState pins the answers-based resume
 // detection: a run whose ResumeState was lost (old delete-cancel bug) still
 // offers Continue, and Continue derives the position from the answers.

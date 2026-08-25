@@ -186,14 +186,20 @@ func TestMood_ConsentDeclineLeavesNoTrace(t *testing.T) {
 	}
 	say(runner, sender, 1, "Not now")
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after decline, got %q", d.State)
+	// Every test exit lands on the home landing (never mid-diary, never a
+	// dead idle): the decline text is followed by the landing prompt.
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after decline, got %q", d.State)
 	}
 	if d.Mood != nil {
 		t.Error("decline must not create Mood")
 	}
-	if !contains(sender.lastText(), "mood declined text") {
-		t.Errorf("declined text not sent, got %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood declined text") {
+		t.Errorf("declined text not sent, got %q", texts)
+	}
+	if !contains(sender.lastText(), "Mode?") {
+		t.Errorf("landing prompt must follow the decline, got %q", sender.lastText())
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"mood`) {
 		t.Errorf("persisted JSON must not mention mood after decline:\n%s", raw)
@@ -228,8 +234,8 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
 
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after completion, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after completion, got %q", d.State)
 	}
 	if d.Mood != nil {
 		t.Error("Mood must be wiped on completion")
@@ -251,10 +257,14 @@ func TestMood_HappyPathNoCrisis(t *testing.T) {
 	}
 
 	texts := sentTexts(sender)
-	if len(texts) < 2 {
-		t.Fatalf("expected at least result + report, got %d messages", len(texts))
+	if len(texts) < 3 {
+		t.Fatalf("expected at least result + report + landing, got %d messages", len(texts))
 	}
-	result, report := texts[len(texts)-2], texts[len(texts)-1]
+	// The final chain is result → doctor report → home landing.
+	result, report := texts[len(texts)-3], texts[len(texts)-2]
+	if !contains(texts[len(texts)-1], "Mode?") {
+		t.Errorf("the landing prompt must close the test, got %q", texts[len(texts)-1])
+	}
 	for _, want := range []string{
 		"Your mood result", "PHQ-9: 8 of 27.", "band mild",
 		"retest in 2-4 weeks", "MOOD-DISCLAIMER", "MOOD-ATTR-LINE",
@@ -308,11 +318,12 @@ func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 		t.Errorf("result must not be sent before Continue:\n%s", card)
 	}
 
-	// The test is not blocked: Continue proceeds to the result.
+	// The test is not blocked: Continue proceeds to the result and then to
+	// the home landing.
 	say(runner, sender, 1, "Continue")
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after continue, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after continue, got %q", d.State)
 	}
 	res := d.MoodResult
 	if res == nil || res.Score != 1 || res.Severity != "minimal" || !res.Q9Positive {
@@ -321,7 +332,7 @@ func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 
 	// The contacts are repeated in the final result despite the minimal score.
 	texts := sentTexts(sender)
-	result := texts[len(texts)-2]
+	result := texts[len(texts)-3]
 	if !contains(result, "support contacts:") || !contains(result, "CONTACT-LINE-1") {
 		t.Errorf("result must repeat the contacts when q9 > 0:\n%s", result)
 	}
@@ -329,7 +340,7 @@ func TestMood_CrisisCardImmediatelyAfterQ9(t *testing.T) {
 		t.Errorf("result should still carry the score band:\n%s", result)
 	}
 	// And the doctor report carries the q9 fact.
-	if report := texts[len(texts)-1]; !contains(report, "q9: marked") {
+	if report := texts[len(texts)-2]; !contains(report, "q9: marked") {
 		t.Errorf("doctor report must mark q9:\n%s", report)
 	}
 }
@@ -377,15 +388,15 @@ func TestMood_NoCrisisCardWhenQ9Zero(t *testing.T) {
 	say(runner, sender, 1, "Not at all") // q9 = 0 → straight to the result
 
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing, got %q", d.State)
 	}
 	res := d.MoodResult
 	if res == nil || res.Score != 24 || res.Severity != "severe" || res.Q9Positive {
 		t.Fatalf("result: %+v", res)
 	}
 	texts := sentTexts(sender)
-	result := texts[len(texts)-2]
+	result := texts[len(texts)-3]
 	if contains(result, "crisis lead") || contains(result, "support contacts:") {
 		t.Errorf("no crisis block when q9 == 0, even for a severe score:\n%s", result)
 	}
@@ -410,7 +421,7 @@ func TestMood_RetestShowsDelta(t *testing.T) {
 		t.Fatalf("second result must overwrite the first: %+v", res)
 	}
 	texts := sentTexts(sender)
-	result := texts[len(texts)-2]
+	result := texts[len(texts)-3]
 	if !contains(result, "Last time (today) it was 8, now 16.") {
 		t.Errorf("delta line missing or wrong:\n%s", result)
 	}
@@ -473,19 +484,24 @@ func TestMood_ResumeRestartResetsAnswers(t *testing.T) {
 		t.Errorf("restart must wipe answers, got %d", got)
 	}
 
-	// "Come back later" keeps the run resumable.
+	// "Come back later" keeps the run resumable and lands on the landing,
+	// where the resume button is offered right away.
 	runner.HandleStart(sender, newMsg(1, "/start"))
 	say(runner, sender, 1, "Mood")
 	say(runner, sender, 1, "Come back later")
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle after later, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after later, got %q", d.State)
 	}
 	if d.Mood == nil {
 		t.Error("later must keep the unfinished run")
 	}
-	if !contains(sender.lastText(), "mood paused text") {
-		t.Errorf("paused text not sent: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood paused text") {
+		t.Errorf("paused text not sent: %q", texts)
+	}
+	if kb := lastKeyboard(sender); !keyboardHas(kb, "Resume mood") {
+		t.Errorf("landing must offer the mood resume button, got %v", kb)
 	}
 }
 
@@ -537,8 +553,8 @@ func TestMood_AbandonKeepsOldResult(t *testing.T) {
 
 	runner.HandleAbandon(sender, newMsg(1, "/abandon"))
 	d := st.Get(1)
-	if d.State != state.StateIdle {
-		t.Errorf("expected idle, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing, got %q", d.State)
 	}
 	if d.Mood != nil {
 		t.Error("Mood must be wiped by /abandon")
@@ -546,8 +562,9 @@ func TestMood_AbandonKeepsOldResult(t *testing.T) {
 	if d.MoodResult == nil {
 		t.Error("previous MoodResult must survive /abandon")
 	}
-	if !contains(sender.lastText(), "mood abandoned") {
-		t.Errorf("abandon confirmation missing: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood abandoned") {
+		t.Errorf("abandon confirmation missing: %q", texts)
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"answers"`) {
 		t.Errorf("raw answers must be gone from JSON after abandon:\n%s", raw)
@@ -577,22 +594,31 @@ func TestMood_DeleteFlow(t *testing.T) {
 		t.Error("cancel must keep the result")
 	}
 
-	// Confirm wipes both fields from the persisted JSON.
+	// Confirm wipes both fields from the persisted JSON and returns to the
+	// landing the command interrupted.
 	runner.HandleMoodDelete(sender, newMsg(1, "/mood_delete"))
 	say(runner, sender, 1, "Yes, delete")
 	d := st.Get(1)
 	if d.Mood != nil || d.MoodResult != nil {
 		t.Error("confirm must wipe mood data")
 	}
-	if !contains(sender.lastText(), "mood deleted") {
-		t.Errorf("delete_done missing: %q", sender.lastText())
+	texts := sentTexts(sender)
+	if len(texts) < 2 || !contains(texts[len(texts)-2], "mood deleted") {
+		t.Errorf("delete_done missing: %q", texts)
+	}
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("confirm must return to the landing it interrupted, got %q", d.State)
 	}
 	if raw := rawUsersJSON(t, backend); strings.Contains(raw, `"mood`) {
 		t.Errorf("persisted JSON still mentions mood:\n%s", raw)
 	}
 }
 
-func TestMood_DetourReturnsToFodmap(t *testing.T) {
+// TestMood_DetourFinishLandsHomeDiaryOneTapAway is the PHQ-9 twin of the
+// ADHD detour test: finishing a test started mid-diary lands on the home
+// landing — never straight into the diary question — and the recorded diary
+// position stays one tap away via «▶️ Вернуться к дневнику».
+func TestMood_DetourFinishLandsHomeDiaryOneTapAway(t *testing.T) {
 	runner, st, sender, _ := setupScr(t)
 	startDiary(runner, sender, 1)
 	say(runner, sender, 1, "2")
@@ -610,17 +636,65 @@ func TestMood_DetourReturnsToFodmap(t *testing.T) {
 	}
 
 	d := st.Get(1)
-	if d.State != state.StateAwaitingStageCheckin {
-		t.Errorf("expected to return to stage checkin, got %q", d.State)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Errorf("expected the landing after the test, got %q", d.State)
 	}
-	if d.ReturnState != "" {
-		t.Errorf("ReturnState must be cleared, got %q", d.ReturnState)
+	if d.ReturnState != state.StateAwaitingStageCheckin {
+		t.Errorf("diary detour must stay recorded for the landing, got %q", d.ReturnState)
 	}
 	if d.CurrentProduct != picked {
 		t.Errorf("trial must survive the detour, got %q", d.CurrentProduct)
 	}
+	texts := sentTexts(sender)
+	last, prev := texts[len(texts)-1], texts[len(texts)-2]
+	if !contains(last, "Mode? active "+picked) {
+		t.Errorf("landing prompt (naming the trial) must close the test, got %q", last)
+	}
+	if contains(last, "Take ") || contains(prev, "Take ") {
+		t.Errorf("the diary question must NOT fire right after the test:\n%q\n%q", prev, last)
+	}
+
+	// One tap on the contextual button returns to the saved diary phase.
+	say(runner, sender, 1, "Resume diary: "+picked+" (low)")
+	d = st.Get(1)
+	if d.State != state.StateAwaitingStageCheckin {
+		t.Errorf("expected to return to stage checkin, got %q", d.State)
+	}
+	if d.ReturnState != "" {
+		t.Errorf("ReturnState must be consumed by the button, got %q", d.ReturnState)
+	}
 	if got := sender.lastText(); !contains(got, "Take ") {
-		t.Errorf("stage Setup should re-fire after the report, got %q", got)
+		t.Errorf("stage Setup should re-fire on return, got %q", got)
+	}
+}
+
+// TestMood_FinishFromDefecationLandsHome replays the reported bug for the
+// mood test: detour from the defecation question, finish, and the diary
+// question must not be re-asked — the user lands home instead.
+func TestMood_FinishFromDefecationLandsHome(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	startDiary(runner, sender, 1) // parked on the defecation question
+
+	driveMood(t, runner, sender, 1, moodAnswers("Several days", "Not at all"))
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Fatalf("expected the landing after the test, got %q", d.State)
+	}
+	if d.ReturnState != state.StateAwaitingDefecation {
+		t.Errorf("diary detour must stay recorded, got %q", d.ReturnState)
+	}
+	prompts := 0
+	for _, txt := range sentTexts(sender) {
+		if contains(txt, "Defecation?") {
+			prompts++
+		}
+	}
+	if prompts != 1 {
+		t.Errorf("the diary question must not be re-asked after the test: asked %d times", prompts)
+	}
+	if got := sender.lastText(); !contains(got, "Mode?") {
+		t.Errorf("landing prompt must close the test, got %q", got)
 	}
 }
 
@@ -709,14 +783,15 @@ func TestMood_BrokenStateGuards(t *testing.T) {
 		t.Errorf("crisis guard: got %q", got)
 	}
 
-	// Overfilled answers → finalize without re-asking.
+	// Overfilled answers → finalize without re-asking (and land home, as
+	// every completion does).
 	st.Set(3, state.UserData{
 		State: state.StateMoodQuestion, ChatID: 300, Locale: "en",
 		Mood: &state.MoodProgress{Answers: rep0(12)},
 	})
 	runner.HandleMood(sender, newMsg(3, "/mood"))
 	d := st.Get(3)
-	if d.State != state.StateIdle || d.MoodResult == nil {
+	if d.State != state.StateAwaitingModeChoice || d.MoodResult == nil {
 		t.Errorf("overfilled guard: state %q, result %+v", d.State, d.MoodResult)
 	}
 
