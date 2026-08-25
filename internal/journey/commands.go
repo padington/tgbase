@@ -36,14 +36,21 @@ func (r *Runner) HandleReport(s router.Sender, msg *tgbotapi.Message) {
 	user := r.store.Get(msg.From.ID)
 	locale := r.localeForUser(user)
 
-	scrLine := r.screeningReportLine(user, locale)
+	var extraLines []string
+	if line := r.screeningReportLine(user, locale); line != "" {
+		extraLines = append(extraLines, line)
+	}
+	if line := r.moodReportLine(user, locale); line != "" {
+		extraLines = append(extraLines, line)
+	}
 
 	if len(user.Products) == 0 {
-		if scrLine == "" {
+		if len(extraLines) == 0 {
 			send(s, msg.Chat.ID, r.trans.T("cmd.report.empty", locale, nil))
 			return
 		}
-		send(s, msg.Chat.ID, r.trans.T("cmd.report.heading", locale, nil)+"\n"+scrLine)
+		send(s, msg.Chat.ID, r.trans.T("cmd.report.heading", locale, nil)+"\n"+
+			strings.Join(extraLines, "\n"))
 		return
 	}
 
@@ -83,9 +90,7 @@ func (r *Runner) HandleReport(s router.Sender, msg *tgbotapi.Message) {
 			"names": strings.Join(interrupted, ", "),
 		}))
 	}
-	if scrLine != "" {
-		lines = append(lines, scrLine)
-	}
+	lines = append(lines, extraLines...)
 	send(s, msg.Chat.ID, strings.Join(lines, "\n"))
 }
 
@@ -116,6 +121,19 @@ func (r *Runner) screeningReportLine(user state.UserData, locale i18n.Locale) st
 	})
 }
 
+// moodReportLine renders the /report line for the last completed mood
+// self-check: the date and the 0–27 score — lean by design.
+func (r *Runner) moodReportLine(user state.UserData, locale i18n.Locale) string {
+	res := user.MoodResult
+	if res == nil {
+		return ""
+	}
+	return r.trans.T("cmd.report.mood", locale, map[string]any{
+		"date":  res.TakenAt.Format(reportDateLayout),
+		"score": res.Score,
+	})
+}
+
 // screeningContent fetches the content bundle from the registered consent
 // phase; nil when the screening mode is not wired. Keeps journey.New
 // unchanged — phases receive the content via their constructors.
@@ -126,16 +144,27 @@ func (r *Runner) screeningContent() *screening.Content {
 	return nil
 }
 
-// HandleAdhd is the direct entry into the ADHD self-check. Mid-screening it
-// re-fires the current phase's Setup (redraws the question and keyboard);
-// from a FODMAP state it records the detour and routes to consent (which
-// itself forwards to the resume intro when an unfinished run exists).
-func (r *Runner) HandleAdhd(s router.Sender, msg *tgbotapi.Message) {
+// moodContent fetches the mood bundle from the registered mood consent
+// phase; nil when the mood mode is not wired. Same pattern as
+// screeningContent — phases receive the content via their constructors.
+func (r *Runner) moodContent() *screening.MoodContent {
+	if p, ok := r.phases[state.StateMoodConsent].(*MoodConsentPhase); ok {
+		return p.c
+	}
+	return nil
+}
+
+// enterScreeningMode is the shared direct-entry routine of the screening
+// commands (/adhd, /mood). Mid-mode it re-fires the current phase's Setup
+// (redraws the question and keyboard); from a FODMAP state it records the
+// detour and routes to the mode's consent gate (which itself renders in
+// resume mode when an unfinished run exists).
+func (r *Runner) enterScreeningMode(msg *tgbotapi.Message, entry state.StateKind, inMode func(state.StateKind) bool) {
 	if msg.From == nil {
 		return
 	}
-	if _, ok := r.phases[state.StateScrConsent]; !ok {
-		return // screening mode not wired
+	if _, ok := r.phases[entry]; !ok {
+		return // mode not wired
 	}
 	user := r.store.Get(msg.From.ID)
 	user.ChatID = msg.Chat.ID
@@ -143,7 +172,7 @@ func (r *Runner) HandleAdhd(s router.Sender, msg *tgbotapi.Message) {
 		user.Locale = string(r.detectLocale(msg.From.LanguageCode))
 	}
 
-	if isScreeningState(user.State) {
+	if inMode(user.State) {
 		r.store.Set(msg.From.ID, user)
 		if phase, ok := r.phases[user.State]; ok {
 			ctx := r.contextFor(msg.From.ID, user)
@@ -155,18 +184,53 @@ func (r *Runner) HandleAdhd(s router.Sender, msg *tgbotapi.Message) {
 	if isFodmapJourneyState(user.State) {
 		user.ReturnState = user.State
 	}
-	user.State = state.StateScrConsent
+	user.State = entry
 	user.EnteredAt = r.now()
 	r.store.Set(msg.From.ID, user)
 
-	phase := r.phases[state.StateScrConsent]
+	phase := r.phases[entry]
 	ctx := r.contextFor(msg.From.ID, user)
 	r.applyOutcome(ctx, phase.Setup(ctx), msg.Chat.ID)
 }
 
+// HandleAdhd is the direct entry into the ADHD self-check.
+func (r *Runner) HandleAdhd(s router.Sender, msg *tgbotapi.Message) {
+	r.enterScreeningMode(msg, state.StateScrConsent, isScreeningState)
+}
+
+// HandleMood is the direct entry into the mood self-check (PHQ-9).
+func (r *Runner) HandleMood(s router.Sender, msg *tgbotapi.Message) {
+	r.enterScreeningMode(msg, state.StateMoodConsent, isMoodState)
+}
+
+// enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
+// /mood_delete): with nothing stored it answers immediately and does not
+// change state, otherwise it records a FODMAP detour and routes to the
+// mode's confirmation phase.
+func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
+	confirm state.StateKind, hasData func(state.UserData) bool, nothingText string) {
+	user := r.store.Get(msg.From.ID)
+
+	if !hasData(user) {
+		send(s, msg.Chat.ID, nothingText)
+		return
+	}
+
+	if isFodmapJourneyState(user.State) {
+		user.ReturnState = user.State
+	}
+	user.ChatID = msg.Chat.ID
+	user.State = confirm
+	r.store.Set(msg.From.ID, user)
+
+	if phase, ok := r.phases[confirm]; ok {
+		ctx := r.contextFor(msg.From.ID, user)
+		r.applyOutcome(ctx, phase.Setup(ctx), msg.Chat.ID)
+	}
+}
+
 // HandleAdhdDelete starts the delete-confirmation flow for all stored
-// self-check data. With nothing stored it answers immediately and does not
-// change state.
+// ADHD self-check data.
 func (r *Runner) HandleAdhdDelete(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
@@ -175,24 +239,24 @@ func (r *Runner) HandleAdhdDelete(s router.Sender, msg *tgbotapi.Message) {
 	if c == nil {
 		return // screening mode not wired
 	}
-	user := r.store.Get(msg.From.ID)
+	r.enterDeleteConfirm(s, msg, state.StateScrDeleteConfirm,
+		func(u state.UserData) bool { return u.Screening != nil || u.ScreeningResult != nil },
+		c.Module.UI.DeleteNothing)
+}
 
-	if user.Screening == nil && user.ScreeningResult == nil {
-		send(s, msg.Chat.ID, c.Module.UI.DeleteNothing)
+// HandleMoodDelete starts the delete-confirmation flow for all stored mood
+// self-check data.
+func (r *Runner) HandleMoodDelete(s router.Sender, msg *tgbotapi.Message) {
+	if msg.From == nil {
 		return
 	}
-
-	if isFodmapJourneyState(user.State) {
-		user.ReturnState = user.State
+	c := r.moodContent()
+	if c == nil {
+		return // mood mode not wired
 	}
-	user.ChatID = msg.Chat.ID
-	user.State = state.StateScrDeleteConfirm
-	r.store.Set(msg.From.ID, user)
-
-	if phase, ok := r.phases[state.StateScrDeleteConfirm]; ok {
-		ctx := r.contextFor(msg.From.ID, user)
-		r.applyOutcome(ctx, phase.Setup(ctx), msg.Chat.ID)
-	}
+	r.enterDeleteConfirm(s, msg, state.StateMoodDeleteConfirm,
+		func(u state.UserData) bool { return u.Mood != nil || u.MoodResult != nil },
+		c.Module.UI.DeleteNothing)
 }
 
 // HandleAbandon aborts the current activity. Mid-screening it wipes the
@@ -207,19 +271,32 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 	user := r.store.Get(msg.From.ID)
 	locale := r.localeForUser(user)
 
-	if isScreeningState(user.State) {
-		c := r.screeningContent()
+	if isScreeningState(user.State) || isMoodState(user.State) {
+		// Abandon the active self-check: wipe the transient raw answers
+		// (the previous completed result is kept) and return to the
+		// recorded FODMAP state or idle.
+		var confirmText string
+		if isMoodState(user.State) {
+			user.Mood = nil
+			if c := r.moodContent(); c != nil {
+				confirmText = c.Module.UI.AbandonConfirmed
+			}
+		} else {
+			user.Screening = nil
+			if c := r.screeningContent(); c != nil {
+				confirmText = c.Module.UI.AbandonConfirmed
+			}
+		}
 		next := state.StateIdle
 		if user.ReturnState != "" {
 			next = user.ReturnState
 		}
-		user.Screening = nil
 		user.ReturnState = ""
 		user.State = next
 		r.store.Set(msg.From.ID, user)
 
-		if c != nil {
-			out := tgbotapi.NewMessage(msg.Chat.ID, c.Module.UI.AbandonConfirmed)
+		if confirmText != "" {
+			out := tgbotapi.NewMessage(msg.Chat.ID, confirmText)
 			out.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 			if _, err := s.Send(out); err != nil {
 				log.Printf("journey: abandon send: %v", err)

@@ -53,8 +53,9 @@ func (r *Runner) Register(p Phase) {
 // HandleStart implements router.HandlerFunc for /start. With the screening
 // mode wired it routes the user to the mode-choice fork, remembering where
 // to come back: a FODMAP journey state is saved to ReturnState, a screening
-// state to Screening.ResumeState. Nothing is interrupted here — the FODMAP
-// button of the fork owns the legacy interrupt semantics.
+// state to Screening.ResumeState, a mood state to Mood.ResumeState. Nothing
+// is interrupted here — the FODMAP button of the fork owns the legacy
+// interrupt semantics.
 func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 	if msg.From == nil {
 		return
@@ -75,6 +76,14 @@ func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 			sc := user.Screening.Clone()
 			sc.ResumeState = cur
 			user.Screening = sc
+		}
+	case isMoodState(cur):
+		// /start mid-mood-test: same resume bookkeeping (matters for the
+		// crisis card — a paused run must land back on the card).
+		if user.Mood != nil {
+			mc := user.Mood.Clone()
+			mc.ResumeState = cur
+			user.Mood = mc
 		}
 	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
 		// Remember where to return after a screening detour. A repeated

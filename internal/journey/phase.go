@@ -21,12 +21,12 @@ import (
 // will re-fire the owning phase's Setup. The category-scoped product picker
 // uses this to redraw a fresh keyboard after Prev/Next paging.
 type Outcome struct {
-	NextState     state.StateKind       // empty = stay in current state
-	ReplyKey      string                // i18n key for outgoing message; empty = silent
-	ReplyArgs     map[string]any        // placeholder substitutions for ReplyKey
-	Keyboard      [][]string            // keyboard rows; each inner slice is one row
-	RemoveKeyboard bool                 // dismiss any active Telegram keyboard
-	Mutate        func(*state.UserData) // optional mutation applied before persisting
+	NextState      state.StateKind       // empty = stay in current state
+	ReplyKey       string                // i18n key for outgoing message; empty = silent
+	ReplyArgs      map[string]any        // placeholder substitutions for ReplyKey
+	Keyboard       [][]string            // keyboard rows; each inner slice is one row
+	RemoveKeyboard bool                  // dismiss any active Telegram keyboard
+	Mutate         func(*state.UserData) // optional mutation applied before persisting
 }
 
 // Context is the per-call dependency bag handed to Phase callbacks.
