@@ -16,6 +16,7 @@ const (
     StateAwaitingStageChoice, StateAwaitingStageCheckin,
     StateAwaitingModeChoice,                       // /start mode fork
     StateScrConsent … StateScrDeleteConfirm StateKind  // 16 scr_* screening states
+    StateMoodConsent … StateMoodDeleteConfirm StateKind // 5 mood_* (PHQ-9) states
 )
 
 type DefecationKind string  // "", fluid, normal, issues
@@ -40,6 +41,19 @@ type ScreeningResult struct {    // last COMPLETED run; overwritten by each new 
     Verdict string; GapHint string           // wording keys, never numbers
 }
 
+type MoodProgress struct {       // TRANSIENT unfinished PHQ-9 run (resume only)
+    Answers []int                // raw per-question answers (0..3) live ONLY here
+    ResumeState StateKind; ConsentAt, StartedAt time.Time
+}
+func (p *MoodProgress) Clone() *MoodProgress   // deep copy for Outcome.Mutate
+
+type MoodResult struct {         // last COMPLETED PHQ-9 run; overwritten by each completion
+    TakenAt time.Time
+    Score int                    // 0..27
+    Severity string              // applied severity-band id
+    Q9Positive bool              // item-9 (self-harm) answered > 0 — the only per-question fact kept
+}
+
 type UserData struct {
     State, Locale string-ish
     DefecationState, CurrentProduct, CurrentStage  // active-trial fields
@@ -50,7 +64,9 @@ type UserData struct {
     Products map[string]ProductProgress
     Screening *ScreeningProgress                   // nil when no screening in progress
     ScreeningResult *ScreeningResult               // nil until first completion
-    ReturnState StateKind                          // FODMAP state to restore after the screening detour
+    ReturnState StateKind                          // FODMAP state to restore after a screening detour (shared by both modes)
+    Mood *MoodProgress                             // nil when no mood test in progress
+    MoodResult *MoodResult                         // nil until first completion
     ChatID int64
 }
 
@@ -73,8 +89,9 @@ func (s *Store) Close() error
 - `OfferedProducts` is the gate for `journey.matchOffered` — only names in this list are accepted as input.
 - `PickerCategory` + `PickerPage` are meaningful only while in `StateAwaitingProductChoice` / `StateAwaitingProductCategory`. Cleared by `/start`, `/abandon`, completion.
 - **Privacy invariant:** raw per-question screening answers exist only inside `Screening` (`ScreeningProgress`). Completing, restarting, `/abandon`, and `/adhd_delete` set `Screening = nil`, and `omitempty` removes the key — and the raw answers — from the persisted JSON in the same `Set`. `ScreeningResult` carries only scores + applied thresholds + facts, never answers. The WURS wording form (m/f) is never copied into the result.
-- Legacy `users.json` files without the screening fields load as zero values — no migration needed.
-- Mutations of `Screening` must go through `Clone()` (pointer field — `Get`'s struct copy shares the pointee).
+- **Privacy invariant (mood):** same contract — raw PHQ-9 answers exist only inside `Mood` (`MoodProgress`); completing, restarting, `/abandon`, and `/mood_delete` set `Mood = nil` in the same `Set` that writes `MoodResult`. The result keeps only the total score, the band id, the date, and the single allowed per-question fact: the item-9 flag (needed to repeat the support contacts).
+- Legacy `users.json` files without the screening/mood fields load as zero values — no migration needed.
+- Mutations of `Screening` / `Mood` must go through `Clone()` (pointer fields — `Get`'s struct copy shares the pointee).
 
 ## When to edit
 
