@@ -85,6 +85,12 @@ criterion_b:
 domains:
   adult_prompt: "adult prompt"
   childhood_prompt: "child prompt"
+  position_adult: "Sphere {current} of {total} - now"
+  position_child: "Sphere {current} of {total} - childhood"
+  examples_line: "E.g.: {examples}."
+  question: "Noticeable difficulties?"
+  yes_button: "Yes"
+  no_button: "No"
   multiselect_hint: "toggle hint"
   done_button: "Done"
   none_button: "None bother me"
@@ -130,6 +136,7 @@ domains:
       no_childhood_onset: "no childhood onset hint"
       no_current_symptoms: "no current symptoms hint"
       few_domains: "few domains hint"
+  attribution_line: "ATTR-LINE"
   criterion_e_note: "criterion E note"
   referral:
     heading: "Where to go"
@@ -232,6 +239,14 @@ func TestLoad_ValidSyntheticContent(t *testing.T) {
 	}
 	if c.ASRS.PartB.Items[0].ID != 7 {
 		t.Errorf("part B first id: %d", c.ASRS.PartB.Items[0].ID)
+	}
+	d := c.Module.Domains
+	if d.PositionAdult == "" || d.PositionChild == "" || d.ExamplesLine == "" ||
+		d.Question == "" || d.YesButton == "" || d.NoButton == "" {
+		t.Errorf("per-domain flow fields not parsed: %+v", d)
+	}
+	if c.Module.Results.AttributionLine != "ATTR-LINE" {
+		t.Errorf("attribution_line: %q", c.Module.Results.AttributionLine)
 	}
 }
 
