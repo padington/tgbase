@@ -140,7 +140,7 @@ func productLabel(ctx Context, p products.Product) string {
 	}
 }
 
-// navRow builds the Back / Prev / Next row beneath the product grid.
+// navRow builds the Back / Prev / Next / 🏠 row beneath the product grid.
 // Prev hides on page 0; Next hides on the last page.
 func navRow(ctx Context, page, pageCount int) []string {
 	row := []string{ctx.Trans.T("button.product.back", ctx.Locale, nil)}
@@ -150,7 +150,7 @@ func navRow(ctx Context, page, pageCount int) []string {
 	if page+1 < pageCount {
 		row = append(row, ctx.Trans.T("button.product.next", ctx.Locale, nil))
 	}
-	return row
+	return append(row, homeLabel(ctx))
 }
 
 func finishedProducts(progress map[string]state.ProductProgress) map[string]bool {

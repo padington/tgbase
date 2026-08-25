@@ -68,25 +68,8 @@ func TestWhoami_EmptyEnvDefaultsToUnknown(t *testing.T) {
 	}
 }
 
-func TestMenu_SendsKeyboardWithTwoButtons(t *testing.T) {
-	s := &mockSender{}
-	meta.Menu()(s, newMsg())
-
-	if len(s.sent) != 1 {
-		t.Fatalf("expected 1 send, got %d", len(s.sent))
-	}
-	msg, ok := s.sent[0].(tgbotapi.MessageConfig)
-	if !ok {
-		t.Fatal("expected MessageConfig")
-	}
-	kb, ok := msg.ReplyMarkup.(tgbotapi.ReplyKeyboardMarkup)
-	if !ok {
-		t.Fatal("expected ReplyKeyboardMarkup")
-	}
-	if len(kb.Keyboard) != 1 || len(kb.Keyboard[0]) != 2 {
-		t.Fatalf("expected 1 row with 2 buttons, got %v", kb.Keyboard)
-	}
-
+func TestHandlers_SatisfyRouterInterface(t *testing.T) {
 	// verify we expose the right interface to satisfy the compiler
-	var _ router.HandlerFunc = meta.Menu()
+	var _ router.HandlerFunc = meta.Ping()
+	var _ router.HandlerFunc = meta.Whoami("")
 }

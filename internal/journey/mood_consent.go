@@ -63,8 +63,11 @@ func (p *MoodConsentPhase) Collect(ctx Context, input string) Outcome {
 		// Resume mode.
 		switch {
 		case labelIs(in, m.Resume.ContinueButton):
+			// Only question/crisis positions are usable resume targets;
+			// anything else falls back to the question series, which derives
+			// its index from the recorded answers.
 			next := state.StateMoodQuestion
-			if isMoodState(s.ResumeState) {
+			if resumableMoodState(s.ResumeState) {
 				next = s.ResumeState
 			}
 			return Outcome{NextState: next}

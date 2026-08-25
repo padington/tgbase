@@ -48,7 +48,7 @@ func (ProductCategoryPhase) Setup(ctx Context) Outcome {
 	}
 
 	back := ctx.Trans.T("button.product.back", ctx.Locale, nil)
-	keyboard := append(categoryKeyboard(ctx, available), []string{back})
+	keyboard := append(categoryKeyboard(ctx, available), []string{back, homeLabel(ctx)})
 	return Outcome{
 		ReplyKey: "phase.product.category.prompt",
 		Keyboard: keyboard,

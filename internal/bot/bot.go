@@ -147,11 +147,13 @@ func New(cfg Config) (*Bot, error) {
 
 	r.HandleCommand("ping", meta.Ping())
 	r.HandleCommand("whoami", meta.Whoami(cfg.Env))
-	r.HandleCommand("menu", meta.Menu())
 	r.HandleText(exactText("Ping"), meta.Ping())
 	r.HandleText(exactText("Whoami"), meta.Whoami(cfg.Env))
 
 	r.HandleCommand("start", runner.HandleStart)
+	// /menu is an alias of /start: both land on the home landing from any
+	// state (legacy direct-to-diary start when the fork is unregistered).
+	r.HandleCommand("menu", runner.HandleStart)
 	r.HandleCommand("about", runner.HandleAbout)
 	r.HandleCommand("report", runner.HandleReport)
 	r.HandleCommand("abandon", runner.HandleAbandon)

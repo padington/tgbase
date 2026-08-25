@@ -16,7 +16,7 @@ func (DefecationPhase) State() state.StateKind { return state.StateAwaitingDefec
 func (DefecationPhase) Setup(ctx Context) Outcome {
 	return Outcome{
 		ReplyKey: "phase.defecation.prompt",
-		Keyboard: [][]string{{"1", "2", "3"}},
+		Keyboard: [][]string{{"1", "2", "3"}, {homeLabel(ctx)}},
 	}
 }
 

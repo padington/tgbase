@@ -34,24 +34,26 @@ func (r *Runner) HandleReport(s router.Sender, msg *tgbotapi.Message) {
 		return
 	}
 	user := r.store.Get(msg.From.ID)
-	locale := r.localeForUser(user)
+	send(s, msg.Chat.ID, reportText(r.trans, r.localeForUser(user), user))
+}
 
+// reportText assembles the full /report breakdown. A free function so the
+// landing's report button can render the same text through a phase Outcome.
+func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
 	var extraLines []string
-	if line := r.screeningReportLine(user, locale); line != "" {
+	if line := screeningReportLine(trans, locale, user); line != "" {
 		extraLines = append(extraLines, line)
 	}
-	if line := r.moodReportLine(user, locale); line != "" {
+	if line := moodReportLine(trans, locale, user); line != "" {
 		extraLines = append(extraLines, line)
 	}
 
 	if len(user.Products) == 0 {
 		if len(extraLines) == 0 {
-			send(s, msg.Chat.ID, r.trans.T("cmd.report.empty", locale, nil))
-			return
+			return trans.T("cmd.report.empty", locale, nil)
 		}
-		send(s, msg.Chat.ID, r.trans.T("cmd.report.heading", locale, nil)+"\n"+
-			strings.Join(extraLines, "\n"))
-		return
+		return trans.T("cmd.report.heading", locale, nil) + "\n" +
+			strings.Join(extraLines, "\n")
 	}
 
 	var completed, notTolerated, interrupted []string
@@ -68,47 +70,47 @@ func (r *Runner) HandleReport(s router.Sender, msg *tgbotapi.Message) {
 	}
 
 	var lines []string
-	lines = append(lines, r.trans.T("cmd.report.heading", locale, nil))
+	lines = append(lines, trans.T("cmd.report.heading", locale, nil))
 	if user.CurrentProduct != "" {
-		lines = append(lines, r.trans.T("cmd.report.in_progress", locale, map[string]any{
+		lines = append(lines, trans.T("cmd.report.in_progress", locale, map[string]any{
 			"name":  user.CurrentProduct,
 			"stage": user.CurrentStage,
 		}))
 	}
 	if len(completed) > 0 {
-		lines = append(lines, r.trans.T("cmd.report.completed", locale, map[string]any{
+		lines = append(lines, trans.T("cmd.report.completed", locale, map[string]any{
 			"names": strings.Join(completed, ", "),
 		}))
 	}
 	if len(notTolerated) > 0 {
-		lines = append(lines, r.trans.T("cmd.report.not_tolerated", locale, map[string]any{
+		lines = append(lines, trans.T("cmd.report.not_tolerated", locale, map[string]any{
 			"names": strings.Join(notTolerated, ", "),
 		}))
 	}
 	if len(interrupted) > 0 {
-		lines = append(lines, r.trans.T("cmd.report.interrupted", locale, map[string]any{
+		lines = append(lines, trans.T("cmd.report.interrupted", locale, map[string]any{
 			"names": strings.Join(interrupted, ", "),
 		}))
 	}
 	lines = append(lines, extraLines...)
-	send(s, msg.Chat.ID, strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 // screeningReportLine renders the /report line for the last completed ADHD
 // self-check: per-instrument scores with their applied thresholds — never a
 // combined score.
-func (r *Runner) screeningReportLine(user state.UserData, locale i18n.Locale) string {
+func screeningReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
 	res := user.ScreeningResult
 	if res == nil {
 		return ""
 	}
 	verdictWord := func(positive bool) string {
 		if positive {
-			return r.trans.T("scr.report.positive", locale, nil)
+			return trans.T("scr.report.positive", locale, nil)
 		}
-		return r.trans.T("scr.report.negative", locale, nil)
+		return trans.T("scr.report.negative", locale, nil)
 	}
-	return r.trans.T("cmd.report.screening", locale, map[string]any{
+	return trans.T("cmd.report.screening", locale, map[string]any{
 		"date":      res.TakenAt.Format(reportDateLayout),
 		"asrs_a":    res.AsrsASignificant,
 		"a_thr":     res.AsrsAThreshold,
@@ -117,18 +119,18 @@ func (r *Runner) screeningReportLine(user state.UserData, locale i18n.Locale) st
 		"wurs":      res.WursScore,
 		"w_thr":     res.WursCutoff,
 		"w_verdict": verdictWord(res.WursPositive),
-		"overall":   r.trans.T("scr.report.overall."+res.Verdict, locale, nil),
+		"overall":   trans.T("scr.report.overall."+res.Verdict, locale, nil),
 	})
 }
 
 // moodReportLine renders the /report line for the last completed mood
 // self-check: the date and the 0–27 score — lean by design.
-func (r *Runner) moodReportLine(user state.UserData, locale i18n.Locale) string {
+func moodReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
 	res := user.MoodResult
 	if res == nil {
 		return ""
 	}
-	return r.trans.T("cmd.report.mood", locale, map[string]any{
+	return trans.T("cmd.report.mood", locale, map[string]any{
 		"date":  res.TakenAt.Format(reportDateLayout),
 		"score": res.Score,
 	})
@@ -205,8 +207,10 @@ func (r *Runner) HandleMood(s router.Sender, msg *tgbotapi.Message) {
 
 // enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
 // /mood_delete): with nothing stored it answers immediately and does not
-// change state, otherwise it records a FODMAP detour and routes to the
-// mode's confirmation phase.
+// change state, otherwise it records the way back — a FODMAP detour to
+// ReturnState, a mid-test position to the run's ResumeState (so cancelling
+// returns to the exact question) — and routes to the mode's confirmation
+// phase.
 func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 	confirm state.StateKind, hasData func(state.UserData) bool, nothingText string) {
 	user := r.store.Get(msg.From.ID)
@@ -216,8 +220,17 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		return
 	}
 
-	if isFodmapJourneyState(user.State) {
+	switch {
+	case isFodmapJourneyState(user.State):
 		user.ReturnState = user.State
+	case user.Screening != nil && resumableScrState(user.State):
+		sc := user.Screening.Clone()
+		sc.ResumeState = user.State
+		user.Screening = sc
+	case user.Mood != nil && resumableMoodState(user.State):
+		mc := user.Mood.Clone()
+		mc.ResumeState = user.State
+		user.Mood = mc
 	}
 	user.ChatID = msg.Chat.ID
 	user.State = confirm

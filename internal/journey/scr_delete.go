@@ -41,6 +41,16 @@ func (p *ScrDeleteConfirmPhase) Collect(ctx Context, input string) Outcome {
 		}
 		return oc
 	case labelIs(in, ui.DeleteCancelButton):
+		// Cancelling mid-test returns to the interrupted question (recorded
+		// by enterDeleteConfirm) — never eject the user from the run. The
+		// detour bookkeeping stays for the eventual test exit.
+		if s := ctx.User.Screening; s != nil && resumableScrState(s.ResumeState) {
+			return Outcome{
+				ReplyKey:       "scr.delete.cancelled",
+				RemoveKeyboard: true,
+				NextState:      s.ResumeState,
+			}
+		}
 		return Outcome{
 			ReplyKey:       "scr.delete.cancelled",
 			RemoveKeyboard: true,
