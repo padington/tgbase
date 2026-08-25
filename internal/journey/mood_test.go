@@ -21,6 +21,9 @@ import (
 // moodScale maps the synthetic scale labels to their scores.
 var moodScale = []string{"Not at all", "Several days", "More than half", "Nearly every day"}
 
+// moodQ10Scale maps the synthetic functional-item labels to their scores.
+var moodQ10Scale = []string{"Not difficult at all", "Somewhat difficult", "Very difficult", "Extremely difficult"}
+
 func moodSyntheticPHQ9() string {
 	var b strings.Builder
 	b.WriteString("instruction_official_ru: \"Over the last 2 weeks?\"\n")
@@ -36,6 +39,10 @@ func moodSyntheticPHQ9() string {
 		}
 		fmt.Fprintf(&b, "  - {id: %d, text: \"M question %d?\"%s}\n", id, id, crisis)
 	}
+	b.WriteString("functional_item:\n  text: \"Q10 how difficult?\"\n  scale:\n")
+	for i, l := range moodQ10Scale {
+		fmt.Fprintf(&b, "    - {score: %d, label: %q}\n", i, l)
+	}
 	b.WriteString(`scoring:
   bands:
     - {min: 0, max: 4, id: minimal}
@@ -48,10 +55,69 @@ attribution_text_ru: "PHQ-9 attribution."
 	return b.String()
 }
 
+// moodWho5Scale maps the synthetic WHO-5 labels to their scores, in the
+// official top-down order (best first, 5 → 0).
+var moodWho5Scale = []string{
+	"All the time", "Most of the time", "More than half the time",
+	"Less than half the time", "Some of the time", "At no time",
+}
+
+func moodSyntheticWHO5() string {
+	var b strings.Builder
+	b.WriteString("recall_header_official_ru: \"Over the last two weeks\"\n")
+	b.WriteString("scale:\n")
+	for i, l := range moodWho5Scale {
+		fmt.Fprintf(&b, "  - {score: %d, label: %q}\n", 5-i, l)
+	}
+	b.WriteString("items:\n")
+	for id := 1; id <= 5; id++ {
+		fmt.Fprintf(&b, "  - {id: %d, text: \"W statement %d\"}\n", id, id)
+	}
+	b.WriteString(`scoring:
+  multiplier: 4
+  bands:
+    - {min: 0, max: 28, id: very_low}
+    - {min: 29, max: 50, id: low}
+    - {min: 51, max: 100, id: ok}
+attribution_text_ru: "WHO-5 attribution."
+`)
+	return b.String()
+}
+
+func moodSyntheticGAD7() string {
+	var b strings.Builder
+	b.WriteString("instruction_official_ru: \"Over the last 14 days?\"\n")
+	b.WriteString("scale:\n")
+	for i, l := range moodScale {
+		fmt.Fprintf(&b, "  - {score: %d, label: %q}\n", i, l)
+	}
+	b.WriteString("items:\n")
+	for id := 1; id <= 7; id++ {
+		fmt.Fprintf(&b, "  - {id: %d, text: \"G question %d?\"}\n", id, id)
+	}
+	b.WriteString(`scoring:
+  bands:
+    - {min: 0, max: 4, id: minimal}
+    - {min: 5, max: 9, id: mild}
+    - {min: 10, max: 14, id: moderate}
+    - {min: 15, max: 21, id: severe}
+attribution_text_ru: "GAD-7 attribution."
+`)
+	return b.String()
+}
+
 func moodSyntheticModule() string {
 	return `meta:
   title: "Mood self-check"
   disclaimer: "MOOD-DISCLAIMER not a diagnosis"
+menu:
+  prompt: "Mood menu prompt"
+  who5_button: "Quick check"
+  phq9_button: "PHQ-9 test"
+  gad7_button: "Anxiety test"
+  resume_phq9_button: "Resume PHQ-9 run"
+  resume_who5_button: "Resume quick check"
+  resume_gad7_button: "Resume anxiety run"
 consent:
   title: "Mood consent"
   body: "mood consent body"
@@ -86,10 +152,46 @@ results:
   retest_line: "retest in 2-4 weeks"
   crisis_heading: "support contacts:"
   attribution_line: "MOOD-ATTR-LINE"
+who5:
+  title: "Quick well-being check"
+  progress: "Statement {current} of {total}"
+  results:
+    score_line: "WHO-5: {score} of 100."
+    bands:
+      ok: "wb ok"
+      low: "wb low"
+      very_low: "wb very low"
+    attribution_line: "WHO5-ATTR-LINE"
+  offer:
+    body_low: "offer phq9 low"
+    body_very_low: "offer phq9 very low"
+    start_button: "Take the PHQ-9"
+    later_button: "Skip"
+gad7:
+  title: "Anxiety check"
+  results:
+    score_line: "GAD-7: {score} of 21."
+    bands:
+      minimal: "g minimal"
+      mild: "g mild"
+      moderate: "g moderate - discuss"
+      severe: "g severe - see a specialist"
+    attribution_line: "GAD7-ATTR-LINE"
+  offer:
+    body: "offer gad7 body"
+    start_button: "Take the GAD-7"
+    later_button: "Skip"
 doctor_report:
   lead_in: "mood report lead-in"
+  heading: "MOOD SUMMARY REPORT"
+  phq9_line: "PHQ9 {date}: {score}/27 - {band}"
+  q9_line: "q9: {q9_fact}"
   q9_marked: "marked"
   q9_not_marked: "not marked"
+  q10_line: "q10: {answer}"
+  gad7_line: "GAD7 {date}: {score}/21 - {band}"
+  who5_line: "WHO5 {date}: {score}/100 - {band}"
+  footer: "REPORT-FOOTER"
   template: |-
     MOOD REPORT {date}
     score: {score}/27 - {band}
@@ -112,6 +214,8 @@ func writeMoodTestContent(t *testing.T) string {
 	dir := t.TempDir()
 	for name, body := range map[string]string{
 		"phq9_ru.yaml":        moodSyntheticPHQ9(),
+		"who5_ru.yaml":        moodSyntheticWHO5(),
+		"gad7_ru.yaml":        moodSyntheticGAD7(),
 		"mood_module_ru.yaml": moodSyntheticModule(),
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
