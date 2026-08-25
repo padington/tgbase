@@ -3,7 +3,7 @@
 A Telegram bot with two modes:
 
 - **Low-FODMAP diary** — helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
-- **Adult ADHD self-check** (ru-only, v1) — a staged screening: ASRS v1.1 part A (official Russian WHO text, verbatim) → ASRS part B → WURS-25 childhood retrospective (unofficial translation, flagged as such) → the bot's own DSM-5-shaped context questions (onset + life domains). Each instrument is scored separately with its own published threshold and attribution; there is deliberately **no combined score**. The result is a wording («pattern is / is not consistent with DSM-5 criteria»), a screening-not-a-diagnosis disclaimer, a route to a specialist, and a shareable doctor report.
+- **Adult ADHD self-check** (ru-only, v1) — a staged screening: ASRS v1.1 part A (official Russian WHO text, verbatim) → ASRS part B → WURS-25 childhood retrospective → the bot's own DSM-5-shaped context questions (onset + five life domains, one short yes/no question per domain per life phase). Each instrument is scored separately with its own published threshold; there is deliberately **no combined score**. The result is a wording («pattern is / is not consistent with DSM-5 criteria»), a short screening-not-a-diagnosis disclaimer, a two-line route to a specialist, a shareable doctor report, and one compact attribution line (ASRS © WHO/Kessler; WURS-25 — Ward et al.; DSM-5-based context) in the result footer. User texts stay lean by owner decision: methodology notes (translation status, validation caveats) live in content-file comments and docs, never in messages.
 
 ## Commands
 
@@ -98,13 +98,20 @@ stateDiagram-v2
     scr_onset --> scr_domains_adult: «Да, уже тогда»
     scr_onset --> scr_onset_age: «Нет, это появилось позже»
     scr_onset_age --> scr_domains_adult: age (number 1..99)
-    scr_domains_adult --> scr_domains_adult: toggle domain
-    scr_domains_adult --> scr_domains_child: «Готово» / «Ни одна не мешает»
-    scr_domains_child --> scr_domains_child: toggle domain
-    scr_domains_child --> scr_referral: «Готово» → summary message, Screening := nil
-    scr_referral --> scr_report: Setup sends criterion E + referral
+    scr_domains_adult --> scr_domains_adult: «Да»/«Нет», domains 1..4 (one short message each)
+    scr_domains_adult --> scr_domains_child: «Да»/«Нет» on the 5th domain
+    scr_domains_child --> scr_domains_child: «Да»/«Нет», domains 1..4
+    scr_domains_child --> scr_referral: «Да»/«Нет» on the 5th → summary message, Screening := nil
+    scr_referral --> scr_report: Setup sends the route to a specialist
     scr_report --> [*]: Setup sends the doctor report → ReturnState (re-Setup) | idle
 ```
+
+Each life-domain step is one short message — position («Сфера N из 5 ·
+зрелость/детство»), domain title, one «Например: …» line, and a yes/no
+keyboard. The answered-domain cursor lives in `Screening` (like the
+ASRS/WURS question index), so pause, `/start` and `/adhd` mid-section
+resume on the exact domain; only «Да» domains are stored, and the ≥2-domains
+rule of the overall verdict is unchanged.
 
 Deleting data: `/adhd_delete` → `scr_delete_confirm` → «Да, удалить» wipes
 both the unfinished progress and the stored result; «Оставить» changes

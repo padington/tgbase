@@ -251,19 +251,21 @@ func (x *ProductProgress) GetUpdatedAt() *timestamppb.Timestamp {
 // unfinished ADHD-screening run (raw per-question answers live only here;
 // wiped on completion / restart / abandon / delete).
 type ScreeningProgress struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AsrsAnswers   []int32                `protobuf:"varint,1,rep,packed,name=asrs_answers,json=asrsAnswers,proto3" json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = id-1
-	WursAnswers   []int32                `protobuf:"varint,2,rep,packed,name=wurs_answers,json=wursAnswers,proto3" json:"wurs_answers,omitempty"` // append-only, scores 0..4
-	WursForm      string                 `protobuf:"bytes,3,opt,name=wurs_form,json=wursForm,proto3" json:"wurs_form,omitempty"`                  // "m" | "f"
-	OnsetChild    *bool                  `protobuf:"varint,4,opt,name=onset_child,json=onsetChild,proto3,oneof" json:"onset_child,omitempty"`     // absent = not asked yet
-	OnsetAge      int32                  `protobuf:"varint,5,opt,name=onset_age,json=onsetAge,proto3" json:"onset_age,omitempty"`                 // >0 when onset_child == false
-	AdultDomains  []string               `protobuf:"bytes,6,rep,name=adult_domains,json=adultDomains,proto3" json:"adult_domains,omitempty"`
-	ChildDomains  []string               `protobuf:"bytes,7,rep,name=child_domains,json=childDomains,proto3" json:"child_domains,omitempty"`
-	ResumeState   StateKind              `protobuf:"varint,8,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"`
-	ConsentAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AsrsAnswers    []int32                `protobuf:"varint,1,rep,packed,name=asrs_answers,json=asrsAnswers,proto3" json:"asrs_answers,omitempty"` // append-only, scores 0..4; index = id-1
+	WursAnswers    []int32                `protobuf:"varint,2,rep,packed,name=wurs_answers,json=wursAnswers,proto3" json:"wurs_answers,omitempty"` // append-only, scores 0..4
+	WursForm       string                 `protobuf:"bytes,3,opt,name=wurs_form,json=wursForm,proto3" json:"wurs_form,omitempty"`                  // "m" | "f"
+	OnsetChild     *bool                  `protobuf:"varint,4,opt,name=onset_child,json=onsetChild,proto3,oneof" json:"onset_child,omitempty"`     // absent = not asked yet
+	OnsetAge       int32                  `protobuf:"varint,5,opt,name=onset_age,json=onsetAge,proto3" json:"onset_age,omitempty"`                 // >0 when onset_child == false
+	AdultDomains   []string               `protobuf:"bytes,6,rep,name=adult_domains,json=adultDomains,proto3" json:"adult_domains,omitempty"`      // only the ids answered "yes"
+	ChildDomains   []string               `protobuf:"bytes,7,rep,name=child_domains,json=childDomains,proto3" json:"child_domains,omitempty"`      // only the ids answered "yes"
+	ResumeState    StateKind              `protobuf:"varint,8,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"`
+	ConsentAt      *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`
+	StartedAt      *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	AdultDomainIdx int32                  `protobuf:"varint,11,opt,name=adult_domain_idx,json=adultDomainIdx,proto3" json:"adult_domain_idx,omitempty"` // domains answered so far (yes AND no)
+	ChildDomainIdx int32                  `protobuf:"varint,12,opt,name=child_domain_idx,json=childDomainIdx,proto3" json:"child_domain_idx,omitempty"` // domains answered so far (yes AND no)
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ScreeningProgress) Reset() {
@@ -364,6 +366,20 @@ func (x *ScreeningProgress) GetStartedAt() *timestamppb.Timestamp {
 		return x.StartedAt
 	}
 	return nil
+}
+
+func (x *ScreeningProgress) GetAdultDomainIdx() int32 {
+	if x != nil {
+		return x.AdultDomainIdx
+	}
+	return 0
+}
+
+func (x *ScreeningProgress) GetChildDomainIdx() int32 {
+	if x != nil {
+		return x.ChildDomainIdx
+	}
+	return 0
 }
 
 // ScreeningResult mirrors state.ScreeningResult — the last completed run:
@@ -726,7 +742,7 @@ const file_state_proto_rawDesc = "" +
 	"last_stage\x18\x01 \x01(\x0e2\x19.tgbase.products.v1.StageR\tlastStage\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x129\n" +
 	"\n" +
-	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xc8\x03\n" +
+	"updated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x9c\x04\n" +
 	"\x11ScreeningProgress\x12!\n" +
 	"\fasrs_answers\x18\x01 \x03(\x05R\vasrsAnswers\x12!\n" +
 	"\fwurs_answers\x18\x02 \x03(\x05R\vwursAnswers\x12\x1b\n" +
@@ -741,7 +757,9 @@ const file_state_proto_rawDesc = "" +
 	"consent_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tconsentAt\x129\n" +
 	"\n" +
 	"started_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAtB\x0e\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12(\n" +
+	"\x10adult_domain_idx\x18\v \x01(\x05R\x0eadultDomainIdx\x12(\n" +
+	"\x10child_domain_idx\x18\f \x01(\x05R\x0echildDomainIdxB\x0e\n" +
 	"\f_onset_child\"\xa0\x04\n" +
 	"\x0fScreeningResult\x125\n" +
 	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12,\n" +

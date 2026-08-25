@@ -68,9 +68,7 @@ func (p *ScrAsrsPhase) header() string {
 		// is tied to the paper form (per the content note).
 		return "📋 " + ins.AsrsA.Title + "\n" + screening.FirstSentence(p.c.ASRS.Instruction)
 	}
-	// Short unofficial-translation caveat — the fixed attribution line of
-	// the results block, not the long translation_note.
-	return "📋 " + ins.AsrsB.Title + "\n" + ins.AsrsB.Attribution
+	return "📋 " + ins.AsrsB.Title
 }
 
 func (p *ScrAsrsPhase) Setup(ctx Context) Outcome {
@@ -201,8 +199,7 @@ func (p *ScrGatePhase) Setup(ctx Context) Outcome {
 		}
 		text = ib.Title + "\n" +
 			renderContent(ib.ScoreLine, map[string]string{"score": strconv.Itoa(sig)}) + "\n" +
-			line + "\n" + ib.Attribution +
-			"\n\n" + ui.BlockBoundaries.AfterAsrsA
+			line + "\n\n" + ui.BlockBoundaries.AfterAsrsA
 	case gateAfterAsrsB:
 		text = ui.BlockBoundaries.AfterAsrsB
 	default:

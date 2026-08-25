@@ -110,15 +110,16 @@ type DomainItem struct {
 	Childhood DomainPhaseText `yaml:"childhood"`
 }
 
-// InstrumentBlock is one per-instrument result block template.
+// InstrumentBlock is one per-instrument result block template. Deliberately
+// lean: no per-instrument attributions or translation caveats — the single
+// compact attribution line lives in Results.AttributionLine (owner decision:
+// users see results, not methodology).
 type InstrumentBlock struct {
 	Title        string `yaml:"title"`
 	ScoreLine    string `yaml:"score_line"`
 	PositiveLine string `yaml:"positive_line"`
 	NegativeLine string `yaml:"negative_line"`
 	Note         string `yaml:"note"`
-	Caveat       string `yaml:"caveat"`
-	Attribution  string `yaml:"attribution"`
 }
 
 // Module mirrors dsm_module_ru.yaml — the bot's own content: consent, intro,
@@ -126,11 +127,8 @@ type InstrumentBlock struct {
 // The traceability section of the file is docs-only and not parsed.
 type Module struct {
 	Meta struct {
-		Title              string `yaml:"title"`
-		AttributionASRS    string `yaml:"attribution_asrs"`
-		AttributionWURS    string `yaml:"attribution_wurs"`
-		AttributionContext string `yaml:"attribution_context"`
-		Disclaimer         string `yaml:"disclaimer"`
+		Title      string `yaml:"title"`
+		Disclaimer string `yaml:"disclaimer"` // the ONLY caveat users see, kept short
 	} `yaml:"meta"`
 	Consent struct {
 		Title       string `yaml:"title"`
@@ -156,17 +154,19 @@ type Module struct {
 		OnsetFactLater     string `yaml:"onset_fact_later"`
 	} `yaml:"criterion_b"`
 	Domains struct {
-		AdultPrompt     string       `yaml:"adult_prompt"`
-		ChildhoodPrompt string       `yaml:"childhood_prompt"`
-		MultiselectHint string       `yaml:"multiselect_hint"`
-		DoneButton      string       `yaml:"done_button"`
-		NoneButton      string       `yaml:"none_button"`
+		AdultPrompt     string       `yaml:"adult_prompt"`     // one-line lead-in above domain 1 of the adult pass
+		ChildhoodPrompt string       `yaml:"childhood_prompt"` // same for the childhood pass
+		PositionAdult   string       `yaml:"position_adult"`   // "Сфера {current} из {total} · …" template
+		PositionChild   string       `yaml:"position_child"`
+		ExamplesLine    string       `yaml:"examples_line"` // "Например: {examples}." template
+		Question        string       `yaml:"question"`      // the per-domain yes/no question
+		YesButton       string       `yaml:"yes_button"`
+		NoButton        string       `yaml:"no_button"`
 		Items           []DomainItem `yaml:"items"`
 	} `yaml:"domains"`
 	Results struct {
-		Heading         string `yaml:"heading"`
-		InstrumentsNote string `yaml:"instruments_note"`
-		Instruments     struct {
+		Heading     string `yaml:"heading"`
+		Instruments struct {
 			AsrsA InstrumentBlock `yaml:"asrs_a"`
 			AsrsB InstrumentBlock `yaml:"asrs_b"`
 			Wurs  InstrumentBlock `yaml:"wurs"`
@@ -185,8 +185,10 @@ type Module struct {
 			NotConsistent string            `yaml:"not_consistent"`
 			GapHints      map[string]string `yaml:"gap_hints"`
 		} `yaml:"overall"`
-		CriterionENote string `yaml:"criterion_e_note"`
-		Referral       struct {
+		// AttributionLine is the single compact attribution rendered in the
+		// result footer (ASRS © WHO/Kessler; WURS-25 — Ward et al.; DSM-5).
+		AttributionLine string `yaml:"attribution_line"`
+		Referral        struct {
 			Heading string `yaml:"heading"`
 			Body    string `yaml:"body"`
 		} `yaml:"referral"`
@@ -400,9 +402,6 @@ func (c *Content) validateModule() error {
 
 	if err := named(
 		"meta.title", m.Meta.Title,
-		"meta.attribution_asrs", m.Meta.AttributionASRS,
-		"meta.attribution_wurs", m.Meta.AttributionWURS,
-		"meta.attribution_context", m.Meta.AttributionContext,
 		"meta.disclaimer", m.Meta.Disclaimer,
 		"consent.title", m.Consent.Title,
 		"consent.body", m.Consent.Body,
@@ -423,9 +422,12 @@ func (c *Content) validateModule() error {
 		"criterion_b.onset_fact_later", m.CriterionB.OnsetFactLater,
 		"domains.adult_prompt", m.Domains.AdultPrompt,
 		"domains.childhood_prompt", m.Domains.ChildhoodPrompt,
-		"domains.multiselect_hint", m.Domains.MultiselectHint,
-		"domains.done_button", m.Domains.DoneButton,
-		"domains.none_button", m.Domains.NoneButton,
+		"domains.position_adult", m.Domains.PositionAdult,
+		"domains.position_child", m.Domains.PositionChild,
+		"domains.examples_line", m.Domains.ExamplesLine,
+		"domains.question", m.Domains.Question,
+		"domains.yes_button", m.Domains.YesButton,
+		"domains.no_button", m.Domains.NoButton,
 	); err != nil {
 		return err
 	}
@@ -448,24 +450,23 @@ func (c *Content) validateModule() error {
 		if strings.TrimSpace(d.Childhood.Title) == "" {
 			return fmt.Errorf("domain %s: empty childhood title", d.ID)
 		}
-		if len(d.Adult.Examples) == 0 {
-			return fmt.Errorf("domain %s: no adult examples", d.ID)
+		// Each domain renders as ONE short message per pass — 1..3 examples
+		// keep the "e.g.:" line a single line (the lean-UX canon).
+		if n := len(d.Adult.Examples); n == 0 || n > 3 {
+			return fmt.Errorf("domain %s: want 1..3 adult examples, got %d", d.ID, n)
 		}
-		if len(d.Childhood.Examples) == 0 {
-			return fmt.Errorf("domain %s: no childhood examples", d.ID)
+		if n := len(d.Childhood.Examples); n == 0 || n > 3 {
+			return fmt.Errorf("domain %s: want 1..3 childhood examples, got %d", d.ID, n)
 		}
 	}
 
 	res := &m.Results
-	instr := func(name string, b InstrumentBlock, needVerdictLines, needNote, needCaveat bool) error {
+	instr := func(name string, b InstrumentBlock, needVerdictLines, needNote bool) error {
 		if strings.TrimSpace(b.Title) == "" {
 			return fmt.Errorf("empty results.instruments.%s.title", name)
 		}
 		if strings.TrimSpace(b.ScoreLine) == "" {
 			return fmt.Errorf("empty results.instruments.%s.score_line", name)
-		}
-		if strings.TrimSpace(b.Attribution) == "" {
-			return fmt.Errorf("empty results.instruments.%s.attribution", name)
 		}
 		if needVerdictLines && (strings.TrimSpace(b.PositiveLine) == "" || strings.TrimSpace(b.NegativeLine) == "") {
 			return fmt.Errorf("empty results.instruments.%s positive/negative line", name)
@@ -473,24 +474,20 @@ func (c *Content) validateModule() error {
 		if needNote && strings.TrimSpace(b.Note) == "" {
 			return fmt.Errorf("empty results.instruments.%s.note", name)
 		}
-		if needCaveat && strings.TrimSpace(b.Caveat) == "" {
-			return fmt.Errorf("empty results.instruments.%s.caveat", name)
-		}
 		return nil
 	}
-	if err := instr("asrs_a", res.Instruments.AsrsA, true, false, false); err != nil {
+	if err := instr("asrs_a", res.Instruments.AsrsA, true, false); err != nil {
 		return err
 	}
-	if err := instr("asrs_b", res.Instruments.AsrsB, false, true, false); err != nil {
+	if err := instr("asrs_b", res.Instruments.AsrsB, false, true); err != nil {
 		return err
 	}
-	if err := instr("wurs", res.Instruments.Wurs, true, false, true); err != nil {
+	if err := instr("wurs", res.Instruments.Wurs, true, false); err != nil {
 		return err
 	}
 
 	if err := named(
 		"results.heading", res.Heading,
-		"results.instruments_note", res.InstrumentsNote,
 		"results.context_facts.heading", res.ContextFacts.Heading,
 		"results.context_facts.onset_line", res.ContextFacts.OnsetLine,
 		"results.context_facts.adult_domains_line", res.ContextFacts.AdultDomainsLine,
@@ -500,7 +497,7 @@ func (c *Content) validateModule() error {
 		"results.overall.consistent", res.Overall.Consistent,
 		"results.overall.partial", res.Overall.Partial,
 		"results.overall.not_consistent", res.Overall.NotConsistent,
-		"results.criterion_e_note", res.CriterionENote,
+		"results.attribution_line", res.AttributionLine,
 		"results.referral.heading", res.Referral.Heading,
 		"results.referral.body", res.Referral.Body,
 		"results.doctor_report.lead_in", res.DoctorReport.LeadIn,

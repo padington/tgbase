@@ -54,9 +54,9 @@ func (p *ScrConsentPhase) Collect(ctx Context, input string) Outcome {
 
 func (ScrConsentPhase) Remind(ctx Context) Outcome { return Outcome{} }
 
-// ScrIntroPhase owns StateScrIntro — what the check consists of, all three
-// attributions and the disclaimer. With an unfinished run it renders in
-// resume mode: Continue / start over / postpone.
+// ScrIntroPhase owns StateScrIntro — what the check consists of, plus the
+// short screening-not-a-diagnosis disclaimer. With an unfinished run it
+// renders in resume mode: Continue / start over / postpone.
 type ScrIntroPhase struct {
 	c *screening.Content
 }
@@ -86,9 +86,6 @@ func (p *ScrIntroPhase) Setup(ctx Context) Outcome {
 		return oc
 	}
 	text := m.Intro.Title + "\n\n" + m.Intro.Body +
-		"\n\n" + m.Meta.AttributionASRS +
-		"\n\n" + m.Meta.AttributionWURS +
-		"\n\n" + m.Meta.AttributionContext +
 		"\n\n⚠️ " + m.Meta.Disclaimer
 	oc := scrText(text)
 	oc.Keyboard = [][]string{{m.Intro.StartButton}, {m.Intro.PostponeButton}}

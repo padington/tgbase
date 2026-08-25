@@ -56,11 +56,13 @@ message ScreeningProgress {
   string wurs_form = 3;              // "m" | "f"
   optional bool onset_child = 4;     // absent = not asked yet
   int32 onset_age = 5;               // >0 when onset_child == false
-  repeated string adult_domains = 6;
-  repeated string child_domains = 7;
+  repeated string adult_domains = 6; // only the ids answered "yes"
+  repeated string child_domains = 7; // only the ids answered "yes"
   StateKind resume_state = 8;
   google.protobuf.Timestamp consent_at = 9;
   google.protobuf.Timestamp started_at = 10;
+  int32 adult_domain_idx = 11;       // domains answered so far (yes AND no)
+  int32 child_domain_idx = 12;       // domains answered so far (yes AND no)
 }
 
 // ScreeningResult mirrors state.ScreeningResult — the last completed run:

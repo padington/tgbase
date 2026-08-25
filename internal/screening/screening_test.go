@@ -58,9 +58,6 @@ func syntheticModule() string {
 	var b strings.Builder
 	b.WriteString(`meta:
   title: "Self-check"
-  attribution_asrs: "attr asrs"
-  attribution_wurs: "attr wurs"
-  attribution_context: "attr context"
   disclaimer: "screening, not a diagnosis"
 consent:
   title: "Consent"
@@ -85,9 +82,12 @@ criterion_b:
 domains:
   adult_prompt: "adult prompt"
   childhood_prompt: "child prompt"
-  multiselect_hint: "toggle hint"
-  done_button: "Done"
-  none_button: "None bother me"
+  position_adult: "Sphere {current} of {total} - now"
+  position_child: "Sphere {current} of {total} - childhood"
+  examples_line: "E.g.: {examples}."
+  question: "Noticeable difficulties?"
+  yes_button: "Yes"
+  no_button: "No"
   items:
 `)
 	for _, id := range []string{"work_study", "relationships_family", "social", "leisure", "self_esteem"} {
@@ -95,26 +95,21 @@ domains:
 	}
 	b.WriteString(`results:
   heading: "Your result"
-  instruments_note: "each scale separately"
   instruments:
     asrs_a:
       title: "ASRS part A"
       score_line: "{score} of 6 significant"
       positive_line: "screen positive"
       negative_line: "screen negative"
-      attribution: "asrs_a attribution"
     asrs_b:
       title: "ASRS part B"
       score_line: "{score} of 12 significant"
       note: "no formal threshold"
-      attribution: "asrs_b attribution"
     wurs:
       title: "WURS-25"
       score_line: "{score} of 100 (cutoff 46)"
       positive_line: "above cutoff"
       negative_line: "below cutoff"
-      caveat: "unofficial translation"
-      attribution: "wurs attribution"
   context_facts:
     heading: "Context facts"
     onset_line: "Onset: {onset_fact}."
@@ -130,7 +125,7 @@ domains:
       no_childhood_onset: "no childhood onset hint"
       no_current_symptoms: "no current symptoms hint"
       few_domains: "few domains hint"
-  criterion_e_note: "criterion E note"
+  attribution_line: "ATTR-LINE"
   referral:
     heading: "Where to go"
     body: "referral body"
@@ -233,6 +228,14 @@ func TestLoad_ValidSyntheticContent(t *testing.T) {
 	if c.ASRS.PartB.Items[0].ID != 7 {
 		t.Errorf("part B first id: %d", c.ASRS.PartB.Items[0].ID)
 	}
+	d := c.Module.Domains
+	if d.PositionAdult == "" || d.PositionChild == "" || d.ExamplesLine == "" ||
+		d.Question == "" || d.YesButton == "" || d.NoButton == "" {
+		t.Errorf("per-domain flow fields not parsed: %+v", d)
+	}
+	if c.Module.Results.AttributionLine != "ATTR-LINE" {
+		t.Errorf("attribution_line: %q", c.Module.Results.AttributionLine)
+	}
 }
 
 func TestLoad_RejectsBrokenContent(t *testing.T) {
@@ -284,6 +287,19 @@ func TestLoad_RejectsBrokenContent(t *testing.T) {
 		}},
 		{"empty consent body", map[string][2]string{
 			"dsm_module_ru.yaml": {"body: \"consent body\"", "body: \"\""},
+		}},
+		{"empty per-domain question", map[string][2]string{
+			"dsm_module_ru.yaml": {"question: \"Noticeable difficulties?\"", "question: \"\""},
+		}},
+		{"empty yes button", map[string][2]string{
+			"dsm_module_ru.yaml": {"yes_button: \"Yes\"", "yes_button: \"\""},
+		}},
+		{"empty attribution line", map[string][2]string{
+			"dsm_module_ru.yaml": {"attribution_line: \"ATTR-LINE\"", "attribution_line: \"\""},
+		}},
+		{"more than 3 examples breaks the one-line canon", map[string][2]string{
+			"dsm_module_ru.yaml": {"examples: [\"social a-ex1\", \"social a-ex2\", \"social a-ex3\"]",
+				"examples: [\"social a-ex1\", \"social a-ex2\", \"social a-ex3\", \"social a-ex4\"]"},
 		}},
 	}
 	for _, tc := range cases {

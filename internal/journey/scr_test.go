@@ -73,9 +73,6 @@ func scrSyntheticModule() string {
 	var b strings.Builder
 	b.WriteString(`meta:
   title: "Self-check"
-  attribution_asrs: "ATTR-ASRS"
-  attribution_wurs: "ATTR-WURS"
-  attribution_context: "ATTR-CONTEXT"
   disclaimer: "DISCLAIMER not a diagnosis"
 consent:
   title: "Consent"
@@ -100,9 +97,12 @@ criterion_b:
 domains:
   adult_prompt: "adult prompt"
   childhood_prompt: "child prompt"
-  multiselect_hint: "toggle hint"
-  done_button: "Done"
-  none_button: "None bother me"
+  position_adult: "Sphere {current} of {total} - now"
+  position_child: "Sphere {current} of {total} - childhood"
+  examples_line: "E.g.: {examples}."
+  question: "Noticeable difficulties?"
+  yes_button: "Yes"
+  no_button: "No"
   items:
 `)
 	for _, id := range scrDomainIDs {
@@ -117,26 +117,22 @@ domains:
 	}
 	b.WriteString(`results:
   heading: "Your result"
-  instruments_note: "each scale separately"
   instruments:
     asrs_a:
       title: "ASRS part A"
       score_line: "{score} of 6 significant"
       positive_line: "screen positive"
       negative_line: "screen negative"
-      attribution: "asrs_a attribution"
     asrs_b:
       title: "ASRS part B"
       score_line: "{score} of 12 significant"
       note: "no formal threshold"
-      attribution: "asrs_b attribution"
     wurs:
       title: "WURS-25"
       score_line: "{score} of 100 (cutoff 46)"
       positive_line: "above cutoff"
       negative_line: "below cutoff"
-      caveat: "unofficial translation caveat"
-      attribution: "wurs attribution"
+  attribution_line: "ATTR-LINE"
   context_facts:
     heading: "Context facts"
     onset_line: "Onset: {onset_fact}."
@@ -152,7 +148,6 @@ domains:
       no_childhood_onset: "no childhood onset hint"
       no_current_symptoms: "no current symptoms hint"
       few_domains: "few domains hint"
-  criterion_e_note: "criterion E note"
   referral:
     heading: "Where to go"
     body: "referral body"
@@ -388,8 +383,8 @@ type fullRun struct {
 	form     string   // "Masculine" | "Feminine"
 	onsetYes bool
 	age      string   // typed when onsetYes == false
-	adult    []string // adult-domain button labels to toggle
-	child    []string // childhood-domain button labels to toggle
+	adult    []string // domain ids answered "Yes" in the adult pass
+	child    []string // domain ids answered "Yes" in the childhood pass
 }
 
 func happyRun() fullRun {
@@ -398,7 +393,21 @@ func happyRun() fullRun {
 		wurs:     rep("W4", 25),
 		form:     "Feminine",
 		onsetYes: true,
-		adult:    []string{"work_study adult", "social adult"},
+		adult:    []string{"work_study", "social"},
+	}
+}
+
+// answerDomains walks one per-domain pass, answering "Yes" for the ids in
+// yesIDs and "No" for the rest.
+func answerDomains(runner *journey.Runner, sender *mockSender, id int64, yesIDs []string) {
+	for _, domain := range scrDomainIDs {
+		answer := "No"
+		for _, y := range yesIDs {
+			if y == domain {
+				answer = "Yes"
+			}
+		}
+		say(runner, sender, id, answer)
 	}
 }
 
@@ -427,22 +436,8 @@ func drive(t *testing.T, runner *journey.Runner, sender *mockSender, id int64, r
 		say(runner, sender, id, "No, later")
 		say(runner, sender, id, run.age)
 	}
-	for _, d := range run.adult {
-		say(runner, sender, id, d)
-	}
-	if len(run.adult) == 0 {
-		say(runner, sender, id, "None bother me")
-	} else {
-		say(runner, sender, id, "Done")
-	}
-	for _, d := range run.child {
-		say(runner, sender, id, d)
-	}
-	if len(run.child) == 0 {
-		say(runner, sender, id, "None bother me")
-	} else {
-		say(runner, sender, id, "Done")
-	}
+	answerDomains(runner, sender, id, run.adult)
+	answerDomains(runner, sender, id, run.child)
 }
 
 // --- scenarios -------------------------------------------------------------
@@ -474,17 +469,22 @@ func TestScr_AdhdFromIdle_ConsentDeclineLeavesNoTrace(t *testing.T) {
 	}
 }
 
-func TestScr_IntroShowsAttributionsAndFirstQuestion(t *testing.T) {
+func TestScr_IntroIsLeanAndShowsFirstQuestion(t *testing.T) {
 	runner, _, sender, _ := setupScr(t)
 
 	runner.HandleAdhd(sender, newMsg(1, "/adhd"))
 	say(runner, sender, 1, "Agree")
 
 	intro := sender.lastText()
-	for _, want := range []string{"intro body", "ATTR-ASRS", "ATTR-WURS", "ATTR-CONTEXT", "DISCLAIMER"} {
+	for _, want := range []string{"intro body", "DISCLAIMER"} {
 		if !contains(intro, want) {
 			t.Errorf("intro missing %q:\n%s", want, intro)
 		}
+	}
+	// Owner decision: no attribution paragraphs in the intro — the single
+	// compact attribution line lives in the result footer only.
+	if contains(intro, "ATTR-LINE") {
+		t.Errorf("intro must not carry attributions:\n%s", intro)
 	}
 
 	say(runner, sender, 1, "Start")
@@ -548,12 +548,12 @@ func TestScr_HappyPathEndToEnd(t *testing.T) {
 	}
 	summary, referral, report := texts[len(texts)-3], texts[len(texts)-2], texts[len(texts)-1]
 	for _, want := range []string{
-		"Your result", "each scale separately",
-		"ASRS part A", "6 of 6 significant", "screen positive", "asrs_a attribution",
-		"ASRS part B", "12 of 12 significant", "no formal threshold", "asrs_b attribution",
-		"WURS-25", "100 of 100", "above cutoff", "unofficial translation caveat", "wurs attribution",
+		"Your result",
+		"ASRS part A", "6 of 6 significant", "screen positive",
+		"ASRS part B", "12 of 12 significant", "no formal threshold",
+		"WURS-25", "100 of 100", "above cutoff",
 		"Context facts", "noticeable before 12", "work_study adult, social adult", "no child domains",
-		"overall consistent", "DISCLAIMER",
+		"overall consistent", "DISCLAIMER", "ATTR-LINE",
 	} {
 		if !contains(summary, want) {
 			t.Errorf("summary missing %q:\n%s", want, summary)
@@ -562,7 +562,7 @@ func TestScr_HappyPathEndToEnd(t *testing.T) {
 	if contains(summary, "{score}") || contains(summary, "{gap_hint}") {
 		t.Errorf("unrendered placeholder in summary:\n%s", summary)
 	}
-	for _, want := range []string{"criterion E note", "Where to go", "referral body"} {
+	for _, want := range []string{"Where to go", "referral body"} {
 		if !contains(referral, want) {
 			t.Errorf("referral missing %q:\n%s", want, referral)
 		}
@@ -612,7 +612,7 @@ func TestScr_AsrsAGateShowsIntermediateResult_BGateDoesNot(t *testing.T) {
 		say(runner, sender, 1, l)
 	}
 	gateA := sender.lastText()
-	for _, want := range []string{"ASRS part A", "6 of 6 significant", "screen positive", "asrs_a attribution", "after A boundary"} {
+	for _, want := range []string{"ASRS part A", "6 of 6 significant", "screen positive", "after A boundary"} {
 		if !contains(gateA, want) {
 			t.Errorf("A gate missing %q:\n%s", want, gateA)
 		}
@@ -732,11 +732,8 @@ func TestScr_OnsetAgeValidationAndFact(t *testing.T) {
 	if got := st.Get(1).State; got != state.StateScrDomainsAdult {
 		t.Fatalf("expected domains after valid age, got %q", got)
 	}
-	for _, d := range run.adult {
-		say(runner, sender, 1, d)
-	}
-	say(runner, sender, 1, "Done")
-	say(runner, sender, 1, "None bother me")
+	answerDomains(runner, sender, 1, run.adult)
+	answerDomains(runner, sender, 1, nil)
 
 	res := st.Get(1).ScreeningResult
 	if res == nil || res.OnsetChildhood || res.OnsetAge != 16 {
@@ -841,10 +838,8 @@ func TestScr_StartMidScreening_RestartResetsAnswers(t *testing.T) {
 	}
 	say(runner, sender, 1, "Continue")
 	say(runner, sender, 1, "Yes, back then")
-	say(runner, sender, 1, "work_study adult")
-	say(runner, sender, 1, "social adult")
-	say(runner, sender, 1, "Done")
-	say(runner, sender, 1, "None bother me")
+	answerDomains(runner, sender, 1, []string{"work_study", "social"})
+	answerDomains(runner, sender, 1, nil)
 
 	res := st.Get(1).ScreeningResult
 	if res == nil || res.AsrsASignificant != 3 {
@@ -971,40 +966,78 @@ func TestScr_AdhdDeleteMidFodmapReturns(t *testing.T) {
 	}
 }
 
-func TestScr_DomainsToggleAndFewDomainsPartial(t *testing.T) {
-	runner, st, sender, _ := setupScr(t)
-
-	runner.HandleAdhd(sender, newMsg(1, "/adhd"))
-	say(runner, sender, 1, "Agree")
-	say(runner, sender, 1, "Start")
-	for _, l := range rep("Very Often", 18) {
-		if st.Get(1).State == state.StateScrAsrsAGate || st.Get(1).State == state.StateScrAsrsBGate {
-			say(runner, sender, 1, "Continue")
-		}
-		say(runner, sender, 1, l)
+// walkToDomains drives a fresh user from /adhd to the first adult-domain
+// question (childhood onset answered "yes").
+func walkToDomains(t *testing.T, runner *journey.Runner, sender *mockSender, id int64) {
+	t.Helper()
+	runner.HandleAdhd(sender, newMsg(id, "/adhd"))
+	say(runner, sender, id, "Agree")
+	say(runner, sender, id, "Start")
+	for _, l := range rep("Very Often", 6) {
+		say(runner, sender, id, l)
 	}
-	say(runner, sender, 1, "Continue")
-	say(runner, sender, 1, "Masculine")
+	say(runner, sender, id, "Continue")
+	for _, l := range rep("Very Often", 12) {
+		say(runner, sender, id, l)
+	}
+	say(runner, sender, id, "Continue")
+	say(runner, sender, id, "Masculine")
 	for _, l := range rep("W0", 25) {
-		say(runner, sender, 1, l)
+		say(runner, sender, id, l)
 	}
-	say(runner, sender, 1, "Continue")
-	say(runner, sender, 1, "Yes, back then")
+	say(runner, sender, id, "Continue")
+	say(runner, sender, id, "Yes, back then")
+}
 
-	// Toggle on → drawn with a check mark; toggle off → back to empty.
-	say(runner, sender, 1, "work_study adult")
-	if got := sender.lastText(); !contains(got, "✅ work_study adult") {
-		t.Errorf("toggle on not rendered: %q", got)
+func TestScr_DomainsOneByOneShortMessages(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	walkToDomains(t, runner, sender, 1)
+
+	// Domain 1: lead-in + position + title + one examples line + question.
+	first := sender.lastText()
+	for _, want := range []string{
+		"adult prompt", "Sphere 1 of 5 - now", "work_study adult",
+		"E.g.: work_study a-ex1, work_study a-ex2, work_study a-ex3.",
+		"Noticeable difficulties?",
+	} {
+		if !contains(first, want) {
+			t.Errorf("domain 1 message missing %q:\n%s", want, first)
+		}
 	}
-	say(runner, sender, 1, "✅ work_study adult")
-	if got := sender.lastText(); contains(got, "✅") {
-		t.Errorf("toggle off not rendered: %q", got)
+	// One domain per message — no other domain, no repeated wall of text.
+	if contains(first, "relationships_family adult") {
+		t.Errorf("domain 1 message must not list other domains:\n%s", first)
 	}
 
-	// Exactly one selected domain → criterion D not met → partial.
-	say(runner, sender, 1, "leisure adult")
-	say(runner, sender, 1, "Done")
-	say(runner, sender, 1, "None bother me")
+	// An answer advances to the NEXT short message, not a redraw of a list.
+	say(runner, sender, 1, "Yes")
+	second := sender.lastText()
+	if !contains(second, "Sphere 2 of 5 - now") || !contains(second, "relationships_family adult") {
+		t.Errorf("domain 2 message wrong:\n%s", second)
+	}
+	if contains(second, "work_study adult") || contains(second, "adult prompt") {
+		t.Errorf("domain 2 must not repeat domain 1 or the lead-in:\n%s", second)
+	}
+
+	// Finish the adult pass → childhood pass restarts positions at 1.
+	answerDomains(runner, sender, 1, nil) // domains 2..5 = "No" (+1 extra "No" swallowed below)
+	// answerDomains sent 5 answers; the 5th landed on childhood domain 1.
+	child := sender.lastText()
+	if !contains(child, "Sphere 2 of 5 - childhood") {
+		t.Fatalf("expected childhood pass underway:\n%s", child)
+	}
+	if got := st.Get(1).State; got != state.StateScrDomainsChild {
+		t.Fatalf("expected childhood domains state, got %q", got)
+	}
+}
+
+func TestScr_DomainsFewDomainsPartial(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	walkToDomains(t, runner, sender, 1)
+
+	// Exactly one "Yes" domain → criterion D not met → partial.
+	answerDomains(runner, sender, 1, []string{"leisure"})
+	answerDomains(runner, sender, 1, nil)
 
 	res := st.Get(1).ScreeningResult
 	if res == nil || res.Verdict != "partial" || res.GapHint != "few_domains" {
@@ -1012,6 +1045,44 @@ func TestScr_DomainsToggleAndFewDomainsPartial(t *testing.T) {
 	}
 	if len(res.AdultDomains) != 1 || res.AdultDomains[0] != "leisure" {
 		t.Errorf("adult domains: %v", res.AdultDomains)
+	}
+	if len(res.ChildDomains) != 0 {
+		t.Errorf("child domains: %v", res.ChildDomains)
+	}
+}
+
+func TestScr_DomainsPauseAndResumeMidSection(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+	walkToDomains(t, runner, sender, 1)
+
+	// Answer two domains, then /start away mid-section.
+	say(runner, sender, 1, "Yes")
+	say(runner, sender, 1, "No")
+	runner.HandleStart(sender, newMsg(1, "/start"))
+	d := st.Get(1)
+	if d.State != state.StateAwaitingModeChoice {
+		t.Fatalf("expected mode fork, got %q", d.State)
+	}
+	if d.Screening == nil || d.Screening.ResumeState != state.StateScrDomainsAdult {
+		t.Fatalf("ResumeState not recorded: %+v", d.Screening)
+	}
+
+	// Resume via the fork → resume intro → Continue lands on domain 3,
+	// with the earlier answers intact.
+	say(runner, sender, 1, "Check")
+	if !contains(sender.lastText(), "resumed text") {
+		t.Fatalf("expected resume intro, got %q", sender.lastText())
+	}
+	say(runner, sender, 1, "Continue")
+	got := sender.lastText()
+	if !contains(got, "Sphere 3 of 5 - now") || !contains(got, "social adult") {
+		t.Errorf("resume should land on domain 3:\n%s", got)
+	}
+
+	// /adhd mid-domains re-fires the same question.
+	runner.HandleAdhd(sender, newMsg(1, "/adhd"))
+	if got := sender.lastText(); !contains(got, "Sphere 3 of 5 - now") {
+		t.Errorf("/adhd should re-ask the current domain:\n%s", got)
 	}
 }
 
@@ -1048,10 +1119,8 @@ func TestScr_ReturnsToStageCheckinAfterDetour(t *testing.T) {
 	}
 	say(runner, sender, 1, "Continue")
 	say(runner, sender, 1, "Yes, back then")
-	say(runner, sender, 1, "work_study adult")
-	say(runner, sender, 1, "social adult")
-	say(runner, sender, 1, "Done")
-	say(runner, sender, 1, "None bother me")
+	answerDomains(runner, sender, 1, []string{"work_study", "social"})
+	answerDomains(runner, sender, 1, nil)
 
 	d := st.Get(1)
 	if d.State != state.StateAwaitingStageCheckin {

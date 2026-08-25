@@ -11,16 +11,18 @@ func boolPtr(v bool) *bool { return &v }
 
 func fullProgress() *ScreeningProgress {
 	return &ScreeningProgress{
-		AsrsAnswers:  []int{4, 3, 2, 1, 0, 4},
-		WursAnswers:  []int{0, 1, 2, 3, 4},
-		WursForm:     "f",
-		OnsetChild:   boolPtr(false),
-		OnsetAge:     16,
-		AdultDomains: []string{"work_study", "social"},
-		ChildDomains: []string{"self_esteem"},
-		ResumeState:  StateScrWurs,
-		ConsentAt:    time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC),
-		StartedAt:    time.Date(2026, 8, 24, 10, 1, 0, 0, time.UTC),
+		AsrsAnswers:    []int{4, 3, 2, 1, 0, 4},
+		WursAnswers:    []int{0, 1, 2, 3, 4},
+		WursForm:       "f",
+		OnsetChild:     boolPtr(false),
+		OnsetAge:       16,
+		AdultDomainIdx: 4,
+		ChildDomainIdx: 2,
+		AdultDomains:   []string{"work_study", "social"},
+		ChildDomains:   []string{"self_esteem"},
+		ResumeState:    StateScrWurs,
+		ConsentAt:      time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC),
+		StartedAt:      time.Date(2026, 8, 24, 10, 1, 0, 0, time.UTC),
 	}
 }
 
@@ -77,6 +79,10 @@ func TestUserData_ScreeningJSONRoundTrip(t *testing.T) {
 		}
 		if out.Screening.ResumeState != StateScrWurs {
 			t.Errorf("ResumeState: %q", out.Screening.ResumeState)
+		}
+		if out.Screening.AdultDomainIdx != 4 || out.Screening.ChildDomainIdx != 2 {
+			t.Errorf("domain cursors: adult=%d child=%d",
+				out.Screening.AdultDomainIdx, out.Screening.ChildDomainIdx)
 		}
 		if out.ScreeningResult == nil || out.ScreeningResult.WursScore != 52 {
 			t.Errorf("ScreeningResult lost: %+v", out.ScreeningResult)
@@ -153,6 +159,7 @@ func TestScreeningProgress_Clone(t *testing.T) {
 	cl.AdultDomains[0] = "changed"
 	*cl.OnsetChild = true
 	cl.WursForm = "m"
+	cl.AdultDomainIdx = 9
 
 	if orig.AsrsAnswers[0] != 4 {
 		t.Error("Clone shares AsrsAnswers backing array with original")
@@ -165,6 +172,9 @@ func TestScreeningProgress_Clone(t *testing.T) {
 	}
 	if orig.WursForm != "f" {
 		t.Error("Clone shares scalar fields with original (impossible)")
+	}
+	if orig.AdultDomainIdx != 4 {
+		t.Error("Clone shares domain cursor with original (impossible)")
 	}
 }
 

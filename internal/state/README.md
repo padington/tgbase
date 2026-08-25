@@ -24,7 +24,8 @@ type ProductProgress struct { LastStage products.Stage; Status string; UpdatedAt
 type ScreeningProgress struct {  // TRANSIENT unfinished screening run (resume only)
     AsrsAnswers, WursAnswers []int   // raw per-question answers live ONLY here
     WursForm string; OnsetChild *bool; OnsetAge int
-    AdultDomains, ChildDomains []string
+    AdultDomainIdx, ChildDomainIdx int   // domains answered so far (yes AND no) per pass
+    AdultDomains, ChildDomains []string  // only the ids answered "yes"
     ResumeState StateKind; ConsentAt, StartedAt time.Time
 }
 func (p *ScreeningProgress) Clone() *ScreeningProgress  // deep copy for Outcome.Mutate
