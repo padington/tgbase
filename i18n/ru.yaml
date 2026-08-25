@@ -44,12 +44,12 @@ cmd.report.empty: "Пока ничего не отслеживается. Отп
 # старте бота). Порядок задаёт internal/bot; /start Telegram показывает сам.
 cmd.menu.desc: "главное меню"
 cmd.adhd.desc: "самопроверка СДВГ"
-cmd.mood.desc: "самопроверка настроения (PHQ-9)"
+cmd.mood.desc: "самопроверка настроения и тревоги"
 cmd.report.desc: "отчёт о прогрессе"
 cmd.about.desc: "что умеет бот"
 cmd.abandon.desc: "прервать текущую пробу или тест"
 cmd.adhd_delete.desc: "удалить данные самопроверки СДВГ"
-cmd.mood_delete.desc: "удалить данные самопроверки настроения"
+cmd.mood_delete.desc: "удалить данные самопроверок настроения"
 
 button.menu.home: "🏠 Меню"
 button.yes: "да"
@@ -66,8 +66,9 @@ product.amount_template.ml:     "{value}мл"
 product.amount_template.spoons: "{value} ст.л."
 
 # Лендинг (домашнее меню) на /start и /menu: FODMAP-дневник, тест СДВГ,
-# настроение (PHQ-9), отчёт + контекстные кнопки возврата.
-phase.mode.prompt: "Привет! Я помогу вести FODMAP-дневник и пройти самопроверки — СДВГ и настроение (PHQ-9).\nЧто будем делать?"
+# модуль настроения (WHO-5 / PHQ-9 / GAD-7), отчёт + контекстные кнопки
+# возврата.
+phase.mode.prompt: "Привет! Я помогу вести FODMAP-дневник и пройти самопроверки — СДВГ, настроение и тревога.\nЧто будем делать?"
 phase.mode.prompt_active_trial: "Привет! Идёт проба: {trial}.\n«▶️ Вернуться к дневнику» продолжит её; «🥦 FODMAP-дневник» начнёт день заново — проба будет прервана.\n\nЧто будем делать?"
 phase.mode.invalid: "Пожалуйста, нажми одну из кнопок ниже."
 button.mode.fodmap: "🥦 FODMAP-дневник"
@@ -90,6 +91,8 @@ button.scr.form.f: "В женском"
 scr.delete.cancelled: "Хорошо, ничего не удаляю."
 cmd.report.screening: "Самопроверка СДВГ от {date}: ASRS-A {asrs_a}/6 (порог ≥{a_thr}) — {a_verdict}; ASRS-B {asrs_b}/12; WURS-25 {wurs}/100 (порог ≥{w_thr}) — {w_verdict}; итог: {overall}."
 cmd.report.mood: "Самопроверка настроения (PHQ-9) от {date}: {score} из 27."
+cmd.report.gad7: "Тест тревоги (GAD-7) от {date}: {score} из 21."
+cmd.report.who5: "Быстрый чек самочувствия (WHO-5) от {date}: {score} из 100."
 scr.report.positive: "положительный"
 scr.report.negative: "отрицательный"
 scr.report.domains_empty: "не отмечены"
