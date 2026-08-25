@@ -7,7 +7,7 @@ The multi-phase interaction framework. Owns the user-facing flow.
 Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatches text + reminder ticks to phases, and the concrete phases of both modes:
 
 - **FODMAP diary**: defecation → product category → product choice → stage choice → stage check-in.
-- **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 → result → referral → doctor report; plus the delete-confirmation phase.
+- **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 (one short yes/no question per domain) → result → referral → doctor report; plus the delete-confirmation phase.
 
 `/start` lands on `ModeChoicePhase` (the fork). The screening phases receive a `*screening.Content` via their constructors; `journey.New` is unchanged.
 
@@ -78,7 +78,9 @@ func NewScrConsentPhase(c), NewScrIntroPhase(c),
 - **Privacy**: raw per-question answers live only in `UserData.Screening` (transient); completion writes `ScreeningResult` and wipes `Screening` in the same `Set`. The doctor report is rendered on the fly and never stored. The WURS wording form (m/f) never reaches the result.
 - **Detour bookkeeping**: `/start` or `/adhd` from a FODMAP state records `ReturnState`; every screening exit (pause, decline, finish, delete, `/abandon`) returns there (re-firing that phase's Setup — which restarts the stage timer, an accepted trade-off pinned by test) or to idle, clearing `ReturnState`.
 - **Pause/resume**: gates set `Screening.ResumeState`; `/start` mid-screening records the current state there. `/adhd` resumes via the intro in resume mode without re-asking consent. "Start" on the resume intro means "start over" (wipes raw answers, keeps the previous result until a new completion).
-- **No combined score**: each instrument renders its own block with its own threshold and attribution; the overall wording maps `screening.OverallVerdict` keys onto content templates.
+- **Life domains one at a time**: each domain of each pass is a single short message (position line + title + one "e.g.:" line + yes/no), driven by the `AdultDomainIdx` / `ChildDomainIdx` cursor exactly like the ASRS/WURS question series — no multi-select, no redrawn walls of text. Only "yes" ids are kept; the ≥2-domains scoring rule and the stored result shape are unchanged. A `/start` or pause mid-section resumes on the exact domain.
+- **Lean texts** (owner decision): no methodology caveats (translation status, validation notes, criterion-E hedging) anywhere user-visible. The intro and result carry only the short screening-not-a-diagnosis disclaimer; the result footer adds the single compact `results.attribution_line`; the referral is a two-line route to a specialist.
+- **No combined score**: each instrument renders its own block with its own threshold; the overall wording maps `screening.OverallVerdict` keys onto content templates.
 - **Reply keyboards** (v1 compromise): the user's taps stay visible in their Telegram chat history; the bot neither reads nor stores it. Inline buttons + CallbackQuery support in `internal/router` would remove that trace — a v2 privacy improvement, out of scope here.
 - **No nudges / no TTL** for unfinished screenings in v1 — a future extension point.
 

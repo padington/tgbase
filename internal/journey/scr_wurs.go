@@ -94,11 +94,9 @@ func (p *ScrWursPhase) Setup(ctx Context) Outcome {
 	}
 	text := ""
 	if li == 0 {
-		// Block heading + instruction + the mandatory unofficial-translation
-		// caveat, all from content.
+		// Block heading + instruction, both from content.
 		text = "📋 " + p.c.Module.Results.Instruments.Wurs.Title + "\n" +
-			p.c.WURS.Instruction + "\n\n" +
-			p.c.Module.Results.Instruments.Wurs.Caveat + "\n\n"
+			p.c.WURS.Instruction + "\n\n"
 	}
 	text += progressLine(p.c, li+1, len(items)) + "\n" + p.itemText(items[li], s.WursForm)
 	oc := scrText(text)

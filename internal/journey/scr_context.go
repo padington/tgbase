@@ -100,10 +100,14 @@ func (p *ScrOnsetAgePhase) Collect(ctx Context, input string) Outcome {
 
 func (ScrOnsetAgePhase) Remind(ctx Context) Outcome { return Outcome{} }
 
-// ScrDomainsPhase is the multi-select of life domains (criteria C/D shaped,
-// bot's own wording). One struct, registered twice: adulthood and childhood
-// (5–12 years). Toggling redraws the message via the same-state re-Setup
-// pattern; "Done" on the childhood pass finalizes the whole screening.
+// ScrDomainsPhase walks the five life domains (criteria C/D shaped, bot's
+// own wording) ONE AT A TIME: each domain is a single short message — title,
+// position line, an "e.g.:" line with 2–3 examples, and a yes/no question.
+// One struct, registered twice: adulthood and childhood (5–12 years). The
+// domain index is driven by the AdultDomainIdx / ChildDomainIdx cursor
+// (answered count, yes AND no), following the ASRS/WURS index pattern; only
+// the ids answered "yes" are kept — the shape the result stores. The last
+// answer of the childhood pass finalizes the whole screening.
 type ScrDomainsPhase struct {
 	c         *screening.Content
 	childhood bool
@@ -138,11 +142,12 @@ func (p *ScrDomainsPhase) examples(d screening.DomainItem) []string {
 	return d.Adult.Examples
 }
 
-func (p *ScrDomainsPhase) selected(s *state.ScreeningProgress) []string {
+// idx returns this pass's cursor: how many domains were answered so far.
+func (p *ScrDomainsPhase) idx(s *state.ScreeningProgress) int {
 	if p.childhood {
-		return s.ChildDomains
+		return s.ChildDomainIdx
 	}
-	return s.AdultDomains
+	return s.AdultDomainIdx
 }
 
 func (p *ScrDomainsPhase) Setup(ctx Context) Outcome {
@@ -151,35 +156,33 @@ func (p *ScrDomainsPhase) Setup(ctx Context) Outcome {
 		return Outcome{NextState: state.StateScrIntro}
 	}
 	d := p.c.Module.Domains
-	prompt := d.AdultPrompt
+	i := p.idx(s)
+	if i >= len(d.Items) {
+		// All domains of this pass answered (stale keyboard tap / resume
+		// after the last answer): move on without re-asking.
+		if p.childhood {
+			return p.finalize(ctx, s.ChildDomains)
+		}
+		return Outcome{NextState: state.StateScrDomainsChild}
+	}
+	prompt, pos := d.AdultPrompt, d.PositionAdult
 	if p.childhood {
-		prompt = d.ChildhoodPrompt
+		prompt, pos = d.ChildhoodPrompt, d.PositionChild
 	}
-	sel := make(map[string]bool)
-	for _, id := range p.selected(s) {
-		sel[id] = true
+	item := d.Items[i]
+	text := ""
+	if i == 0 {
+		text = prompt + "\n\n"
 	}
-	var lines []string
-	var rows [][]string
-	for _, item := range d.Items {
-		mark, btn := "▫️", p.title(item)
-		if sel[item.ID] {
-			mark, btn = "✅", "✅ "+p.title(item)
-		}
-		ex := p.examples(item)
-		if len(ex) > 2 {
-			ex = ex[:2] // two examples in the message; full lists stay in content
-		}
-		lines = append(lines, mark+" "+p.title(item)+" — "+strings.Join(ex, "; "))
-		rows = append(rows, []string{btn})
-	}
-	if len(sel) == 0 {
-		rows = append(rows, []string{d.NoneButton})
-	} else {
-		rows = append(rows, []string{d.DoneButton})
-	}
-	oc := scrText(prompt + "\n\n" + strings.Join(lines, "\n") + "\n\n" + d.MultiselectHint)
-	oc.Keyboard = rows
+	text += renderContent(pos, map[string]string{
+		"current": strconv.Itoa(i + 1),
+		"total":   strconv.Itoa(len(d.Items)),
+	}) + "\n" + p.title(item) + "\n" +
+		renderContent(d.ExamplesLine, map[string]string{
+			"examples": strings.Join(p.examples(item), ", "),
+		}) + "\n\n" + d.Question
+	oc := scrText(text)
+	oc.Keyboard = [][]string{{d.YesButton, d.NoButton}}
 	return oc
 }
 
@@ -189,55 +192,55 @@ func (p *ScrDomainsPhase) Collect(ctx Context, input string) Outcome {
 		return Outcome{NextState: state.StateScrIntro}
 	}
 	d := p.c.Module.Domains
-	in := normText(input)
-
-	for _, item := range d.Items {
-		t := p.title(item)
-		if labelIs(in, t) || labelIs(in, "✅ "+t) {
-			id := item.ID
-			childhood := p.childhood
-			return Outcome{
-				NextState: p.State(), // re-fire Setup to redraw marks
-				Mutate: func(u *state.UserData) {
-					if u.Screening == nil {
-						return
-					}
-					sc := u.Screening.Clone()
-					if childhood {
-						sc.ChildDomains = toggleDomain(sc.ChildDomains, id)
-					} else {
-						sc.AdultDomains = toggleDomain(sc.AdultDomains, id)
-					}
-					u.Screening = sc
-				},
-			}
-		}
+	i := p.idx(s)
+	if i >= len(d.Items) {
+		return Outcome{NextState: p.State()} // re-run the Setup guards
 	}
 
-	switch {
-	case labelIs(in, d.NoneButton):
-		if p.childhood {
-			return p.finalize(ctx, nil)
-		}
-		return Outcome{
-			NextState: state.StateScrDomainsChild,
-			Mutate: func(u *state.UserData) {
-				if u.Screening == nil {
-					return
-				}
-				sc := u.Screening.Clone()
-				sc.AdultDomains = nil
-				u.Screening = sc
-			},
-		}
-	case labelIs(in, d.DoneButton):
-		if p.childhood {
-			return p.finalize(ctx, s.ChildDomains)
-		}
-		return Outcome{NextState: state.StateScrDomainsChild}
+	var yes bool
+	switch in := normText(input); {
+	case labelIs(in, d.YesButton):
+		yes = true
+	case labelIs(in, d.NoButton):
+		yes = false
 	default:
 		return Outcome{ReplyKey: "scr.invalid_button"}
 	}
+
+	id := d.Items[i].ID
+	childhood := p.childhood
+	advance := func(u *state.UserData) {
+		if u.Screening == nil {
+			return
+		}
+		sc := u.Screening.Clone()
+		if childhood {
+			sc.ChildDomainIdx = i + 1
+			if yes {
+				sc.ChildDomains = append(sc.ChildDomains, id)
+			}
+		} else {
+			sc.AdultDomainIdx = i + 1
+			if yes {
+				sc.AdultDomains = append(sc.AdultDomains, id)
+			}
+		}
+		u.Screening = sc
+	}
+
+	if i+1 < len(d.Items) {
+		return Outcome{NextState: p.State(), Mutate: advance} // next domain
+	}
+	if !p.childhood {
+		return Outcome{NextState: state.StateScrDomainsChild, Mutate: advance}
+	}
+	// Last childhood answer — finalize with the final list (the just-given
+	// answer is not in ctx.User yet, so assemble it locally).
+	childDomains := append([]string(nil), s.ChildDomains...)
+	if yes {
+		childDomains = append(childDomains, id)
+	}
+	return p.finalize(ctx, childDomains)
 }
 
 // finalize completes the screening: scores everything, persists the
@@ -259,13 +262,3 @@ func (p *ScrDomainsPhase) finalize(ctx Context, childDomains []string) Outcome {
 }
 
 func (ScrDomainsPhase) Remind(ctx Context) Outcome { return Outcome{} }
-
-// toggleDomain flips the presence of id in ids, preserving order.
-func toggleDomain(ids []string, id string) []string {
-	for i, v := range ids {
-		if v == id {
-			return append(append([]string(nil), ids[:i]...), ids[i+1:]...)
-		}
-	}
-	return append(append([]string(nil), ids...), id)
-}

@@ -87,14 +87,15 @@ func onsetFact(c *screening.Content, res *state.ScreeningResult) string {
 }
 
 // resultMessage assembles the first of the three final messages: heading,
-// one block per instrument (each with its own threshold and attribution),
-// the DSM-context facts (no scores), the overall wording, the disclaimer.
-// There is deliberately no combined score anywhere.
+// one lean block per instrument (score + verdict, each with its own
+// threshold), the context facts (no scores), the overall wording, and a
+// footer of the short disclaimer plus one compact attribution line. There
+// is deliberately no combined score anywhere.
 func resultMessage(c *screening.Content, res *state.ScreeningResult) string {
 	r := c.Module.Results
 	var b strings.Builder
 
-	b.WriteString(r.Heading + "\n" + r.InstrumentsNote)
+	b.WriteString(r.Heading)
 
 	// ASRS part A — its own screen threshold.
 	a := r.Instruments.AsrsA
@@ -104,15 +105,15 @@ func resultMessage(c *screening.Content, res *state.ScreeningResult) string {
 	}
 	b.WriteString("\n\n" + a.Title + "\n" +
 		renderContent(a.ScoreLine, map[string]string{"score": strconv.Itoa(res.AsrsASignificant)}) + "\n" +
-		aLine + "\n" + a.Attribution)
+		aLine)
 
 	// ASRS part B — count only, no threshold by design.
 	pb := r.Instruments.AsrsB
 	b.WriteString("\n\n" + pb.Title + "\n" +
 		renderContent(pb.ScoreLine, map[string]string{"score": strconv.Itoa(res.AsrsBSignificant)}) + "\n" +
-		pb.Note + "\n" + pb.Attribution)
+		pb.Note)
 
-	// WURS-25 — its own cutoff plus the mandatory translation caveat.
+	// WURS-25 — its own cutoff.
 	w := r.Instruments.Wurs
 	wLine := w.NegativeLine
 	if res.WursPositive {
@@ -120,7 +121,7 @@ func resultMessage(c *screening.Content, res *state.ScreeningResult) string {
 	}
 	b.WriteString("\n\n" + w.Title + "\n" +
 		renderContent(w.ScoreLine, map[string]string{"score": strconv.Itoa(res.WursScore)}) + "\n" +
-		wLine + "\n" + w.Caveat + "\n" + w.Attribution)
+		wLine)
 
 	// DSM-context facts — booleans and lists, never scores.
 	cf := r.ContextFacts
@@ -153,7 +154,7 @@ func resultMessage(c *screening.Content, res *state.ScreeningResult) string {
 		}))
 	}
 
-	b.WriteString("\n\n⚠️ " + c.Module.Meta.Disclaimer)
+	b.WriteString("\n\n⚠️ " + c.Module.Meta.Disclaimer + "\n" + r.AttributionLine)
 	return b.String()
 }
 
@@ -186,8 +187,7 @@ func doctorReport(c *screening.Content, trans i18n.Translator, locale i18n.Local
 }
 
 // ScrReferralPhase owns StateScrReferral — a transit Setup-only phase that
-// sends message two of the final chain: the criterion-E note and the route
-// to a specialist.
+// sends message two of the final chain: the short route to a specialist.
 type ScrReferralPhase struct {
 	c *screening.Content
 }
@@ -203,7 +203,7 @@ func (p *ScrReferralPhase) Setup(ctx Context) Outcome {
 		return Outcome{NextState: state.StateIdle}
 	}
 	r := p.c.Module.Results
-	oc := scrText(r.CriterionENote + "\n\n" + r.Referral.Heading + "\n" + r.Referral.Body)
+	oc := scrText(r.Referral.Heading + "\n" + r.Referral.Body)
 	oc.NextState = state.StateScrReport
 	return oc
 }
