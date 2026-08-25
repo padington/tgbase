@@ -32,6 +32,11 @@ enum StateKind {
   STATE_SCR_REPORT = 21;
   STATE_SCR_DELETE_CONFIRM = 22;
   STATE_AWAITING_PRODUCT_CATEGORY = 23;
+  STATE_MOOD_CONSENT = 24;
+  STATE_MOOD_QUESTION = 25;
+  STATE_MOOD_CRISIS = 26;
+  STATE_MOOD_REPORT = 27;
+  STATE_MOOD_DELETE_CONFIRM = 28;
 }
 
 enum DefecationKind {
@@ -84,6 +89,25 @@ message ScreeningResult {
   string gap_hint = 14;              // gap-hint key when partial
 }
 
+// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished PHQ-9
+// mood-screening run (raw per-question answers live only here; wiped on
+// completion / restart / abandon / delete).
+message MoodProgress {
+  repeated int32 answers = 1;        // append-only, scores 0..3; index = id-1
+  StateKind resume_state = 2;
+  google.protobuf.Timestamp consent_at = 3;
+  google.protobuf.Timestamp started_at = 4;
+}
+
+// MoodResult mirrors state.MoodResult — the last completed PHQ-9 run: total
+// score + applied severity band + the item-9 flag, never per-question answers.
+message MoodResult {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 score = 2;                   // 0..27
+  string severity = 3;               // applied severity-band id
+  bool q9_positive = 4;              // self-harm item answered > 0
+}
+
 message UserData {
   StateKind state = 1;
   DefecationKind defecation_state = 2;
@@ -100,6 +124,8 @@ message UserData {
   ScreeningProgress screening = 13;
   ScreeningResult screening_result = 14;
   StateKind return_state = 15;
+  MoodProgress mood = 16;
+  MoodResult mood_result = 17;
 }
 
 message UserMap {

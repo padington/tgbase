@@ -50,6 +50,11 @@ const (
 	StateKind_STATE_SCR_REPORT                StateKind = 21
 	StateKind_STATE_SCR_DELETE_CONFIRM        StateKind = 22
 	StateKind_STATE_AWAITING_PRODUCT_CATEGORY StateKind = 23
+	StateKind_STATE_MOOD_CONSENT              StateKind = 24
+	StateKind_STATE_MOOD_QUESTION             StateKind = 25
+	StateKind_STATE_MOOD_CRISIS               StateKind = 26
+	StateKind_STATE_MOOD_REPORT               StateKind = 27
+	StateKind_STATE_MOOD_DELETE_CONFIRM       StateKind = 28
 )
 
 // Enum value maps for StateKind.
@@ -79,6 +84,11 @@ var (
 		21: "STATE_SCR_REPORT",
 		22: "STATE_SCR_DELETE_CONFIRM",
 		23: "STATE_AWAITING_PRODUCT_CATEGORY",
+		24: "STATE_MOOD_CONSENT",
+		25: "STATE_MOOD_QUESTION",
+		26: "STATE_MOOD_CRISIS",
+		27: "STATE_MOOD_REPORT",
+		28: "STATE_MOOD_DELETE_CONFIRM",
 	}
 	StateKind_value = map[string]int32{
 		"STATE_UNSPECIFIED":               0,
@@ -105,6 +115,11 @@ var (
 		"STATE_SCR_REPORT":                21,
 		"STATE_SCR_DELETE_CONFIRM":        22,
 		"STATE_AWAITING_PRODUCT_CATEGORY": 23,
+		"STATE_MOOD_CONSENT":              24,
+		"STATE_MOOD_QUESTION":             25,
+		"STATE_MOOD_CRISIS":               26,
+		"STATE_MOOD_REPORT":               27,
+		"STATE_MOOD_DELETE_CONFIRM":       28,
 	}
 )
 
@@ -532,6 +547,147 @@ func (x *ScreeningResult) GetGapHint() string {
 	return ""
 }
 
+// MoodProgress mirrors state.MoodProgress — the TRANSIENT unfinished PHQ-9
+// mood-screening run (raw per-question answers live only here; wiped on
+// completion / restart / abandon / delete).
+type MoodProgress struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Answers       []int32                `protobuf:"varint,1,rep,packed,name=answers,proto3" json:"answers,omitempty"` // append-only, scores 0..3; index = id-1
+	ResumeState   StateKind              `protobuf:"varint,2,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"`
+	ConsentAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=consent_at,json=consentAt,proto3" json:"consent_at,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoodProgress) Reset() {
+	*x = MoodProgress{}
+	mi := &file_state_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoodProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoodProgress) ProtoMessage() {}
+
+func (x *MoodProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoodProgress.ProtoReflect.Descriptor instead.
+func (*MoodProgress) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *MoodProgress) GetAnswers() []int32 {
+	if x != nil {
+		return x.Answers
+	}
+	return nil
+}
+
+func (x *MoodProgress) GetResumeState() StateKind {
+	if x != nil {
+		return x.ResumeState
+	}
+	return StateKind_STATE_UNSPECIFIED
+}
+
+func (x *MoodProgress) GetConsentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ConsentAt
+	}
+	return nil
+}
+
+func (x *MoodProgress) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+// MoodResult mirrors state.MoodResult — the last completed PHQ-9 run: total
+// score + applied severity band + the item-9 flag, never per-question answers.
+type MoodResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`                             // 0..27
+	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"`                        // applied severity-band id
+	Q9Positive    bool                   `protobuf:"varint,4,opt,name=q9_positive,json=q9Positive,proto3" json:"q9_positive,omitempty"` // self-harm item answered > 0
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoodResult) Reset() {
+	*x = MoodResult{}
+	mi := &file_state_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoodResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoodResult) ProtoMessage() {}
+
+func (x *MoodResult) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoodResult.ProtoReflect.Descriptor instead.
+func (*MoodResult) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *MoodResult) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *MoodResult) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *MoodResult) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *MoodResult) GetQ9Positive() bool {
+	if x != nil {
+		return x.Q9Positive
+	}
+	return false
+}
+
 type UserData struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	State           StateKind                   `protobuf:"varint,1,opt,name=state,proto3,enum=tgbase.state.v1.StateKind" json:"state,omitempty"`
@@ -549,13 +705,15 @@ type UserData struct {
 	Screening       *ScreeningProgress          `protobuf:"bytes,13,opt,name=screening,proto3" json:"screening,omitempty"`
 	ScreeningResult *ScreeningResult            `protobuf:"bytes,14,opt,name=screening_result,json=screeningResult,proto3" json:"screening_result,omitempty"`
 	ReturnState     StateKind                   `protobuf:"varint,15,opt,name=return_state,json=returnState,proto3,enum=tgbase.state.v1.StateKind" json:"return_state,omitempty"`
+	Mood            *MoodProgress               `protobuf:"bytes,16,opt,name=mood,proto3" json:"mood,omitempty"`
+	MoodResult      *MoodResult                 `protobuf:"bytes,17,opt,name=mood_result,json=moodResult,proto3" json:"mood_result,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UserData) Reset() {
 	*x = UserData{}
-	mi := &file_state_proto_msgTypes[3]
+	mi := &file_state_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -567,7 +725,7 @@ func (x *UserData) String() string {
 func (*UserData) ProtoMessage() {}
 
 func (x *UserData) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[3]
+	mi := &file_state_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -580,7 +738,7 @@ func (x *UserData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserData.ProtoReflect.Descriptor instead.
 func (*UserData) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{3}
+	return file_state_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UserData) GetState() StateKind {
@@ -688,6 +846,20 @@ func (x *UserData) GetReturnState() StateKind {
 	return StateKind_STATE_UNSPECIFIED
 }
 
+func (x *UserData) GetMood() *MoodProgress {
+	if x != nil {
+		return x.Mood
+	}
+	return nil
+}
+
+func (x *UserData) GetMoodResult() *MoodResult {
+	if x != nil {
+		return x.MoodResult
+	}
+	return nil
+}
+
 type UserMap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         map[int64]*UserData    `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -697,7 +869,7 @@ type UserMap struct {
 
 func (x *UserMap) Reset() {
 	*x = UserMap{}
-	mi := &file_state_proto_msgTypes[4]
+	mi := &file_state_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -709,7 +881,7 @@ func (x *UserMap) String() string {
 func (*UserMap) ProtoMessage() {}
 
 func (x *UserMap) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[4]
+	mi := &file_state_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -722,7 +894,7 @@ func (x *UserMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMap.ProtoReflect.Descriptor instead.
 func (*UserMap) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{4}
+	return file_state_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UserMap) GetUsers() map[int64]*UserData {
@@ -778,7 +950,21 @@ const file_state_proto_rawDesc = "" +
 	"\radult_domains\x18\v \x03(\tR\fadultDomains\x12#\n" +
 	"\rchild_domains\x18\f \x03(\tR\fchildDomains\x12\x18\n" +
 	"\averdict\x18\r \x01(\tR\averdict\x12\x19\n" +
-	"\bgap_hint\x18\x0e \x01(\tR\agapHint\"\x8a\a\n" +
+	"\bgap_hint\x18\x0e \x01(\tR\agapHint\"\xdd\x01\n" +
+	"\fMoodProgress\x12\x18\n" +
+	"\aanswers\x18\x01 \x03(\x05R\aanswers\x12=\n" +
+	"\fresume_state\x18\x02 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vresumeState\x129\n" +
+	"\n" +
+	"consent_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tconsentAt\x129\n" +
+	"\n" +
+	"started_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\x96\x01\n" +
+	"\n" +
+	"MoodResult\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x1a\n" +
+	"\bseverity\x18\x03 \x01(\tR\bseverity\x12\x1f\n" +
+	"\vq9_positive\x18\x04 \x01(\bR\n" +
+	"q9Positive\"\xfb\a\n" +
 	"\bUserData\x120\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\x05state\x12J\n" +
 	"\x10defecation_state\x18\x02 \x01(\x0e2\x1f.tgbase.state.v1.DefecationKindR\x0fdefecationState\x12'\n" +
@@ -796,7 +982,10 @@ const file_state_proto_rawDesc = "" +
 	"\x06locale\x18\f \x01(\tR\x06locale\x12@\n" +
 	"\tscreening\x18\r \x01(\v2\".tgbase.state.v1.ScreeningProgressR\tscreening\x12K\n" +
 	"\x10screening_result\x18\x0e \x01(\v2 .tgbase.state.v1.ScreeningResultR\x0fscreeningResult\x12=\n" +
-	"\freturn_state\x18\x0f \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vreturnState\x1a]\n" +
+	"\freturn_state\x18\x0f \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vreturnState\x121\n" +
+	"\x04mood\x18\x10 \x01(\v2\x1d.tgbase.state.v1.MoodProgressR\x04mood\x12<\n" +
+	"\vmood_result\x18\x11 \x01(\v2\x1b.tgbase.state.v1.MoodResultR\n" +
+	"moodResult\x1a]\n" +
 	"\rProductsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
 	"\x05value\x18\x02 \x01(\v2 .tgbase.state.v1.ProductProgressR\x05value:\x028\x01\"\x99\x01\n" +
@@ -805,7 +994,7 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x84\x05\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x82\x06\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -832,7 +1021,12 @@ const file_state_proto_rawDesc = "" +
 	"\x12STATE_SCR_REFERRAL\x10\x14\x12\x14\n" +
 	"\x10STATE_SCR_REPORT\x10\x15\x12\x1c\n" +
 	"\x18STATE_SCR_DELETE_CONFIRM\x10\x16\x12#\n" +
-	"\x1fSTATE_AWAITING_PRODUCT_CATEGORY\x10\x17*p\n" +
+	"\x1fSTATE_AWAITING_PRODUCT_CATEGORY\x10\x17\x12\x16\n" +
+	"\x12STATE_MOOD_CONSENT\x10\x18\x12\x17\n" +
+	"\x13STATE_MOOD_QUESTION\x10\x19\x12\x15\n" +
+	"\x11STATE_MOOD_CRISIS\x10\x1a\x12\x15\n" +
+	"\x11STATE_MOOD_REPORT\x10\x1b\x12\x1d\n" +
+	"\x19STATE_MOOD_DELETE_CONFIRM\x10\x1c*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
@@ -852,44 +1046,52 @@ func file_state_proto_rawDescGZIP() []byte {
 }
 
 var file_state_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_state_proto_goTypes = []any{
 	(StateKind)(0),                // 0: tgbase.state.v1.StateKind
 	(DefecationKind)(0),           // 1: tgbase.state.v1.DefecationKind
 	(*ProductProgress)(nil),       // 2: tgbase.state.v1.ProductProgress
 	(*ScreeningProgress)(nil),     // 3: tgbase.state.v1.ScreeningProgress
 	(*ScreeningResult)(nil),       // 4: tgbase.state.v1.ScreeningResult
-	(*UserData)(nil),              // 5: tgbase.state.v1.UserData
-	(*UserMap)(nil),               // 6: tgbase.state.v1.UserMap
-	nil,                           // 7: tgbase.state.v1.UserData.ProductsEntry
-	nil,                           // 8: tgbase.state.v1.UserMap.UsersEntry
-	(pb.Stage)(0),                 // 9: tgbase.products.v1.Stage
-	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*MoodProgress)(nil),          // 5: tgbase.state.v1.MoodProgress
+	(*MoodResult)(nil),            // 6: tgbase.state.v1.MoodResult
+	(*UserData)(nil),              // 7: tgbase.state.v1.UserData
+	(*UserMap)(nil),               // 8: tgbase.state.v1.UserMap
+	nil,                           // 9: tgbase.state.v1.UserData.ProductsEntry
+	nil,                           // 10: tgbase.state.v1.UserMap.UsersEntry
+	(pb.Stage)(0),                 // 11: tgbase.products.v1.Stage
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_state_proto_depIdxs = []int32{
-	9,  // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
-	10, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
+	11, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
+	12, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: tgbase.state.v1.ScreeningProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	10, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
-	10, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
-	10, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
-	0,  // 6: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
-	1,  // 7: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
-	9,  // 8: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
-	10, // 9: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
-	7,  // 10: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
-	10, // 11: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
-	3,  // 12: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
-	4,  // 13: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
-	0,  // 14: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
-	8,  // 15: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
-	2,  // 16: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
-	5,  // 17: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	12, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
+	12, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
+	12, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 6: tgbase.state.v1.MoodProgress.resume_state:type_name -> tgbase.state.v1.StateKind
+	12, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
+	12, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
+	12, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 10: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
+	1,  // 11: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
+	11, // 12: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
+	12, // 13: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
+	9,  // 14: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
+	12, // 15: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
+	3,  // 16: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
+	4,  // 17: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
+	0,  // 18: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
+	5,  // 19: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
+	6,  // 20: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
+	10, // 21: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
+	2,  // 22: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
+	7,  // 23: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_state_proto_init() }
@@ -904,7 +1106,7 @@ func file_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_state_proto_rawDesc), len(file_state_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
