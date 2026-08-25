@@ -1,0 +1,104 @@
+# PHQ-9 — Patient Health Questionnaire-9, официальная русская версия
+# («Russian for Russia») — tgbase, режим самопроверки настроения.
+#
+# Текст инструкции, всех 9 пунктов и шкалы ответов перенесён ДОСЛОВНО из
+# официального PDF с phqscreeners.com (текст не менять). Ремарка бумажной
+# анкеты «(Ставьте “✔”, чтобы указать свой ответ)» в боте опускается — она
+# привязана к бумажной форме (тот же приём, что со вторым предложением
+# инструкции ASRS).
+#
+# Дополнительный вопрос бумажной формы о влиянии на работу/дом/общение
+# (functional impairment) в баллы 0–27 не входит и в v1 бота не задаётся.
+#
+# Правовой статус: в подвале официального PDF — «Воспроизведение, перевод,
+# показ и распространение разрешены»; Pfizer сняла все ограничения на
+# использование PHQ-инструментов (no permission required).
+
+instrument:
+  id: phq9
+  name_en: "Patient Health Questionnaire-9 (PHQ-9)"
+  name_ru_official: "ОПРОСНИК ПО СОСТОЯНИЮ ЗДОРОВЬЯ-9 (PHQ-9)"
+  developers: >-
+    Robert L. Spitzer, Janet B.W. Williams, Kurt Kroenke и коллеги,
+    в рамках образовательного гранта Pfizer Inc.
+  primary_reference: >-
+    Kroenke K, Spitzer RL, Williams JB. The PHQ-9: validity of a brief
+    depression severity measure. J Gen Intern Med. 2001;16(9):606-613.
+  sources:
+    official_russian:
+      url: "https://www.phqscreeners.com/images/sites/g/files/g10060481/f/201412/PHQ9_Russian%20for%20Russia.pdf"
+      wayback: "https://web.archive.org/web/20220207144430/https://www.phqscreeners.com/images/sites/g/files/g10060481/f/201412/PHQ9_Russian%20for%20Russia.pdf"
+      md5: "5ed1cadb0aa2bac20727e7c38c0929d0"
+      note: >-
+        Живая копия (загружена 2026-08-25) и вэйбек-снимки 2016/2022 годов
+        байт-в-байт идентичны (одинаковый digest в CDX) — текст стабилен.
+  target_population: "Взрослые"
+  recall_period: "Последние 2 недели"
+
+# Инструкция — дословно из официального PDF (без бумажной ремарки).
+instruction_official_ru: >-
+  Как часто за последние 2 недели Вас беспокоили следующие проблемы?
+
+# Шкала ответов — 4 градации, подписи дословно из официального PDF.
+# В официальной русской версии вариант со score 2 называется именно
+# «Более недели» (перевод английского "More than half the days").
+scale:
+  - score: 0
+    label: "Ни разу"
+  - score: 1
+    label: "Несколько дней"
+  - score: 2
+    label: "Более недели"
+  - score: 3
+    label: "Почти каждый день"
+
+# 9 пунктов — text дословно из официального PDF (не редактировать).
+# crisis: true — пункт 9 (мысли о смерти/самоповреждении): любой ответ > 0
+# детерминированно включает кризисную карточку (логика в коде).
+items:
+  - id: 1
+    text: "Вам не хотелось ничего делать"
+    text_en: "Little interest or pleasure in doing things"
+  - id: 2
+    text: "У Вас было плохое настроение, Вы были подавлены или испытывали чувство безысходности"
+    text_en: "Feeling down, depressed, or hopeless"
+  - id: 3
+    text: "Вам было трудно заснуть, у Вас был прерывистый сон, или Вы слишком много спали"
+    text_en: "Trouble falling or staying asleep, or sleeping too much"
+  - id: 4
+    text: "Вы были утомлены, или у Вас было мало сил"
+    text_en: "Feeling tired or having little energy"
+  - id: 5
+    text: "У Вас был плохой аппетит, или Вы переедали"
+    text_en: "Poor appetite or overeating"
+  - id: 6
+    text: "Вы плохо о себе думали: считали себя неудачником (неудачницей), или были в себе разочарованы, или считали, что подвели свою семью"
+    text_en: "Feeling bad about yourself — or that you are a failure or have let yourself or your family down"
+  - id: 7
+    text: "Вам было трудно сосредоточиться (например, на чтении газеты или на просмотре телепередач)"
+    text_en: "Trouble concentrating on things, such as reading the newspaper or watching television"
+  - id: 8
+    text: "Вы двигались или говорили настолько медленно, что окружающие это замечали? Или, наоборот, Вы были настолько суетливы или взбудоражены, что двигались гораздо больше обычного"
+    text_en: "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual"
+  - id: 9
+    crisis: true
+    text: "Вас посещали мысли о том, что Вам лучше было бы умереть, или о том, чтобы причинить себе какой-нибудь вред"
+    text_en: "Thoughts that you would be better off dead or of hurting yourself in some way"
+
+scoring:
+  method: >-
+    Сумма баллов девяти пунктов, диапазон 0–27. Градации тяжести — по
+    Kroenke, Spitzer, Williams (2001).
+  bands:
+    - { min: 0, max: 4, id: minimal }
+    - { min: 5, max: 9, id: mild }
+    - { min: 10, max: 14, id: moderate }
+    - { min: 15, max: 19, id: moderately_severe }
+    - { min: 20, max: 27, id: severe }
+
+# Подвал официального PDF, дословно:
+attribution_text_ru: >-
+  Разработано докторами Робертом Л. Шпицем (Robert L. Spitzer), Джанет Б.У.
+  Уилльямс (Janet B.W. Williams), Куртом Кронке (Kurt Kroenke) и их коллегами
+  в рамках образовательного гранта компании Pfizer Inc. Воспроизведение,
+  перевод, показ и распространение разрешены.

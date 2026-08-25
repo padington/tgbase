@@ -55,12 +55,14 @@ product.amount_template.grams:  "{value}г"
 product.amount_template.ml:     "{value}мл"
 product.amount_template.spoons: "{value} ст.л."
 
-# Развилка режимов на /start: FODMAP-дневник или самопроверка СДВГ.
+# Развилка режимов на /start: FODMAP-дневник, самопроверка СДВГ или
+# самопроверка настроения (PHQ-9).
 phase.mode.prompt: "Привет! Что будем делать?"
-phase.mode.prompt_active_trial: "Привет! Сейчас идёт испытание: {name} ({stage}).\n\n«FODMAP-дневник» начнёт день заново — текущее испытание будет прервано, как раньше при /start. «Самопроверка СДВГ» не тронет прогресс дневника: после неё вернёмся к испытанию.\n\nЧто будем делать?"
+phase.mode.prompt_active_trial: "Привет! Сейчас идёт испытание: {name} ({stage}).\n\n«FODMAP-дневник» начнёт день заново — текущее испытание будет прервано, как раньше при /start. Самопроверки не тронут прогресс дневника: после них вернёмся к испытанию.\n\nЧто будем делать?"
 phase.mode.invalid: "Пожалуйста, нажми одну из кнопок ниже."
 button.mode.fodmap: "🍽 FODMAP-дневник"
 button.mode.screening: "🧠 Самопроверка СДВГ"
+button.mode.mood: "🌤 Самопроверка настроения"
 
 # Скрининг: владельческие тексты живут в screening/*.yaml; фазы собирают
 # готовую строку и шлют её через pass-through ключ scr.text. В i18n — только
@@ -73,6 +75,7 @@ button.scr.form.m: "В мужском"
 button.scr.form.f: "В женском"
 scr.delete.cancelled: "Хорошо, ничего не удаляю."
 cmd.report.screening: "Самопроверка СДВГ от {date}: ASRS-A {asrs_a}/6 (порог ≥{a_thr}) — {a_verdict}; ASRS-B {asrs_b}/12; WURS-25 {wurs}/100 (порог ≥{w_thr}) — {w_verdict}; итог: {overall}."
+cmd.report.mood: "Самопроверка настроения (PHQ-9) от {date}: {score} из 27."
 scr.report.positive: "положительный"
 scr.report.negative: "отрицательный"
 scr.report.domains_empty: "не отмечены"

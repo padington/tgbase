@@ -20,11 +20,13 @@ func (b *Bot) Run(ctx context.Context) error
 
 ## Screening mode wiring
 
-`ScreeningDir` non-empty → `screening.Load` runs at startup (fail-fast on any
-content deviation), the mode fork + all `scr_*` phases are registered, and the
-`/adhd` / `/adhd_delete` commands are installed. Empty `ScreeningDir` →
-none of that happens and `/start` keeps its legacy direct-to-diary behavior
-(`Runner.HandleStart` falls back when the fork phase is unregistered).
+`ScreeningDir` non-empty → `screening.Load` + `screening.LoadMood` run at
+startup (fail-fast on any content deviation, including the crisis-card
+contacts), the mode fork + all `scr_*` and `mood_*` phases are registered,
+and the `/adhd` / `/adhd_delete` / `/mood` / `/mood_delete` commands are
+installed. Empty `ScreeningDir` → none of that happens and `/start` keeps
+its legacy direct-to-diary behavior (`Runner.HandleStart` falls back when
+the fork phase is unregistered).
 
 ## Backend selection (buildBackend)
 

@@ -5,10 +5,11 @@ import (
 )
 
 // ModeChoicePhase owns StateAwaitingModeChoice — the fork shown on /start:
-// FODMAP diary vs ADHD self-check. Picking the diary reproduces exactly the
-// legacy /start semantics (interrupt the active trial, clear picker state);
-// picking the self-check leaves the diary untouched and remembers where to
-// come back via UserData.ReturnState (set by HandleStart before entry).
+// FODMAP diary, ADHD self-check, or mood self-check (PHQ-9). Picking the
+// diary reproduces exactly the legacy /start semantics (interrupt the active
+// trial, clear picker state); picking either self-check leaves the diary
+// untouched and remembers where to come back via UserData.ReturnState (set
+// by HandleStart before entry).
 type ModeChoicePhase struct{}
 
 func NewModeChoicePhase() *ModeChoicePhase { return &ModeChoicePhase{} }
@@ -35,6 +36,7 @@ func (ModeChoicePhase) Setup(ctx Context) Outcome {
 		Keyboard: [][]string{
 			{ctx.Trans.T("button.mode.fodmap", ctx.Locale, nil)},
 			{ctx.Trans.T("button.mode.screening", ctx.Locale, nil)},
+			{ctx.Trans.T("button.mode.mood", ctx.Locale, nil)},
 		},
 	}
 }
@@ -75,6 +77,10 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 		// Consent phase redirects to the resume intro by itself when an
 		// unfinished Screening exists.
 		return Outcome{NextState: state.StateScrConsent}
+	case labelIs(in, ctx.Trans.T("button.mode.mood", ctx.Locale, nil)):
+		// The mood consent phase renders in resume mode by itself when an
+		// unfinished Mood run exists.
+		return Outcome{NextState: state.StateMoodConsent}
 	default:
 		return Outcome{ReplyKey: "phase.mode.invalid"}
 	}

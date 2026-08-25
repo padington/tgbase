@@ -284,9 +284,9 @@ func (c *Content) Validate() error {
 	return nil
 }
 
-func validateScale(scale []ScaleOption) error {
-	if len(scale) != 5 {
-		return fmt.Errorf("scale must have exactly 5 options, got %d", len(scale))
+func validateScale(scale []ScaleOption, want int) error {
+	if len(scale) != want {
+		return fmt.Errorf("scale must have exactly %d options, got %d", want, len(scale))
 	}
 	for i, opt := range scale {
 		if opt.Score != i {
@@ -320,7 +320,7 @@ func validateAsrsItems(items []AsrsItem, wantCount, firstID int) error {
 
 func (c *Content) validateASRS() error {
 	a := &c.ASRS
-	if err := validateScale(a.Scale); err != nil {
+	if err := validateScale(a.Scale, 5); err != nil {
 		return err
 	}
 	if err := validateAsrsItems(a.PartA.Items, 6, 1); err != nil {
@@ -350,7 +350,7 @@ func (c *Content) validateASRS() error {
 
 func (c *Content) validateWURS() error {
 	w := &c.WURS
-	if err := validateScale(w.Scale); err != nil {
+	if err := validateScale(w.Scale, 5); err != nil {
 		return err
 	}
 	if len(w.Items) != 25 {

@@ -1,14 +1,21 @@
 # internal/screening
 
-Read-only content + pure scoring for the adult ADHD self-check mode.
+Read-only content + pure scoring for the self-check modes: adult ADHD and
+mood (PHQ-9 depression screening).
 
 ## Responsibility
 
-Load and validate the three screening content YAMLs (`screening/asrs_ru.yaml`,
-`screening/wurs25_ru.yaml`, `screening/dsm_module_ru.yaml` in the repo root,
+Load and validate the screening content YAMLs (repo root `screening/`,
 `/screening` in the image), and provide pure, stateless scoring functions.
 No persistence, no Telegram, no state — `internal/journey` phases consume
-this package via a `*Content` handed in at construction.
+this package via a `*Content` / `*MoodContent` handed in at construction.
+
+Two independent bundles share the same conventions (verbatim instrument
+texts, thresholds pinned in Validate, fail-fast at startup):
+
+- **ADHD** (`Content`, `Load`): `asrs_ru.yaml`, `wurs25_ru.yaml`,
+  `dsm_module_ru.yaml`.
+- **Mood** (`MoodContent`, `LoadMood`): `phq9_ru.yaml`, `mood_module_ru.yaml`.
 
 ## Content provenance (do not edit the instrument texts)
 
@@ -22,6 +29,17 @@ this package via a `*Content` handed in at construction.
 - **DSM-context module** — written from scratch for this bot (consent, intro,
   onset question, per-domain life questions, result templates). DSM-5
   criterion texts are paraphrased, never quoted (APA copyright).
+- **PHQ-9** — the official Russian version («Russian for Russia») from
+  phqscreeners.com, byte-for-byte: instruction, all 9 items, the 4-option
+  scale, the attribution footer. Verified against the Wayback Machine copies
+  of 2016/2022 (identical digest). The paper-form remark «(Ставьте “✔”…)»
+  and the functional-impairment follow-up question are deliberately omitted
+  (paper-only / not part of the 0–27 score). PHQ-9 is free to use —
+  reproduction, translation, display and distribution are permitted (Pfizer
+  removed all restrictions; the permission line is quoted in the YAML).
+- **Mood module** — written from scratch for this bot (consent, resume,
+  crisis card, result templates, doctor report). Severity-band wordings are
+  our own and carry no diagnosis labels.
 
 **Provenance notes are docs-only** (owner decision): translation-status and
 validation caveats live in the instrument YAMLs' non-rendered fields and in
@@ -46,6 +64,14 @@ func (a *ASRS) ScorePartB(answers []int) (significant int)   // no threshold by 
 func (w *WURS) ScoreWURS(answers []int) (sum int, positive bool)
 func (w *WURS) PrimaryCutoff() int        // 46
 func OverallVerdict(asrsAPositive, onsetChildhood bool, adultDomainCount int) (verdict, gapHint string)
+
+type MoodContent struct { PHQ9 PHQ9; Module MoodModule }
+func LoadMood(dir string) (*MoodContent, error)  // 2 fixed file names + Validate
+func (c *MoodContent) Validate() error           // canonical-shape fail-fast
+
+func (p *PHQ9) Score(answers []int) int          // sum, 0..27
+func (p *PHQ9) Band(score int) string            // severity-band id (Band* consts)
+func (p *PHQ9) CrisisAnswer(answers []int) int   // answer to item 9, 0 when unanswered
 ```
 
 ## Key invariants
@@ -69,6 +95,12 @@ func OverallVerdict(asrsAPositive, onsetChildhood bool, adultDomainCount int) (v
   privacy policy forbids.
 - Scoring functions are pure and panic-free: short/nil answer slices are
   zero-filled (a programmer error upstream, guarded by tests).
+- **PHQ-9 canon**: 4-option scale (0–3), 9 items with the `crisis` flag on
+  item 9 only, severity bands pinned to the published boundaries
+  (0–4 / 5–9 / 10–14 / 15–19 / 20–27, Kroenke 2001). The crisis card's
+  contacts must carry the adult crisis lines and must NEVER carry the
+  children's helpline 8-800-2000-122 — `Validate` and the canonical tests
+  enforce both.
 - Loaded content must not mention the copyrighted third-party interview
   instrument whose foundation forbids chat-bot use; `Validate` and the
   repository-wide branding test enforce this.

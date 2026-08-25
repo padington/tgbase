@@ -53,7 +53,7 @@ func TestStore_ConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func(id int64) {
 			defer wg.Done()
-			s.Set(id, state.UserData{State: state.StateAwaitingHowamiAnswer, HowamiAnswer: int(id % 3) + 1})
+			s.Set(id, state.UserData{State: state.StateAwaitingHowamiAnswer, HowamiAnswer: int(id%3) + 1})
 			_ = s.Get(id)
 		}(int64(i))
 	}

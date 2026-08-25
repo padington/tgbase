@@ -233,6 +233,7 @@ phase.mode.prompt_active_trial: "Mode? active {name} ({stage})"
 phase.mode.invalid: "Tap a mode."
 button.mode.fodmap: "Diary"
 button.mode.screening: "Check"
+button.mode.mood: "Mood"
 scr.text: "{text}"
 scr.invalid_button: "Tap a screening button."
 scr.invalid_scale: "Tap a scale button."
@@ -241,6 +242,7 @@ button.scr.form.m: "Masculine"
 button.scr.form.f: "Feminine"
 scr.delete.cancelled: "kept everything"
 cmd.report.screening: "ADHD {date}: A {asrs_a}/6 (>={a_thr}) {a_verdict}; B {asrs_b}/12; W {wurs}/100 (>={w_thr}) {w_verdict}; {overall}"
+cmd.report.mood: "Mood {date}: {score} of 27"
 scr.report.positive: "positive"
 scr.report.negative: "negative"
 scr.report.domains_empty: "none marked"
@@ -293,6 +295,10 @@ default_locale: en
 	if err != nil {
 		t.Fatalf("load synthetic screening content: %v", err)
 	}
+	moodContent, err := screening.LoadMood(writeMoodTestContent(t))
+	if err != nil {
+		t.Fatalf("load synthetic mood content: %v", err)
+	}
 
 	backend := store.NewMemoryBackend()
 	cat, err := products.New(backend, prodSeed)
@@ -314,6 +320,7 @@ default_locale: en
 	runner.Register(journey.NewStageChoicePhase())
 	runner.Register(journey.NewStageCheckinPhase())
 	registerScreeningPhases(runner, content)
+	registerMoodPhases(runner, moodContent)
 
 	return runner, stateStore, sender, backend
 }
@@ -1158,6 +1165,14 @@ func TestScr_ReminderIsolation(t *testing.T) {
 		ChatID:    200,
 		Locale:    "en",
 		EnteredAt: time.Now().Add(-2 * time.Hour),
+	})
+	// Mood-screening user with backdated timers — must get no nudges either.
+	st.Set(3, state.UserData{
+		State:     state.StateMoodQuestion,
+		ChatID:    300,
+		Locale:    "en",
+		EnteredAt: time.Now().Add(-2 * time.Hour),
+		Mood:      &state.MoodProgress{Answers: []int{1, 2}},
 	})
 
 	runner.Remind()

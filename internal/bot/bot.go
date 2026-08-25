@@ -89,12 +89,19 @@ func New(cfg Config) (*Bot, error) {
 	stateStore := state.NewStoreFromBackend(backend)
 
 	var scrContent *screening.Content
+	var moodContent *screening.MoodContent
 	if cfg.ScreeningDir != "" {
 		scrContent, err = screening.Load(cfg.ScreeningDir)
 		if err != nil {
 			// Fail fast: running with wrong instrument texts or thresholds
 			// is worse than not starting.
 			return nil, fmt.Errorf("load screening content from %s: %w", cfg.ScreeningDir, err)
+		}
+		moodContent, err = screening.LoadMood(cfg.ScreeningDir)
+		if err != nil {
+			// Same fail-fast canon — and the crisis-card contacts are part
+			// of the validated shape.
+			return nil, fmt.Errorf("load mood content from %s: %w", cfg.ScreeningDir, err)
 		}
 	}
 
@@ -123,6 +130,13 @@ func New(cfg Config) (*Bot, error) {
 		runner.Register(journey.NewScrReportPhase(scrContent))
 		runner.Register(journey.NewScrDeleteConfirmPhase(scrContent))
 	}
+	if moodContent != nil {
+		runner.Register(journey.NewMoodConsentPhase(moodContent))
+		runner.Register(journey.NewMoodQuestionPhase(moodContent))
+		runner.Register(journey.NewMoodCrisisPhase(moodContent))
+		runner.Register(journey.NewMoodReportPhase(moodContent))
+		runner.Register(journey.NewMoodDeleteConfirmPhase(moodContent))
+	}
 
 	worker := reminder.NewWithCallback(
 		runner.Remind,
@@ -144,6 +158,10 @@ func New(cfg Config) (*Bot, error) {
 	if scrContent != nil {
 		r.HandleCommand("adhd", runner.HandleAdhd)
 		r.HandleCommand("adhd_delete", runner.HandleAdhdDelete)
+	}
+	if moodContent != nil {
+		r.HandleCommand("mood", runner.HandleMood)
+		r.HandleCommand("mood_delete", runner.HandleMoodDelete)
 	}
 
 	r.HandleText(func(msg *tgbotapi.Message) bool {

@@ -8,8 +8,9 @@ Hold the `Phase` interface, the `Outcome` value type, the `Runner` that dispatch
 
 - **FODMAP diary**: defecation → product category → product choice → stage choice → stage check-in.
 - **ADHD self-check** (`scr_*` phases): consent → intro → ASRS-A → gate → ASRS-B → gate → WURS wording form → WURS-25 → gate → onset (+age) → life domains ×2 (one short yes/no question per domain) → result → referral → doctor report; plus the delete-confirmation phase.
+- **Mood self-check** (`mood_*` phases, PHQ-9): consent (also the resume gate) → 9 questions one by one → deterministic crisis card when item 9 > 0 → result (score, band, retest delta, contacts) → doctor report; plus the delete-confirmation phase.
 
-`/start` lands on `ModeChoicePhase` (the fork). The screening phases receive a `*screening.Content` via their constructors; `journey.New` is unchanged.
+`/start` lands on `ModeChoicePhase` (the three-way fork). The screening phases receive a `*screening.Content` / `*screening.MoodContent` via their constructors; `journey.New` is unchanged.
 
 ## Public API
 
@@ -38,7 +39,8 @@ func (r *Runner) Register(p Phase)
 func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message)   // /start → mode fork (legacy path when the fork is unregistered)
 func (r *Runner) HandleText(s router.Sender, msg *tgbotapi.Message)    // generic text dispatcher
 func (r *Runner) HandleAbout / HandleReport / HandleAbandon
-func (r *Runner) HandleAdhd / HandleAdhdDelete                          // screening entry / data deletion (no-ops when unwired)
+func (r *Runner) HandleAdhd / HandleAdhdDelete                          // ADHD entry / data deletion (no-ops when unwired)
+func (r *Runner) HandleMood / HandleMoodDelete                          // mood entry / data deletion (no-ops when unwired)
 func (r *Runner) IsJourneyState(userID int64) bool
 func (r *Runner) Remind()  // called by reminder.Worker on every tick
 
@@ -53,6 +55,9 @@ func NewScrConsentPhase(c), NewScrIntroPhase(c),
     NewScrOnsetPhase(c), NewScrOnsetAgePhase(c),
     NewScrDomainsAdultPhase(c), NewScrDomainsChildPhase(c),
     NewScrReferralPhase(c), NewScrReportPhase(c), NewScrDeleteConfirmPhase(c)
+// Mood phases (all take *screening.MoodContent):
+func NewMoodConsentPhase(mc), NewMoodQuestionPhase(mc), NewMoodCrisisPhase(mc),
+    NewMoodReportPhase(mc), NewMoodDeleteConfirmPhase(mc)
 ```
 
 ## Runner contracts (important)
@@ -70,8 +75,13 @@ func NewScrConsentPhase(c), NewScrIntroPhase(c),
 | `ProductChoicePhase` | `StateAwaitingProductChoice` | 4×3 paged grid scoped to `User.PickerCategory`, plus Back / Prev / Next. Bounces to category state when category is empty or unset. |
 | `StageChoicePhase` | `StateAwaitingStageChoice` | 3-button volume picker (low/med/high). Renders the product's localized note (when set) as a "💡 …" line above the keyboard so the user can read prep / pathway / swap context before committing to a dose. |
 | `StageCheckinPhase` | `StateAwaitingStageCheckin` | yes/no; advances stage, completes product, or marks not_tolerated. Reminder prompts the check-in question after `Settings.CheckinInterval`. |
-| `ModeChoicePhase` | `StateAwaitingModeChoice` | /start fork. The FODMAP button owns the legacy /start semantics (interrupt + reset); the screening button leaves the diary intact. Silent `Remind` — users parked on the fork get no nudges (accepted trade-off). |
+| `ModeChoicePhase` | `StateAwaitingModeChoice` | /start fork, three buttons. The FODMAP button owns the legacy /start semantics (interrupt + reset); both self-check buttons leave the diary intact. Silent `Remind` — users parked on the fork get no nudges (accepted trade-off). |
 | `ScrConsentPhase` … `ScrDeleteConfirmPhase` | `scr_*` | The ADHD self-check chain. All `Remind`s are empty — the reminder loop never selects `scr_*` states by construction (pinned by test). Texts are assembled from `screening.Content` and sent via the `scr.text` pass-through i18n key. |
+| `MoodConsentPhase` | `mood_consent` | Consent for fresh runs (short body + disclaimer); resume gate (Continue / start over / later) when an unfinished `Mood` exists — consent is never re-asked. Declining creates nothing. |
+| `MoodQuestionPhase` | `mood_question` | Index-driven series of the 9 official PHQ-9 questions (position derived from `len(Mood.Answers)`), 4-option scale keyboard. An answer > 0 on the crisis item (q9) transitions to `mood_crisis` immediately; the last non-crisis answer finalizes. |
+| `MoodCrisisPhase` | `mood_crisis` | Deterministic crisis card: warm lead + adult support contacts, plus one direct line when the answer was 2–3. Not blocking — Continue proceeds to the result. Pause here resumes here. |
+| `MoodReportPhase` | `mood_report` | Transit: sends the doctor report, returns to `ReturnState` (re-Setup) or idle. |
+| `MoodDeleteConfirmPhase` | `mood_delete_confirm` | `/mood_delete` confirmation; confirm wipes `Mood` + `MoodResult` in one `Set`. |
 
 ## Screening-specific contracts
 
@@ -83,6 +93,14 @@ func NewScrConsentPhase(c), NewScrIntroPhase(c),
 - **No combined score**: each instrument renders its own block with its own threshold; the overall wording maps `screening.OverallVerdict` keys onto content templates.
 - **Reply keyboards** (v1 compromise): the user's taps stay visible in their Telegram chat history; the bot neither reads nor stores it. Inline buttons + CallbackQuery support in `internal/router` would remove that trace — a v2 privacy improvement, out of scope here.
 - **No nudges / no TTL** for unfinished screenings in v1 — a future extension point.
+
+## Mood-specific contracts (PHQ-9)
+
+- **Crisis protocol is deterministic and code-driven**: any answer > 0 on item 9 → the crisis card right after the answer (never delayed to the result); answer 2–3 adds the one direct talk-to-someone-today line; the contacts block is repeated in the final result whenever the item-9 flag is set, regardless of the total score. The test is never blocked by the card. All branches are unit-tested.
+- **Privacy**: raw answers live only in `UserData.Mood` (transient); completion writes `MoodResult` (score, band id, date, item-9 flag — the single per-question fact kept) and wipes `Mood` in the same `Set`. The doctor report is rendered on the fly and never stored.
+- **Retest dynamics**: on a repeat completion the result renders a delta line against the previous stored result (`сегодня` / days / weeks ago) before overwriting it, plus the fixed repeat-in-2–4-weeks line.
+- **Detour and resume**: same bookkeeping as `scr_*` — `ReturnState` for the FODMAP detour, `Mood.ResumeState` for `/start` mid-test (a run paused on the crisis card resumes on the card). The consent phase doubles as the resume gate; "start over" wipes only the raw answers.
+- **Command naming**: `/mood` + `/mood_delete` (not `/depression`) — matches the user-facing mode name «Самопроверка настроения», avoids a self-labeling diagnosis word in the command menu, and pairs with `/adhd`/`/adhd_delete`.
 
 ## Picker label rendering
 
