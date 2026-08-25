@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mood self-check mode (PHQ-9, ru-only v1)** — third branch of the `/start`
+  mode fork; direct entry via `/mood`, data deletion via `/mood_delete`.
+  - Official Russian PHQ-9 («Russian for Russia», phqscreeners.com) verbatim:
+    instruction, 9 items, 4-option scale; new content bundle
+    `screening/phq9_ru.yaml` + `screening/mood_module_ru.yaml` with startup
+    fail-fast validation pinning the texts, the published severity bands
+    (0–4/5–9/10–14/15–19/20–27), and the crisis-card contacts.
+  - Flow: short consent → 9 questions one at a time → result with the 0–27
+    score, a severity wording without diagnosis labels, a
+    repeat-in-2–4-weeks line, the delta against the previous run, a compact
+    doctor report, and the one-line attribution (PHQ-9 — Spitzer, Williams,
+    Kroenke). Pause/resume and the FODMAP detour work like the ADHD mode.
+  - Deterministic crisis protocol: any answer > 0 on item 9 shows the
+    support-contacts card immediately after the answer (МЧС, Москва 051,
+    Красный Крест, 112, findahelpline.com; the children's helpline is
+    excluded by validator + tests); answers 2–3 add one direct
+    talk-to-someone-today line; the test is never blocked; the contacts
+    repeat in the final result regardless of the total score.
+  - Privacy: raw answers live only in the unfinished run and are erased in
+    the same write that stores the final result (score, band, date, item-9
+    flag only); `/report` gains a lean mood summary line.
 - **Adult ADHD self-check mode** (ru-only v1) next to the FODMAP diary:
   `/start` now shows a mode fork; direct entry via `/adhd`, data deletion via
   `/adhd_delete`.
