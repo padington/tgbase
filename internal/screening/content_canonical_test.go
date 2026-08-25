@@ -125,6 +125,25 @@ func TestCanonical_Module(t *testing.T) {
 		if strings.TrimSpace(d.Adult.Title) == "" || strings.TrimSpace(d.Childhood.Title) == "" {
 			t.Errorf("domain %s: both life-phase titles must be set", d.ID)
 		}
+		// One short message per domain: 1..3 examples per life phase.
+		if n := len(d.Adult.Examples); n == 0 || n > 3 {
+			t.Errorf("domain %s: %d adult examples, want 1..3", d.ID, n)
+		}
+		if n := len(d.Childhood.Examples); n == 0 || n > 3 {
+			t.Errorf("domain %s: %d childhood examples, want 1..3", d.ID, n)
+		}
+	}
+	for name, s := range map[string]string{
+		"position_adult": m.Domains.PositionAdult,
+		"position_child": m.Domains.PositionChild,
+		"examples_line":  m.Domains.ExamplesLine,
+		"question":       m.Domains.Question,
+		"yes_button":     m.Domains.YesButton,
+		"no_button":      m.Domains.NoButton,
+	} {
+		if strings.TrimSpace(s) == "" {
+			t.Errorf("empty domains.%s", name)
+		}
 	}
 
 	for name, s := range map[string]string{
@@ -146,8 +165,61 @@ func TestCanonical_Module(t *testing.T) {
 		"asrs_b": m.Results.Instruments.AsrsB,
 		"wurs":   m.Results.Instruments.Wurs,
 	} {
-		if strings.TrimSpace(b.Title) == "" || strings.TrimSpace(b.ScoreLine) == "" || strings.TrimSpace(b.Attribution) == "" {
+		if strings.TrimSpace(b.Title) == "" || strings.TrimSpace(b.ScoreLine) == "" {
 			t.Errorf("instrument block %s incomplete", name)
+		}
+	}
+
+	// The single compact attribution line must credit all three sources.
+	al := m.Results.AttributionLine
+	for _, want := range []string{"ASRS", "Kessler", "WURS", "Ward", "DSM-5"} {
+		if !strings.Contains(al, want) {
+			t.Errorf("attribution_line missing %q: %q", want, al)
+		}
+	}
+}
+
+// TestCanonical_NoMethodologyCaveatsInUserTexts pins the owner decision that
+// users never see methodology hedging — translation status, validation
+// notes, "no official version" wording. The disclaimer stays one short
+// screening-not-a-diagnosis line; attributions live in one compact footer
+// line. (The provenance notes remain in the instrument YAMLs' non-rendered
+// fields and comments — this guard covers the module texts users receive.)
+func TestCanonical_NoMethodologyCaveatsInUserTexts(t *testing.T) {
+	c := loadCanonical(t)
+	m := &c.Module
+
+	userVisible := map[string]string{
+		"meta.disclaimer":           m.Meta.Disclaimer,
+		"consent.body":              m.Consent.Body,
+		"intro.body":                m.Intro.Body,
+		"criterion_b.question":      m.CriterionB.Question,
+		"domains.adult_prompt":      m.Domains.AdultPrompt,
+		"domains.childhood_prompt":  m.Domains.ChildhoodPrompt,
+		"results.heading":           m.Results.Heading,
+		"results.asrs_a.score_line": m.Results.Instruments.AsrsA.ScoreLine,
+		"results.asrs_b.note":       m.Results.Instruments.AsrsB.Note,
+		"results.wurs.score_line":   m.Results.Instruments.Wurs.ScoreLine,
+		"results.attribution_line":  m.Results.AttributionLine,
+		"results.overall.partial":   m.Results.Overall.Partial,
+		"results.referral.body":     m.Results.Referral.Body,
+		"doctor_report.template":    m.Results.DoctorReport.Template,
+		"ui.after_asrs_a":           m.UI.BlockBoundaries.AfterAsrsA,
+		"ui.after_asrs_b":           m.UI.BlockBoundaries.AfterAsrsB,
+		"ui.after_wurs":             m.UI.BlockBoundaries.AfterWurs,
+	}
+	for where, s := range userVisible {
+		low := strings.ToLower(s)
+		for _, needle := range []string{
+			"неофициальн",        // unofficial translation hedging
+			"валидац", "валидир", // validation-status hedging
+			"не существует",    // "no official version exists"
+			"психометрическ",   // psychometric caveats
+			"нестандартизиров", // non-standardized questionnaire hedging
+		} {
+			if strings.Contains(low, needle) {
+				t.Errorf("%s carries methodology hedging (%q):\n%s", where, needle, s)
+			}
 		}
 	}
 }
