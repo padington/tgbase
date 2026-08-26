@@ -19,6 +19,8 @@ const (
     StateMoodConsent … StateMoodDeleteConfirm StateKind // 11 mood_* states: consent, menu,
     // PHQ-9 (question/crisis/q10/report), WHO-5 (who5_question/offer_phq9),
     // GAD-7 (gad7_question/offer_gad7), delete confirm
+    StateEatConsent … StateEatDeleteConfirm StateKind   // 7 eat_* states: consent, menu,
+    // one question state per instrument (edeqs/bes/nias), report, delete confirm
 )
 
 type DefecationKind string  // "", fluid, normal, issues
@@ -67,6 +69,30 @@ type Gad7Result struct {         // last COMPLETED GAD-7 run
     Severity string              // minimal | mild | moderate | severe
 }
 
+type EatingProgress struct {     // TRANSIENT unfinished run of ONE eating-track instrument
+    Answers []int                // raw per-item answers live ONLY here (BES: the picked statement's WEIGHT)
+    ResumeState StateKind; StartedAt time.Time
+}
+func (p *EatingProgress) Clone() *EatingProgress  // deep copy for Outcome.Mutate
+
+type EdeqsResult struct {        // last COMPLETED EDE-QS run
+    TakenAt time.Time; Score int // 0..36
+    Cutoff int; Positive bool    // applied cutoff (15) + the verdict it produced
+}
+
+type BesResult struct {          // last COMPLETED BES run
+    TakenAt time.Time; Score int // 0..46
+    Band string                  // low | moderate | severe
+}
+
+type NiasResult struct {         // last COMPLETED NIAS run — three subscales, NO total
+    TakenAt time.Time
+    Picky, Appetite, Fear int                       // 0..15 each
+    PickyCutoff, AppetiteCutoff, FearCutoff int     // applied cutoffs (10 / 9 / 10)
+    PickyPositive, AppetitePositive, FearPositive bool
+}
+func (r *NiasResult) AnyPositive() bool  // trigger of the NIAS reading rule
+
 type UserData struct {
     State, Locale string-ish
     DefecationState, CurrentProduct, CurrentStage  // active-trial fields
@@ -83,6 +109,9 @@ type UserData struct {
     MoodConsentAt *time.Time                       // single module-wide consent (nil = not given; wiped by /mood_delete)
     Who5, Gad7 *MoodProgress                       // WHO-5 / GAD-7 transient runs
     Who5Result *Who5Result; Gad7Result *Gad7Result // last completed WHO-5 / GAD-7
+    EatConsentAt *time.Time                        // single track-wide eating consent (wiped by /food_delete)
+    Edeqs, Bes, Nias *EatingProgress               // eating-track transient runs
+    EdeqsResult *EdeqsResult; BesResult *BesResult; NiasResult *NiasResult
     ChatID int64
 }
 
@@ -106,8 +135,9 @@ func (s *Store) Close() error
 - `PickerCategory` + `PickerPage` are meaningful only while in `StateAwaitingProductChoice` / `StateAwaitingProductCategory`. Cleared by `/start`, `/abandon`, completion.
 - **Privacy invariant:** raw per-question screening answers exist only inside `Screening` (`ScreeningProgress`). Completing, restarting, `/abandon`, and `/adhd_delete` set `Screening = nil`, and `omitempty` removes the key — and the raw answers — from the persisted JSON in the same `Set`. `ScreeningResult` carries only scores + applied thresholds + facts, never answers. The WURS wording form (m/f) is never copied into the result.
 - **Privacy invariant (mood):** same contract — raw answers of each mood-module instrument exist only inside its `MoodProgress` (`Mood`/`Who5`/`Gad7`); completing, restarting, `/abandon`, and `/mood_delete` set the progress pointer to nil in the same `Set` that writes the corresponding result. The results keep only totals + applied band ids + dates + the two allowed PHQ-9 per-question facts: the item-9 flag (needed to repeat the support contacts) and the official functional (10th) item answer (not part of the score; surfaced in the doctor report). `/mood_delete` wipes all six mood fields plus `MoodConsentAt`.
-- Legacy `users.json` files without the screening/mood fields load as zero values — no migration needed.
-- Mutations of `Screening` / `Mood` must go through `Clone()` (pointer fields — `Get`'s struct copy shares the pointee).
+- **Privacy invariant (eating):** same contract again — raw answers of each eating-track instrument exist only inside its `EatingProgress` (`Edeqs`/`Bes`/`Nias`); completing, restarting, `/abandon` and `/food_delete` set the progress pointer to nil in the same `Set` that writes the result. The results keep only totals, the applied cutoffs and the verdicts they produced — no per-item answers, and no NIAS total (the instrument is read per subscale). `/food_delete` wipes all seven eating fields plus `EatConsentAt`.
+- Legacy `users.json` files without the screening/mood/eating fields load as zero values — no migration needed.
+- Mutations of `Screening` / `Mood` / the eating runs must go through `Clone()` (pointer fields — `Get`'s struct copy shares the pointee).
 
 ## When to edit
 

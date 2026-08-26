@@ -57,6 +57,17 @@ const (
 	StateMoodGad7Question  StateKind = "mood_gad7_question"
 	StateMoodOfferGad7     StateKind = "mood_offer_gad7"
 	StateMoodDeleteConfirm StateKind = "mood_delete_confirm"
+
+	// Eating-track states (eat_*: EDE-QS, BES, NIAS). Like scr_* and mood_*,
+	// none of these are scanned by the reminder loop — self-checks have no
+	// nudges in v1.
+	StateEatConsent       StateKind = "eat_consent"
+	StateEatMenu          StateKind = "eat_menu"
+	StateEatEdeqsQuestion StateKind = "eat_edeqs_question"
+	StateEatBesQuestion   StateKind = "eat_bes_question"
+	StateEatNiasQuestion  StateKind = "eat_nias_question"
+	StateEatReport        StateKind = "eat_report"
+	StateEatDeleteConfirm StateKind = "eat_delete_confirm"
 )
 
 // DefecationKind captures the user's reply to the defecation question.
@@ -182,6 +193,76 @@ type Gad7Result struct {
 	Severity string    `json:"severity"` // minimal | mild | moderate | severe
 }
 
+// EatingProgress is the TRANSIENT state of one unfinished eating-track
+// instrument run (EDE-QS in UserData.Edeqs, BES in .Bes, NIAS in .Nias) — it
+// exists only so the user can resume. nil whenever no run is in progress. It
+// is wiped on completion, on restart, on /abandon, and on /food_delete. Raw
+// per-question answers live ONLY here: they reach disk (users.json) only
+// while the test is unfinished and are erased in the same Set that persists
+// the final result. Answers hold the picked option's SCORE, so a BES answer
+// is the weight of the chosen statement, not its position.
+type EatingProgress struct {
+	Answers     []int     `json:"answers,omitempty"` // append-only; index = item id - 1
+	ResumeState StateKind `json:"resume_state,omitempty"`
+	StartedAt   time.Time `json:"started_at,omitempty"`
+}
+
+// Clone returns a deep copy (the answers slice is copied), so Outcome.Mutate
+// can replace the pointer instead of mutating shared data.
+func (p *EatingProgress) Clone() *EatingProgress {
+	if p == nil {
+		return nil
+	}
+	out := *p
+	out.Answers = append([]int(nil), p.Answers...)
+	return &out
+}
+
+// EdeqsResult is the last COMPLETED EDE-QS run (overwritten by each new
+// completion): the 0–36 sum, the cutoff that was applied, and the verdict it
+// produced — never per-question answers. The cutoff is copied from the
+// content on purpose, exactly like ScreeningResult's thresholds: the doctor
+// report stays honest even if the content changes its cutoff later.
+type EdeqsResult struct {
+	TakenAt  time.Time `json:"taken_at"`
+	Score    int       `json:"score"`  // 0..36
+	Cutoff   int       `json:"cutoff"` // applied cutoff (15)
+	Positive bool      `json:"positive,omitempty"`
+}
+
+// BesResult is the last COMPLETED BES run: the 0–46 sum and the severity
+// band that was applied — never the picked statements.
+type BesResult struct {
+	TakenAt time.Time `json:"taken_at"`
+	Score   int       `json:"score"` // 0..46
+	Band    string    `json:"band"`  // low | moderate | severe
+}
+
+// NiasResult is the last COMPLETED NIAS run: the three subscale sums with
+// the cutoffs that were applied to them. There is deliberately no total —
+// the instrument is read per subscale.
+type NiasResult struct {
+	TakenAt          time.Time `json:"taken_at"`
+	Picky            int       `json:"picky"`    // 0..15
+	Appetite         int       `json:"appetite"` // 0..15
+	Fear             int       `json:"fear"`     // 0..15
+	PickyCutoff      int       `json:"picky_cutoff"`
+	AppetiteCutoff   int       `json:"appetite_cutoff"`
+	FearCutoff       int       `json:"fear_cutoff"`
+	PickyPositive    bool      `json:"picky_positive,omitempty"`
+	AppetitePositive bool      `json:"appetite_positive,omitempty"`
+	FearPositive     bool      `json:"fear_positive,omitempty"`
+}
+
+// AnyPositive reports whether at least one subscale reached its cutoff — the
+// trigger of the NIAS reading rule (screening.NiasContext).
+func (r *NiasResult) AnyPositive() bool {
+	if r == nil {
+		return false
+	}
+	return r.PickyPositive || r.AppetitePositive || r.FearPositive
+}
+
 // ScreeningResult is the last COMPLETED screening run (overwritten by each
 // new completion). Only scores, the thresholds that were applied, domain
 // ids, the onset fact/age, and the date — per-question answers are never
@@ -243,6 +324,19 @@ type UserData struct {
 	Who5Result    *Who5Result   `json:"who5_result,omitempty"`
 	Gad7          *MoodProgress `json:"gad7,omitempty"`
 	Gad7Result    *Gad7Result   `json:"gad7_result,omitempty"`
+
+	// Eating track (EDE-QS + BES + NIAS). Same contract as the mood module:
+	// EatConsentAt is the single track-wide consent (asked once, covers all
+	// three instruments; nil = not given), each instrument keeps its own
+	// transient run and its own last completed result, and /food_delete
+	// wipes all seven fields. There is no combined index by design.
+	EatConsentAt *time.Time      `json:"eat_consent_at,omitempty"`
+	Edeqs        *EatingProgress `json:"edeqs,omitempty"`
+	EdeqsResult  *EdeqsResult    `json:"edeqs_result,omitempty"`
+	Bes          *EatingProgress `json:"bes,omitempty"`
+	BesResult    *BesResult      `json:"bes_result,omitempty"`
+	Nias         *EatingProgress `json:"nias,omitempty"`
+	NiasResult   *NiasResult     `json:"nias_result,omitempty"`
 
 	ChatID       int64     `json:"chat_id,omitempty"`
 	EnteredAt    time.Time `json:"entered_at,omitempty"`
