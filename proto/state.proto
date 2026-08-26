@@ -43,6 +43,13 @@ enum StateKind {
   STATE_MOOD_OFFER_PHQ9 = 32;
   STATE_MOOD_GAD7_QUESTION = 33;
   STATE_MOOD_OFFER_GAD7 = 34;
+  STATE_EAT_CONSENT = 35;
+  STATE_EAT_MENU = 36;
+  STATE_EAT_EDEQS_QUESTION = 37;
+  STATE_EAT_BES_QUESTION = 38;
+  STATE_EAT_NIAS_QUESTION = 39;
+  STATE_EAT_REPORT = 40;
+  STATE_EAT_DELETE_CONFIRM = 41;
 }
 
 enum DefecationKind {
@@ -134,6 +141,50 @@ message Gad7Result {
   string severity = 3;               // minimal | mild | moderate | severe
 }
 
+// EatingProgress mirrors state.EatingProgress — the TRANSIENT unfinished run
+// of one eating-track instrument (EDE-QS in `edeqs`, BES in `bes`, NIAS in
+// `nias`; raw per-question answers live only here; wiped on completion /
+// restart / abandon / delete). Answers hold the picked option's score, so a
+// BES answer is the weight of the chosen statement, not its position.
+message EatingProgress {
+  repeated int32 answers = 1;        // append-only; index = item id - 1
+  StateKind resume_state = 2;        // recorded escape position (the run's question state)
+  google.protobuf.Timestamp started_at = 3;
+}
+
+// EdeqsResult mirrors state.EdeqsResult — the last completed EDE-QS run: the
+// 0–36 sum, the applied screening cutoff and the verdict it produced.
+message EdeqsResult {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 score = 2;                   // 0..36
+  int32 cutoff = 3;                  // applied cutoff (15)
+  bool positive = 4;                 // score >= cutoff
+}
+
+// BesResult mirrors state.BesResult — the last completed BES run: the 0–46
+// sum and the applied severity band, never the per-item statements.
+message BesResult {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 score = 2;                   // 0..46
+  string band = 3;                   // low | moderate | severe
+}
+
+// NiasResult mirrors state.NiasResult — the last completed NIAS run: the
+// three subscale sums with the cutoffs that were applied to them. There is
+// no NIAS total by design — the instrument is read per subscale.
+message NiasResult {
+  google.protobuf.Timestamp taken_at = 1;
+  int32 picky = 2;                   // 0..15
+  int32 appetite = 3;                // 0..15
+  int32 fear = 4;                    // 0..15
+  int32 picky_cutoff = 5;            // applied cutoff (10)
+  int32 appetite_cutoff = 6;         // applied cutoff (9)
+  int32 fear_cutoff = 7;             // applied cutoff (10)
+  bool picky_positive = 8;
+  bool appetite_positive = 9;
+  bool fear_positive = 10;
+}
+
 message UserData {
   StateKind state = 1;
   DefecationKind defecation_state = 2;
@@ -159,6 +210,16 @@ message UserData {
   MoodProgress gad7 = 20;
   Who5Result who5_result = 21;
   Gad7Result gad7_result = 22;
+  // Eating track (EDE-QS + BES + NIAS): one consent for the whole track
+  // (wiped by /food_delete), per-instrument transient runs and last
+  // completed results. No combined index — same rule as the other tracks.
+  google.protobuf.Timestamp eat_consent_at = 23;
+  EatingProgress edeqs = 24;
+  EdeqsResult edeqs_result = 25;
+  EatingProgress bes = 26;
+  BesResult bes_result = 27;
+  EatingProgress nias = 28;
+  NiasResult nias_result = 29;
 }
 
 message UserMap {
