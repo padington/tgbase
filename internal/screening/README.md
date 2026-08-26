@@ -1,8 +1,9 @@
 # internal/screening
 
-Read-only content + pure scoring for the self-check modes: adult ADHD and
-the mood module (PHQ-9 depression screening, WHO-5 well-being quick check,
-GAD-7 anxiety screening).
+Read-only content + pure scoring for the self-check modes: adult ADHD, the
+mood module (PHQ-9 depression screening, WHO-5 well-being quick check,
+GAD-7 anxiety screening) and the eating track (EDE-QS core screen, BES
+binge-eating scale, NIAS restrictive-eating screen).
 
 ## Responsibility
 
@@ -11,13 +12,15 @@ Load and validate the screening content YAMLs (repo root `screening/`,
 No persistence, no Telegram, no state — `internal/journey` phases consume
 this package via a `*Content` / `*MoodContent` handed in at construction.
 
-Two independent bundles share the same conventions (verbatim instrument
-texts, thresholds pinned in Validate, fail-fast at startup):
+Three independent bundles share the same conventions (verbatim / traceable
+instrument texts, thresholds pinned in Validate, fail-fast at startup):
 
 - **ADHD** (`Content`, `Load`): `asrs_ru.yaml`, `wurs25_ru.yaml`,
   `dsm_module_ru.yaml`.
 - **Mood** (`MoodContent`, `LoadMood`): `phq9_ru.yaml`, `who5_ru.yaml`,
   `gad7_ru.yaml`, `mood_module_ru.yaml`.
+- **Eating** (`EatingContent`, `LoadEating`): `edeqs_ru.yaml`, `bes_ru.yaml`,
+  `nias_ru.yaml`, `eating_module_ru.yaml`.
 
 ## Content provenance (do not edit the instrument texts)
 
@@ -62,6 +65,31 @@ texts, thresholds pinned in Validate, fail-fast at startup):
   module-wide consent, crisis card, per-instrument result templates, the two
   link offers, combined doctor report). Band wordings are our own and carry
   no diagnosis labels.
+- **EDE-QS** — no official Russian version exists; the Russian text is our
+  own translation of the English original published as S2 File of Gideon et
+  al. 2016 (PLoS ONE, CC BY 4.0; url + md5 in the yaml header — the
+  supplementary file itself has no Wayback snapshot, so the article page
+  snapshot is pinned next to the digest). Every item keeps its `text_en`
+  source string, which the canonical test pins. The paper form's
+  Name/Date/**Weight/Height** fields are deliberately NOT reproduced. Both
+  answer scales of the original are kept: items 1–10 answer in days, items
+  11–12 by severity. Cutoff ≥ 15 (Prnjak et al. 2020).
+- **BES** — freely reproduced scale (Gormally et al. 1982); the English
+  statements and their weights come from the NIMH Data Archive data
+  dictionary `binge01` (url + md5 + Wayback in the yaml), cross-checked
+  against the MOH Malaysia obesity CPG appendix for the group/statement
+  split. Russian text is our own translation; every statement keeps its
+  `text_en`. The uneven original weighting is pinned in `Validate`
+  (`canonicalBesWeights`) — that is why the maximum is 46, not 48.
+- **NIAS** — English items taken from open-access articles that reproduce
+  them verbatim (Biglari et al. 2026 for the item numbering, Koomar et al.
+  2021 CC BY as cross-check; urls + md5 in the yaml). Russian text is our
+  own translation. Subscale cutoffs ≥ 10 / ≥ 9 / ≥ 10 (Burton Murray et al.
+  2021).
+- **Eating module** — written from scratch for this bot (menu, single
+  track-wide consent, per-instrument result templates, the combined doctor
+  report incl. the automatic low-FODMAP context line). Band wordings are our
+  own and carry no diagnosis labels.
 
 **Provenance notes are docs-only** (owner decision): translation-status and
 validation caveats live in the instrument YAMLs' non-rendered fields and in
@@ -101,6 +129,27 @@ func (w *WHO5) Band(score int) string            // Who5BandOK | Who5BandLow | W
 
 func (g *GAD7) Score(answers []int) int          // sum, 0..21
 func (g *GAD7) Band(score int) string            // BandMinimal | BandMild | BandModerate | BandSevere
+
+type EatingContent struct { EDEQS EDEQS; BES BES; NIAS NIAS; Module EatingModule }
+func LoadEating(dir string) (*EatingContent, error) // 4 fixed file names + Validate
+func (c *EatingContent) Validate() error            // canonical-shape fail-fast
+
+func (e *EDEQS) Score(answers []int) int         // sum over the 12 items, 0..36
+func (e *EDEQS) Cutoff() int                     // 15 (copied into the stored result)
+func (e *EDEQS) Positive(score int) bool         // score >= cutoff
+func (e *EDEQS) Band(score int) string           // EdeqsBandBelow | EdeqsBandAtOrAbove
+func (e *EDEQS) ScaleFor(i int) []ScaleOption    // days scale for items 1–10, severity for 11–12
+
+func (b *BES) Score(answers []int) int           // sum of the picked statements' weights, 0..46
+func (b *BES) Band(score int) string             // BesBandLow | BesBandModerate | BesBandSevere
+func (b *BES) MaxScore() int                     // 46 for canonical content
+
+func (n *NIAS) Score(answers []int) NiasScores   // three subscale sums, each 0..15 — no total
+func (n *NIAS) Cutoff(subscale string) int       // 10 | 9 | 10
+func (n *NIAS) SubscaleOrder() []string          // picky, appetite, fear
+
+// The Burton Murray reading rule, pure and content-free:
+func NiasContext(anySubscalePositive, edeqsTaken, edeqsPositive bool) string
 ```
 
 ## Key invariants
@@ -142,6 +191,30 @@ func (g *GAD7) Band(score int) string            // BandMinimal | BandMild | Ban
   covering all three instruments; each instrument renders its own result
   with its own score and band — no combined mood index may be added
   (product invariant, same as the ADHD rule).
+- **EDE-QS canon**: 12 items, two 4-option scales (days for 1–10, severity
+  for 11–12 — `Validate` pins which item uses which), cutoff 15 and the two
+  reading bands 0–14 / 15–36. `Positive` is `>= cutoff`, so 14 is negative
+  and 15 is positive.
+- **BES canon**: 16 statement groups with the ORIGINAL uneven weights
+  (`canonicalBesWeights`: repeated weights in groups 1, 3, 4, 7, 13; groups
+  4 and 16 top out at 2), maximum sum 46, bands 0–17 / 18–26 / 27–46.
+  Answers hold the picked statement's weight, not its position.
+- **NIAS canon**: 6-option Likert (0–5), 9 items grouped three per subscale
+  in the order picky / appetite / fear, cutoffs 10 / 9 / 10. **There is no
+  NIAS total score** — the instrument is read per subscale, and no function
+  returning one may be added (product invariant, same family as the "no ADHD
+  percentage" and "no combined mood index" rules).
+- **The NIAS reading rule lives in code, not in content**: `NiasContext`
+  maps (any subscale positive, EDE-QS taken, EDE-QS positive) onto one of
+  three wording keys; `Validate` refuses content missing any of the three,
+  in the result AND in the doctor report.
+- **No figures in eating texts**: none of the three instruments asks for
+  weight, height or calorie numbers, and the EDE-QS paper form's
+  Weight/Height fields are dropped. Pinned by
+  `TestCanonical_EatingUserTextsHaveNoWeightNumbersOrDiagnoses`, which also
+  refuses disorder labels in every user-visible string — including the
+  doctor report, where "скрин по шкале X положительный" is the allowed
+  wording.
 - Loaded content must not mention the copyrighted third-party interview
   instrument whose foundation forbids chat-bot use; `Validate` and the
   repository-wide branding test enforce this.

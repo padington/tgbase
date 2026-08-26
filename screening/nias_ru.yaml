@@ -1,0 +1,143 @@
+# NIAS — Nine Item ARFID Screen (Zickgraf & Ellis, 2018), 9 утверждений.
+# Инструмент трека «Отношения с едой» в tgbase: кнопка «🥄 Избирательность
+# в еде».
+#
+# Оригинал: Zickgraf HF, Ellis JM. Initial validation of the Nine Item
+# Avoidant/Restrictive Food Intake disorder screen (NIAS): A measure of three
+# restrictive eating patterns. Appetite. 2018;123:32–42. Текст девяти
+# утверждений открыто публикуется, в том числе в таблицах и приложениях
+# статей открытого доступа — оттуда он и взят (см. sources).
+#
+# Русский текст — собственный перевод авторов бота. Перевод смысловой,
+# в стиле бота.
+#
+# Три субшкалы по три утверждения: избирательность (1–3), аппетит (4–6),
+# опасения по поводу еды (7–9); каждая 0–15. Общей суммы у инструмента по
+# смыслу нет — читается по субшкалам, поэтому бот её и не считает.
+# Отсечки субшкал ≥ 10 / ≥ 9 / ≥ 10 — Burton Murray et al. (2021).
+#
+# Правило совместного чтения с EDE-QS (Burton Murray et al., 2021): субшкала
+# выше отсечки сама по себе не различает ограничительное питание без
+# озабоченности образом тела и ограничения на фоне такой озабоченности —
+# для этого нужен второй скрин (в оригинале EDE-Q Global < 2.3, у нас его
+# короткая форма EDE-QS с порогом 15). Реализовано детерминированно в коде
+# (screening.NiasContext), тексты веток — в eating_module_ru.yaml.
+#
+# Ни одно утверждение не спрашивает вес, рост или калорийность в цифрах —
+# свойство, которое нужно сохранять (пин в каноническом тесте).
+
+instrument:
+  id: nias
+  name_en: "Nine Item ARFID Screen (NIAS)"
+  developers: "Hana F. Zickgraf, Jamie M. Ellis"
+  primary_reference: >-
+    Zickgraf HF, Ellis JM. Initial validation of the Nine Item
+    Avoidant/Restrictive Food Intake disorder screen (NIAS): A measure of
+    three restrictive eating patterns. Appetite. 2018;123:32-42.
+    doi:10.1016/j.appet.2017.11.111.
+  cutoff_reference: >-
+    Burton Murray H, Dreier MJ, Zickgraf HF, Becker KR, Breithaupt L,
+    Eddy KT, Thomas JJ. Validation of the nine item ARFID screen (NIAS)
+    subscales for distinguishing ARFID presentations and screening for
+    ARFID. Int J Eat Disord. 2021;54(10):1782-1792. doi:10.1002/eat.23520.
+    Предложенные отсечки субшкал: избирательность ≥ 10, аппетит ≥ 9,
+    опасения ≥ 10; рекомендовано читать вместе со скрином на другие
+    нарушения пищевого поведения (в оригинале — EDE-Q Global < 2.3).
+  sources:
+    english_items:
+      publication: >-
+        Biglari S, Zickgraf H, Feizi A, Heidari Z. Psychometric evaluation
+        of the Persian version of the adult Nine Item ARFID screen
+        (Persian-NIAS). J Eat Disord. 2026;14:72 — таблицы 2 и 3
+        воспроизводят все девять утверждений оригинала с их нумерацией.
+      doi: "10.1186/s40337-026-01555-4"
+      url: "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13040997/fullTextXML"
+      note: >-
+        Полный текст загружен из Europe PMC 2026-08-26. Нумерация пунктов
+        1–9 взята отсюда.
+    english_items_cross_check:
+      publication: >-
+        Koomar T, Thomas TR, Pottschmidt NR, Lutter M, Michaelson JJ.
+        Estimating the Prevalence and Genetic Risk Mechanisms of ARFID in a
+        Large Autism Cohort. Front Psychiatry. 2021;12:668297 (CC BY) —
+        таблица 1 воспроизводит те же девять утверждений.
+      url: "https://www.frontiersin.org/articles/10.3389/fpsyt.2021.668297/pdf"
+      md5: "cd5b0fd87a2adf3db4f923dadc1189ac"
+      wayback: "https://web.archive.org/web/20240129002255/https://www.frontiersin.org/articles/10.3389/fpsyt.2021.668297/full"
+      note: >-
+        PDF загружен 2026-08-26, md5 зафиксирован выше; тексты обоих
+        источников совпадают дословно.
+  target_population: "Взрослые"
+  recall_period: "Как обычно бывает (без ограничения по времени)"
+
+# Инструкция бота перед первым утверждением (собственный текст).
+instruction_ru: >-
+  Отметь, насколько каждое утверждение похоже на тебя — как обычно, без
+  привязки к последней неделе.
+
+# Шкала Ликерта 0–5 (оригинал: Strongly disagree … Strongly agree).
+scale:
+  - score: 0
+    label: "Совсем не про меня"
+  - score: 1
+    label: "Скорее не про меня"
+  - score: 2
+    label: "Немного не про меня"
+  - score: 3
+    label: "Немного про меня"
+  - score: 4
+    label: "Скорее про меня"
+  - score: 5
+    label: "Точно про меня"
+
+# 9 утверждений; subscale: picky | appetite | fear (по три подряд).
+items:
+  - id: 1
+    subscale: picky
+    text: "Я привередлив(а) в еде."
+    text_en: "I am a picky eater."
+  - id: 2
+    subscale: picky
+    text: "Мне не нравится большинство блюд, которые едят другие."
+    text_en: "I dislike most of the foods that other people eat."
+  - id: 3
+    subscale: picky
+    text: "Список того, что я люблю и буду есть, короче списка того, что я есть не стану."
+    text_en: "The list of foods that I like and will eat is shorter than the list of foods I won't eat."
+  - id: 4
+    subscale: appetite
+    text: "Мне не очень интересно есть; кажется, аппетит у меня меньше, чем у других."
+    text_en: "I am not very interested in eating; I seem to have a smaller appetite than other people."
+  - id: 5
+    subscale: appetite
+    text: "Мне приходится заставлять себя есть в течение дня регулярно или съедать за раз достаточно."
+    text_en: "I have to push myself to eat regular meals throughout the day, or to eat a large enough amount of food at meals."
+  - id: 6
+    subscale: appetite
+    text: "Даже когда ем то, что мне правда нравится, мне трудно съесть за раз достаточно."
+    text_en: "Even when I am eating a food I really like, it is hard for me to eat a large enough volume at meals."
+  - id: 7
+    subscale: fear
+    text: "Я избегаю еды или откладываю её, потому что боюсь неприятных ощущений в животе, поперхнуться или что стошнит."
+    text_en: "I avoid or put off eating because I am afraid of GI discomfort, choking, or vomiting."
+  - id: 8
+    subscale: fear
+    text: "Я ограничиваюсь определёнными продуктами, потому что боюсь, что от других будет неприятно в животе, я поперхнусь или меня стошнит."
+    text_en: "I restrict myself to certain foods because I am afraid that other foods will cause GI discomfort, choking, or vomiting."
+  - id: 9
+    subscale: fear
+    text: "Я ем маленькими порциями, потому что боюсь неприятных ощущений в животе, поперхнуться или что стошнит."
+    text_en: "I eat small portions because I am afraid of GI discomfort, choking, or vomiting."
+
+# Скоринг: три независимые субшкалы по 3 пункта, каждая 0–15.
+# Общая сумма НЕ считается — инструмент читается по субшкалам.
+scoring:
+  subscales:
+    - id: picky
+      cutoff: 10
+    - id: appetite
+      cutoff: 9
+    - id: fear
+      cutoff: 10
+
+attribution_text_ru: "NIAS — Zickgraf & Ellis (2018)"
