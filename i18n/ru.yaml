@@ -45,11 +45,13 @@ cmd.report.empty: "Пока ничего не отслеживается. Отп
 cmd.menu.desc: "главное меню"
 cmd.adhd.desc: "самопроверка СДВГ"
 cmd.mood.desc: "самопроверка настроения и тревоги"
+cmd.food.desc: "самопроверка отношений с едой"
 cmd.report.desc: "отчёт о прогрессе"
 cmd.about.desc: "что умеет бот"
 cmd.abandon.desc: "прервать текущую пробу или тест"
 cmd.adhd_delete.desc: "удалить данные самопроверки СДВГ"
 cmd.mood_delete.desc: "удалить данные самопроверок настроения"
+cmd.food_delete.desc: "удалить данные самопроверок по еде"
 
 button.menu.home: "🏠 Меню"
 button.yes: "да"
@@ -66,18 +68,20 @@ product.amount_template.ml:     "{value}мл"
 product.amount_template.spoons: "{value} ст.л."
 
 # Лендинг (домашнее меню) на /start и /menu: FODMAP-дневник, тест СДВГ,
-# модуль настроения (WHO-5 / PHQ-9 / GAD-7), отчёт + контекстные кнопки
-# возврата.
-phase.mode.prompt: "Привет! Я помогу вести FODMAP-дневник и пройти самопроверки — СДВГ, настроение и тревога.\nЧто будем делать?"
+# модуль настроения (WHO-5 / PHQ-9 / GAD-7), трек «Отношения с едой»
+# (EDE-QS / BES / NIAS), отчёт + контекстные кнопки возврата.
+phase.mode.prompt: "Привет! Я помогу вести FODMAP-дневник и пройти самопроверки — СДВГ, настроение, тревога и отношения с едой.\nЧто будем делать?"
 phase.mode.prompt_active_trial: "Привет! Идёт проба: {trial}.\n«▶️ Вернуться к дневнику» продолжит её; «🥦 FODMAP-дневник» начнёт день заново — проба будет прервана.\n\nЧто будем делать?"
 phase.mode.invalid: "Пожалуйста, нажми одну из кнопок ниже."
 button.mode.fodmap: "🥦 FODMAP-дневник"
 button.mode.screening: "🧠 Тест СДВГ"
 button.mode.mood: "🌤 Настроение"
+button.mode.eating: "🍽 Отношения с едой"
 button.mode.report: "📊 Отчёт"
 button.mode.resume_fodmap: "▶️ Вернуться к дневнику: {trial}"
 button.mode.resume_screening: "▶️ Продолжить тест СДВГ"
 button.mode.resume_mood: "▶️ Продолжить тест настроения"
+button.mode.resume_eating: "▶️ Продолжить тест о еде"
 
 # Скрининг: владельческие тексты живут в screening/*.yaml; фазы собирают
 # готовую строку и шлют её через pass-through ключ scr.text. В i18n — только
@@ -93,6 +97,9 @@ cmd.report.screening: "Самопроверка СДВГ от {date}: ASRS-A {as
 cmd.report.mood: "Самопроверка настроения (PHQ-9) от {date}: {score} из 27."
 cmd.report.gad7: "Тест тревоги (GAD-7) от {date}: {score} из 21."
 cmd.report.who5: "Быстрый чек самочувствия (WHO-5) от {date}: {score} из 100."
+cmd.report.edeqs: "Основной тест о еде (EDE-QS) от {date}: {score} из 36."
+cmd.report.bes: "Переедание (BES) от {date}: {score} из 46."
+cmd.report.nias: "Избирательность в еде (NIAS) от {date}: {picky}/{appetite}/{fear} из 15."
 scr.report.positive: "положительный"
 scr.report.negative: "отрицательный"
 scr.report.domains_empty: "не отмечены"
