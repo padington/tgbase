@@ -6,12 +6,12 @@ import (
 
 // ModeChoicePhase owns StateAwaitingModeChoice — the home landing shown on
 // /start and /menu: a short greeting plus one button per mode (FODMAP diary,
-// ADHD self-check, mood self-check) and a report button. The landing is
+// ADHD self-check, mood self-check, eating self-check) and a report button. The landing is
 // contextual: an unfinished self-check adds a "resume" button on top, an
 // active FODMAP trial adds a "back to the diary" button naming the product
 // and stage. Picking the diary MODE button reproduces exactly the legacy
 // /start semantics (interrupt the active trial, clear picker state); the
-// resume buttons and both self-check buttons leave everything untouched.
+// resume buttons and the three self-check buttons leave everything untouched.
 type ModeChoicePhase struct{}
 
 func NewModeChoicePhase() *ModeChoicePhase { return &ModeChoicePhase{} }
@@ -71,10 +71,14 @@ func (ModeChoicePhase) Setup(ctx Context) Outcome {
 	if anyMoodProgress(ctx.User) {
 		kb = append(kb, []string{ctx.Trans.T("button.mode.resume_mood", ctx.Locale, nil)})
 	}
+	if anyEatProgress(ctx.User) {
+		kb = append(kb, []string{ctx.Trans.T("button.mode.resume_eating", ctx.Locale, nil)})
+	}
 	kb = append(kb,
 		[]string{ctx.Trans.T("button.mode.fodmap", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.screening", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.mood", ctx.Locale, nil)},
+		[]string{ctx.Trans.T("button.mode.eating", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.report", ctx.Locale, nil)},
 	)
 	return Outcome{
@@ -109,6 +113,10 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 		// functional question when the PHQ-9 paused there); with several
 		// paused runs the module menu disambiguates via its resume rows.
 		return Outcome{NextState: moodResumeTarget(ctx.User)}
+	case anyEatProgress(ctx.User) && labelIs(in, ctx.Trans.T("button.mode.resume_eating", ctx.Locale, nil)):
+		// Straight back into the single unfinished eating run; with several
+		// paused runs the track menu disambiguates via its resume rows.
+		return Outcome{NextState: eatResumeTarget(ctx.User)}
 	case labelIs(in, ctx.Trans.T("button.mode.report", ctx.Locale, nil)):
 		// Render the /report breakdown and stay on the landing.
 		return Outcome{
@@ -152,6 +160,9 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 		// The mood module: the one-time consent for fresh users, the module
 		// menu (with its per-instrument resume rows) afterwards.
 		return Outcome{NextState: moodEntryState(ctx.User)}
+	case labelIs(in, ctx.Trans.T("button.mode.eating", ctx.Locale, nil)):
+		// The eating track: same shape — one-time consent, then the menu.
+		return Outcome{NextState: eatEntryState(ctx.User)}
 	default:
 		return Outcome{ReplyKey: "phase.mode.invalid"}
 	}
