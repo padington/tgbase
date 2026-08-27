@@ -262,9 +262,11 @@ current item from `len(Answers)`, so `/start`, `/menu` and 🏠 can interrupt
 anywhere and the landing's «▶️ Продолжить тест о еде» resumes on the exact
 next question (or opens the menu when several runs are paused). The only
 thing ever written to an `EatingProgress.ResumeState` is `/food_delete`'s
-"the dialog was opened mid-test" marker, and the dialog consumes it on
-cancel — otherwise a stale marker would make a later `/food_delete` opened
-from the landing close back INTO a merely paused run.
+"the dialog was opened mid-test" marker, and it never outlives that dialog:
+the cancel consumes it, escaping (🏠, `/start`, `/menu`, `/abandon`) drops
+it, and the next `/food_delete` starts from a clean marker whichever way the
+previous one was left. A stale marker would otherwise make a later
+`/food_delete` opened from the landing close back INTO a merely paused run.
 
 ```mermaid
 stateDiagram-v2

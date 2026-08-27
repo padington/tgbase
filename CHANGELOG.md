@@ -72,9 +72,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     anywhere and the landing's «▶️ Продолжить тест о еде» resumes on the
     exact next question (the track menu disambiguates when several runs are
     paused). The only thing written to an `EatingProgress.ResumeState` is
-    `/food_delete`'s "opened mid-test" marker, and the dialog consumes it on
-    cancel — a stale marker would otherwise make a later `/food_delete`
-    opened from the landing close back INTO a merely paused run.
+    `/food_delete`'s "opened mid-test" marker, and it never outlives that
+    dialog — the cancel consumes it, escaping (🏠, `/start`, `/menu`,
+    `/abandon`) drops it, and the next `/food_delete` starts clean. A stale
+    marker would otherwise make a later `/food_delete` opened from the
+    landing close back INTO a merely paused run.
 - **Mood module v2 — WHO-5 quick check, GAD-7, PHQ-9 functional item.** The
   mood mode becomes a three-instrument hub behind one consent and a
   mini-menu («⚡ Быстрый чек (1 мин)» / «📋 Настроение (PHQ-9)» / «😰 Тревога
