@@ -98,11 +98,11 @@ items:
     text_en: "Have you gone for long periods of time (e.g., 8 or more waking hours) without eating anything at all in order to influence your weight or shape?"
   - id: 3
     scale: days
-    text: "Мысли о еде или калориях мешали сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
+    text: "Из-за мыслей о еде или калориях тебе было очень трудно сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
     text_en: "Has thinking about food, eating or calories made it very difficult to concentrate on things you are interested in (such as working, following a conversation or reading)?"
   - id: 4
     scale: days
-    text: "Мысли о весе или форме тела мешали сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
+    text: "Из-за мыслей о весе или форме тела тебе было очень трудно сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
     text_en: "Has thinking about your weight or shape made it very difficult to concentrate on things you are interested in (such as working, following a conversation or reading)?"
   - id: 5
     scale: days
@@ -114,7 +114,7 @@ items:
     text_en: "Have you had a strong desire to lose weight?"
   - id: 7
     scale: days
-    text: "Ты пытался(-ась) влиять на вес или форму тела, вызывая рвоту или принимая слабительное?"
+    text: "Ты пытался(-ась) контролировать вес или форму тела, вызывая рвоту или принимая слабительное?"
     text_en: "Have you tried to control your weight or shape by making yourself sick (vomit) or taking laxatives?"
   - id: 8
     scale: days

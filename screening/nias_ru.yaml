@@ -65,8 +65,11 @@ instrument:
       md5: "cd5b0fd87a2adf3db4f923dadc1189ac"
       wayback: "https://web.archive.org/web/20240129002255/https://www.frontiersin.org/articles/10.3389/fpsyt.2021.668297/full"
       note: >-
-        PDF загружен 2026-08-26, md5 зафиксирован выше; тексты обоих
-        источников совпадают дословно.
+        PDF загружен 2026-08-26, md5 зафиксирован выше; тексты девяти
+        утверждений в обоих источниках совпадают дословно. Порядок трёх
+        пунктов субшкалы «опасения» в таблице Koomar иной (restrict /
+        small portions / avoid); на скоринг это не влияет — субшкала
+        суммируется целиком. Нумерация 1–9 взята из первого источника.
   target_population: "Взрослые"
   recall_period: "Как обычно бывает (без ограничения по времени)"
 
@@ -118,15 +121,15 @@ items:
     text_en: "Even when I am eating a food I really like, it is hard for me to eat a large enough volume at meals."
   - id: 7
     subscale: fear
-    text: "Я избегаю еды или откладываю её, потому что боюсь неприятных ощущений в животе, поперхнуться или что стошнит."
+    text: "Я избегаю еды или откладываю её, потому что боюсь неприятных ощущений в животе, боюсь подавиться или что стошнит."
     text_en: "I avoid or put off eating because I am afraid of GI discomfort, choking, or vomiting."
   - id: 8
     subscale: fear
-    text: "Я ограничиваюсь определёнными продуктами, потому что боюсь, что от других будет неприятно в животе, я поперхнусь или меня стошнит."
+    text: "Я ограничиваюсь определёнными продуктами, потому что боюсь, что от других будет неприятно в животе, я подавлюсь или меня стошнит."
     text_en: "I restrict myself to certain foods because I am afraid that other foods will cause GI discomfort, choking, or vomiting."
   - id: 9
     subscale: fear
-    text: "Я ем маленькими порциями, потому что боюсь неприятных ощущений в животе, поперхнуться или что стошнит."
+    text: "Я ем маленькими порциями, потому что боюсь неприятных ощущений в животе, боюсь подавиться или что стошнит."
     text_en: "I eat small portions because I am afraid of GI discomfort, choking, or vomiting."
 
 # Скоринг: три независимые субшкалы по 3 пункта, каждая 0–15.

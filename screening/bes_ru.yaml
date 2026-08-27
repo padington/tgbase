@@ -68,7 +68,7 @@ items:
   - id: 1
     statements:
       - score: 0
-        text: "Рядом с людьми я не думаю о своём весе или фигуре."
+        text: "Рядом с людьми я не стесняюсь своего веса или фигуры."
         text_en: "I don't feel self-conscious about my weight or body size when I'm with others."
       - score: 0
         text: "Мне важно, как я выгляжу для других, но обычно я не разочаровываюсь в себе из-за этого."
@@ -169,7 +169,7 @@ items:
         text: "Примерно раз в месяц я съедаю столько, что потом чувствую сильную тяжесть."
         text_en: "Usually about once a month, I eat such a quantity of food, I end up feeling very stuffed."
       - score: 2
-        text: "В течение месяца бывают периоды, когда я ем помногу — в приёмы пищи или в перекусы."
+        text: "В течение месяца у меня регулярно бывают периоды, когда я ем помногу — в приёмы пищи или в перекусы."
         text_en: "I have regular periods during the month when I eat large amounts of food, either at mealtime or at snacks."
       - score: 3
         text: "Я ем так много, что регулярно чувствую сильный дискомфорт после еды, иногда даже подташнивает."
@@ -225,7 +225,7 @@ items:
         text: "Иногда при других я ем меньше, чем хочется, потому что стесняюсь."
         text_en: "Sometimes, when I'm with other persons, I don't eat as much as I want to eat because I'm self-conscious about my eating."
       - score: 2
-        text: "Часто при других я ем совсем чуть-чуть, потому что мне неловко из-за того, как я ем."
+        text: "Часто при других я ем совсем чуть-чуть, потому что мне очень неловко из-за того, как я ем."
         text_en: "Frequently, I eat only a small amount of food when others are present, because I'm very embarrassed about my eating."
       - score: 3
         text: "Мне так стыдно за переедание, что я выбираю моменты, когда никто не увидит. Чувствую себя «тайным едоком»."
