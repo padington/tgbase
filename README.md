@@ -1,34 +1,39 @@
 # tgbase
 
-A Telegram bot with three modes:
+A Telegram bot with four modes:
 
 - **Low-FODMAP diary** — helps people on the **low-FODMAP diet** systematically reintroduce high-FODMAP foods, one at a time, in three escalating volumes (low → medium → high). Tracks per-user progress, nudges users who go quiet, and produces a report on demand.
 - **Adult ADHD self-check** (ru-only, v1) — a staged screening: ASRS v1.1 part A (official Russian WHO text, verbatim) → ASRS part B → WURS-25 childhood retrospective → the bot's own DSM-5-shaped context questions (onset + five life domains, one short yes/no question per domain per life phase). Each instrument is scored separately with its own published threshold; there is deliberately **no combined score**. The result is a wording («pattern is / is not consistent with DSM-5 criteria»), a short screening-not-a-diagnosis disclaimer, a two-line route to a specialist, a shareable doctor report, and one compact attribution line (ASRS © WHO/Kessler; WURS-25 — Ward et al.; DSM-5-based context) in the result footer. User texts stay lean by owner decision: methodology notes (translation status, validation caveats) live in content-file comments and docs, never in messages.
 - **Mood module** (ru-only, v2) — three instruments behind one consent and one mini-menu: the **WHO-5** well-being quick check (official Russian text from WHO publication WHO-UCN-MSD-MHE-2024.01, verbatim; 5 statements, raw sum × 4 → 0–100), the **PHQ-9** depression screening (official Russian version from phqscreeners.com, verbatim; free to use — Pfizer removed all restrictions) now including the form's official functional (10th) question — asked only when at least one answer is positive, never counted into the 0–27 score, surfaced in the doctor report — and the **GAD-7** anxiety screening (official Russian version, same free PHQ family; 0–21 with the published 0–4/5–9/10–14/15–21 gradations). Each instrument yields its own result with its own score and band wording — **no combined index**. The links: a reduced WHO-5 (≤ 50) offers the PHQ-9 with one button (insistently below ≤ 28); the PHQ-9 report offers the GAD-7 («настроение и тревога часто идут вместе» — no clinical terms). The **combined doctor report** lists everything completed with dates. **Deterministic crisis protocol in code** (PHQ-9 only — WHO-5/GAD-7 carry no crisis items): any answer > 0 on item 9 (thoughts of death / self-harm) shows a warm support-contacts card immediately after the answer — the test is not blocked (Continue proceeds), an answer of 2–3 adds one direct talk-to-someone-today line, and the contacts repeat in the final result regardless of the total score. The children's helpline is deliberately excluded, pinned by tests.
+- **Eating track** (ru-only, v1) — three instruments behind one consent and one mini-menu, aimed at one outcome: a summary worth taking to a doctor. The **EDE-QS** core test (12 items about the last 7 days, official form from the PLoS ONE 2016 paper's S2 File, CC BY 4.0; two answer scales as on paper — days for items 1–10, severity for 11–12; sum 0–36 against the Prnjak et al. 2020 screening cutoff ≥ 15), the **BES** overeating scale (16 groups of weighted statements from the NIMH Data Archive dictionary; the group is a numbered list in the message and the keyboard carries the numbers; sum 0–46 with the customary ≤ 17 / 18–26 / ≥ 27 gradations), and the **NIAS** picky-eating screen (9 statements, three independent subscales of 0–15 — избирательность / аппетит / опасения — with the Burton Murray et al. 2021 cutoffs ≥ 10 / ≥ 9 / ≥ 10, and **no total by design**: the instrument is read per subscale). The one cross-instrument rule is Burton Murray's, deterministic and in code (`screening.NiasContext`): a positive NIAS subscale reads as restriction *without* body-image concern when the EDE-QS came out below its cutoff, as restriction *likely tied to* body image when it came out at or above, and stays explicitly undecidable while the EDE-QS has not been taken — so the reading upgrades itself the moment the core test is done. The **combined doctor report** lists everything completed with dates, scores and the applied cutoffs, and auto-appends a low-FODMAP line whenever the user has diary activity, so a clinician reading the restraint items knows part of the restriction is medically prescribed. Russian translations are the bot authors' own (no validated Russian versions exist) and their provenance is pinned in the content files. **No instrument in this track asks for a weight, height or calorie figure, and no result names a diagnosis** — a deliberate property of the chosen instruments and of every user-facing string, enforced by canonical tests in `internal/screening` and a canary over the assembled chat surface in `internal/journey`.
 
 ## Commands
 
 | Command        | Response                                                                  |
 |----------------|---------------------------------------------------------------------------|
-| `/start`       | Home landing: short greeting + mode buttons (FODMAP diary / ADHD test / mood) + 📊 report + contextual resume buttons (unfinished test, active trial). Works from ANY state as a universal escape — progress is never lost |
+| `/start`       | Home landing: short greeting + mode buttons (FODMAP diary / ADHD test / mood / food) + 📊 report + contextual resume buttons (unfinished test, active trial). Works from ANY state as a universal escape — progress is never lost |
 | `/adhd`        | Enter / resume the ADHD self-check (consent first, progress survives pauses) |
 | `/adhd_delete` | Delete all stored ADHD self-check data (with confirmation)                |
 | `/mood`        | Enter the mood module — one-time consent, then the mini-menu: «⚡ Быстрый чек (1 мин)» (WHO-5) / «📋 Настроение (PHQ-9)» / «😰 Тревога (GAD-7)» + resume rows for unfinished runs. Named `/mood`, not `/depression`: it matches the mode's user-facing name and keeps a diagnosis word out of the command menu; `/mood_delete` pairs with `/adhd_delete` |
 | `/mood_delete` | Delete all stored mood-module data — all three instruments plus the consent (with confirmation) |
+| `/food`        | Enter the eating track — one-time consent, then the mini-menu: «📋 Основной тест» (EDE-QS) / «🍩 Переедание» (BES) / «🥄 Избирательность в еде» (NIAS) + resume rows for unfinished runs. Named `/food`, not after any instrument or condition: the command menu must not carry a diagnosis word, and «отношения с едой» is what the mode is called to the user |
+| `/food_delete` | Delete all stored eating-track data — all three instruments plus the consent (with confirmation) |
 | `/about`       | Short bot description (localized)                                         |
-| `/report`      | Per-user breakdown: completed / in-progress / not tolerated / interrupted, plus the last self-check summary lines |
-| `/abandon`     | Mid-self-check (either mode): wipes the unfinished run (keeps the last completed result). Otherwise: marks the current trial as interrupted |
+| `/report`      | Per-user breakdown: completed / in-progress / not tolerated / interrupted, plus one lean summary line per completed self-check instrument |
+| `/abandon`     | Mid-self-check (any track): wipes the unfinished run only — the other instruments and every completed result stay. Otherwise: marks the current trial as interrupted |
 | `/ping`        | `pong` — health check                                                     |
 | `/whoami`      | env label, hostname, OS/arch                                              |
 | `/menu`        | alias of `/start` — the same home landing                                 |
 
 On boot the bot self-registers the client command menu via the Bot API
-(`setMyCommands`): `menu`, `adhd`, `mood`, `report`, `about`, `abandon`,
-`adhd_delete`, `mood_delete` in usage-frequency order, with ru descriptions as
-the default and an English `language_code="en"` variant, both taken from the
-i18n bundles. No manual BotFather step is needed — the menu always matches the
-deployed binary (`/start` is omitted because Telegram shows its own Start
-button; `/ping` and `/whoami` are operator commands and stay out of the menu).
+(`setMyCommands`): `menu`, `adhd`, `mood`, `food`, `report`, `about`,
+`abandon`, `adhd_delete`, `mood_delete`, `food_delete` in usage-frequency
+order, with ru descriptions as the default and an English
+`language_code="en"` variant, both taken from the i18n bundles. No manual
+BotFather step is needed — the menu always matches the deployed binary, and
+a track that is not wired contributes neither of its commands (`/start` is
+omitted because Telegram shows its own Start button; `/ping` and `/whoami`
+are operator commands and stay out of the menu).
 Registration failure is a logged warning, never a boot error.
 
 ## Architecture
@@ -39,8 +44,8 @@ internal/state      per-user UserData on top of store.Backend (key="users")
 internal/products   FODMAP catalog with metadata, mutable at runtime (key="products")
 internal/settings   reminder/check-in tunables, mutable at runtime (key="settings")
 internal/i18n       per-locale UI strings loaded from i18n/<locale>.yaml
-internal/screening  read-only self-check content (ASRS/WURS/DSM + PHQ-9/WHO-5/GAD-7 mood bundles) + pure scoring
-internal/journey    Phase-based interaction framework + concrete phases (both modes)
+internal/screening  read-only self-check content (ASRS/WURS/DSM + PHQ-9/WHO-5/GAD-7 mood + EDE-QS/BES/NIAS eating bundles) + pure scoring
+internal/journey    Phase-based interaction framework + concrete phases of every mode
 internal/reminder   scan loop that delegates per-user nudges to journey.Runner
 internal/router     Telegram update dispatcher
 internal/bot        composition root: wires backend → typed stores → runner
@@ -56,9 +61,11 @@ proto/              canonical schemas (state, products, settings, i18n)
 `/start`, `/menu` and the 🏠 button (present on every FODMAP keyboard) escape
 to the landing from ANY state without losing progress: a FODMAP journey
 state is recorded to `ReturnState`, a resumable test position to the run's
-`ResumeState`. The landing is contextual — an unfinished ADHD/mood run adds
-a «▶️ Продолжить …» button (back to the exact question, or the crisis card),
-an active trial adds «▶️ Вернуться к дневнику: <product> (<stage>)»; «📊
+`ResumeState` (eating runs record nothing — every `eat_*` question phase
+derives its position from the answers). The landing is contextual — an
+unfinished ADHD/mood/eating run adds a «▶️ Продолжить …» button (back to the
+exact question, or the crisis card), an active trial adds «▶️ Вернуться к
+дневнику: <product> (<stage>)»; «📊
 Отчёт» renders the /report breakdown in place. Every test exit (result
 screens, pause, decline, `/abandon`, mid-test delete) also lands here —
 never straight into a mid-diary question: the recorded diary position stays
@@ -72,6 +79,7 @@ stateDiagram-v2
     awaiting_mode_choice --> AwaitingDefecation : «🥦 FODMAP-дневник» (interrupts the active trial — legacy /start)
     awaiting_mode_choice --> scr_consent : «🧠 Тест СДВГ» (diary progress untouched)
     awaiting_mode_choice --> mood_menu : «🌤 Настроение» (consent first for fresh users; diary progress untouched)
+    awaiting_mode_choice --> eat_menu : «🍽 Отношения с едой» (consent first for fresh users; diary progress untouched)
     awaiting_mode_choice --> awaiting_mode_choice : «📊 Отчёт» (stays on the landing)
     awaiting_mode_choice --> AwaitingStageCheckin : «▶️ Вернуться к дневнику» (ReturnState consumed, nothing interrupted)
     awaiting_mode_choice --> resume_test : «▶️ Продолжить тест …» (same question / crisis card)
@@ -234,6 +242,83 @@ write that stores the final result (totals + band ids + dates + the two
 allowed PHQ-9 facts); the doctor report is rendered on the fly and never
 stored.
 
+### State machine — Eating track (EDE-QS / BES / NIAS)
+
+Exits marked `[*]` land on the home landing (`awaiting_mode_choice`); the
+FODMAP detour recorded in `ReturnState` is kept, and the landing offers it
+via «▶️ Вернуться к дневнику». `eat_*` states get no reminder nudges.
+Consent is asked ONCE for the whole track (`EatConsentAt`; any stored eating
+data implies it) and opens the mini-menu: the three instrument buttons plus
+contextual «▶️ Продолжить…» rows for unfinished runs — an instrument button
+with its own run paused is the explicit start-over, and the resume row sits
+directly above it.
+
+The track is deliberately flatter than the mood module: **no offer chain and
+no crisis card**. Every instrument ends the same way — score, reading,
+combined doctor report, landing.
+
+Pauses need no bookkeeping here. All three question phases derive the
+current item from `len(Answers)`, so `/start`, `/menu` and 🏠 can interrupt
+anywhere and the landing's «▶️ Продолжить тест о еде» resumes on the exact
+next question (or opens the menu when several runs are paused). The only
+thing ever written to an `EatingProgress.ResumeState` is `/food_delete`'s
+"the dialog was opened mid-test" marker, and it never outlives that dialog:
+the cancel consumes it, escaping (🏠, `/start`, `/menu`, `/abandon`) drops
+it, and the next `/food_delete` starts from a clean marker whichever way the
+previous one was left. A stale marker would otherwise make a later
+`/food_delete` opened from the landing close back INTO a merely paused run.
+
+```mermaid
+stateDiagram-v2
+    [*] --> awaiting_mode_choice: /start | /menu | 🏠 (ReturnState := prior FODMAP state)
+    awaiting_mode_choice --> eat_consent: «🍽 Отношения с едой» (fresh user)
+    awaiting_mode_choice --> eat_menu: «🍽 Отношения с едой» (consent already given)
+    awaiting_mode_choice --> resume: «▶️ Продолжить тест о еде» (single paused run → its next question)
+    [*] --> eat_consent: /food (fresh user; else straight to the menu)
+    eat_consent --> eat_menu: «Понятно, дальше» (EatConsentAt := now — once per track)
+    eat_consent --> [*]: «Не сейчас» → home landing (nothing recorded)
+    eat_menu --> eat_edeqs_question: «📋 Основной тест» (fresh run — wipes a paused one)
+    eat_menu --> eat_bes_question: «🍩 Переедание» (fresh run)
+    eat_menu --> eat_nias_question: «🥄 Избирательность в еде» (fresh run)
+    eat_menu --> resume2: «▶️ Продолжить…» rows (per unfinished instrument)
+    eat_edeqs_question --> eat_edeqs_question: scale answer, items 1..11 (the scale switches days → severity at item 11)
+    eat_edeqs_question --> eat_report: 12th answer → result (0–36 vs cutoff ≥ 15), EdeqsResult stored, Edeqs := nil
+    eat_bes_question --> eat_bes_question: pick a numbered statement, groups 1..15
+    eat_bes_question --> eat_report: 16th answer → result (0–46, band ≤ 17 / 18–26 / ≥ 27), BesResult stored, Bes := nil
+    eat_nias_question --> eat_nias_question: scale answer, statements 1..8
+    eat_nias_question --> eat_report: 9th answer → result per subscale (no total) + Burton Murray reading vs EdeqsResult, Nias := nil
+    eat_report --> [*]: Setup sends the combined doctor report → home landing (diary one tap away)
+```
+
+Each EDE-QS message is one item: the «Вопрос N из 12» line and the question
+text, with the block heading and the days framing shown once at the start
+and the severity framing announced exactly where the paper form switches
+(item 11). BES groups carry 3–4 statements far too long for buttons, so the
+message renders them as a numbered list and the keyboard carries the numbers
+— the stored answer is the picked statement's original **weight** (several
+statements in a group can share one, which is why the maximum is 46, not
+48). NIAS statements use the 6-option Likert scale of the original.
+
+Results: EDE-QS renders the 0–36 score with the cutoff that was applied and
+one of two readings; BES the 0–46 score and its band; NIAS one line per
+subscale (score, its own cutoff, verdict) and — only when some subscale is
+positive — the Burton Murray reading line, which says outright that the
+distinction cannot be made until the core test is taken. Each result carries
+the same short screening-is-not-a-diagnosis footer and one compact
+attribution line (EDE-QS — Gideon et al.; BES — Gormally et al.; NIAS —
+Zickgraf & Ellis).
+
+Deleting data: `/food_delete` → `eat_delete_confirm` → «Да, удалить» wipes
+all three runs, all three results and the track consent in one write (the
+next entry asks for consent again); «Оставить» changes nothing and returns
+straight to the interrupted question, or to whatever the command interrupted
+(the FODMAP question or the landing). Confirming mid-test destroys the
+position a cancel would return to, so that lands on the home landing.
+Privacy: raw per-question answers exist only while a run is unfinished and
+are erased in the same write that stores the final result (scores + the
+applied cutoffs + dates); the doctor report is rendered on the fly and never
+stored.
+
 ### Sequence — happy path with reminder
 
 ```mermaid
@@ -386,7 +471,7 @@ Bundled `products.yaml` / `settings.yaml` / `i18n/*.yaml` only seed the backend 
 
 UI strings live in `i18n/<locale>.yaml` baked into the image (`en.yaml`, `ru.yaml` ship by default). Product names + notes carry inline `name_localized` / `note_localized` maps so they can be translated alongside the catalog. Each user's locale is detected from `msg.From.LanguageCode` on first `/start` and persisted on `UserData.Locale`.
 
-Both self-checks are **ru-only in v1**: the official Russian ASRS and PHQ-9 texts are the point of the features. Their texts live in `screening/*.yaml` (not i18n) and reach users through the `scr.text` pass-through key; en users get the ru texts via the translator's per-key fallback. Only the landing is translated.
+All three self-check tracks are **ru-only in v1**: the official Russian ASRS and PHQ-9 texts are the point of those features, and the eating track ships the bot authors' own Russian translations (no validated Russian versions of EDE-QS/BES/NIAS exist). Their texts live in `screening/*.yaml` (not i18n) and reach users through the `scr.text` pass-through key; en users get the ru texts via the translator's per-key fallback. Only the landing and the command menu are translated.
 
 ## Project layout
 
@@ -400,13 +485,13 @@ internal/
   products/               catalog with FODMAP metadata
   settings/               runtime-mutable timings + default locale
   i18n/                   translator (loads i18n/*.yaml)
-  screening/              self-check content loaders/validators (ADHD + PHQ-9) + pure scoring
+  screening/              self-check content loaders/validators (ADHD + mood + eating) + pure scoring
   journey/                Phase framework + concrete phases of all modes
   reminder/               scan loop, delegates to journey.Runner.Remind
   flows/meta/             stateless commands (/ping, /whoami)
 proto/                    canonical .proto schemas
 i18n/                     bundled UI string yamls
-screening/                bundled read-only self-check content yamls (ADHD + PHQ-9/WHO-5/GAD-7 mood)
+screening/                bundled read-only self-check content yamls (ADHD + mood + eating track)
 products.yaml             first-boot product catalog seed
 settings.yaml             first-boot settings seed
 config.yaml               boot-only paths + state flush interval

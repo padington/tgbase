@@ -90,13 +90,13 @@ internal/state/        per-user UserData on top of store.Backend (key="users")
 internal/products/     FODMAP catalog with metadata, mutable at runtime (key="products")
 internal/settings/     reminder/check-in tunables + default locale (key="settings")
 internal/i18n/         translator loaded from i18n/<locale>.yaml
-internal/screening/    read-only ADHD screening content (ASRS/WURS/DSM module) + pure scoring
-internal/journey/      Phase framework: mode fork, FODMAP phases, scr_* screening phases
+internal/screening/    read-only self-check content (ADHD, mood, eating track) + pure scoring
+internal/journey/      Phase framework: mode fork, FODMAP phases, scr_*/mood_*/eat_* self-check phases
 internal/reminder/     scan loop with callback (calls journey.Runner.Remind)
 internal/flows/meta/   stateless commands: /ping, /whoami, /menu
 proto/                 canonical schemas; generated *.pb.go committed under internal/<pkg>/pb/
 i18n/                  bundled UI string yamls (en.yaml, ru.yaml)
-screening/             bundled read-only ADHD screening content yamls (ru), reloaded every boot
+screening/             bundled read-only self-check content yamls (ru), reloaded every boot
 products.yaml          first-boot product catalog seed
 settings.yaml          first-boot settings seed
 config.yaml            boot-only paths + state flush interval

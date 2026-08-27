@@ -1,0 +1,295 @@
+# BES — Binge Eating Scale (Gormally et al., 1982), 16 пунктов.
+# Инструмент трека «Отношения с едой» в tgbase: кнопка «🍩 Переедание».
+#
+# Оригинал: Gormally J, Black S, Daston S, Rardin D. The assessment of binge
+# eating severity among obese persons. Addictive Behaviors. 1982;7(1):47–55.
+# Шкала свободно воспроизводится и не требует лицензии; полный текст
+# публикуется в справочниках инструментов и в приложениях клинических
+# руководств.
+#
+# Английский текст всех 16 групп утверждений и веса вариантов взяты из
+# словаря данных NIMH Data Archive (структура binge01) — официального
+# справочника NIH, см. sources. Разбивка групп на отдельные утверждения
+# сверена со вторым независимым источником (приложение 2 клинического
+# руководства MOH Malaysia «Management of Obesity», 2-е изд., 2023).
+#
+# Русский текст — собственный перевод авторов бота (валидированной русской
+# версии BES нет). Перевод смысловой, в стиле бота: короткие фразы, «ты».
+#
+# ВАЖНО: ни один пункт не спрашивает вес, рост или калорийность в цифрах —
+# это осознанное свойство подобранных инструментов, его нужно сохранять.
+# Пин: TestCanonical_EatingUserTextsHaveNoWeightNumbersOrDiagnoses.
+#
+# Веса вариантов в оригинале не всегда 0/1/2/3: в некоторых группах два
+# утверждения имеют одинаковый вес (например, в группе 1 первые два
+# варианта весят 0), а максимум группы 4 и группы 16 равен 2. Из-за этого
+# максимум суммы — 46, а не 48. Веса ниже воспроизводят оригинал.
+
+instrument:
+  id: bes
+  name_en: "Binge Eating Scale (BES)"
+  developers: "James Gormally, Sydney Black, Steven Daston, David Rardin"
+  primary_reference: >-
+    Gormally J, Black S, Daston S, Rardin D. The assessment of binge eating
+    severity among obese persons. Addict Behav. 1982;7(1):47-55.
+    doi:10.1016/0306-4603(82)90024-7.
+  bands_reference: >-
+    Общепринятые градации суммы: ≤ 17 — незначительно, 18–26 — умеренно,
+    ≥ 27 — выраженно (Marcus, Wing & Hopkins 1988; воспроизводятся
+    в справочниках инструментов, напр. NovoPsych).
+  sources:
+    english_original:
+      publication: "NIMH Data Archive, data structure binge01 (Binge Eating Scale)"
+      url: "https://nda.nih.gov/api/datadictionary/v2/datastructure/binge01"
+      page: "https://nda.nih.gov/data_structure.html?short_name=binge01"
+      md5: "a4b80450ae1e14ee896f537bd899cada"
+      wayback: "https://web.archive.org/web/20231128205352/https://nda.nih.gov/data_structure.html?short_name=binge01"
+      note: >-
+        JSON словаря данных загружен 2026-08-26, md5 зафиксирован выше;
+        человекочитаемая страница той же структуры есть в вэйбеке
+        (снимок 2023-11-28).
+    cross_check:
+      publication: >-
+        Clinical Practice Guidelines: Management of Obesity (2nd edition),
+        Ministry of Health Malaysia, 2023 — Appendix 2 «Binge Eating Scale».
+      note: >-
+        Использовано только для сверки разбивки групп на отдельные
+        утверждения (словарь NDA склеивает варианты с одинаковым весом
+        через «or»).
+
+# Инструкция бота перед первой группой (собственный текст).
+instruction_ru: >-
+  Ниже — группы утверждений. В каждой выбери номер того, которое ближе
+  всего к тому, как обычно бывает у тебя.
+
+# 16 групп. Вес (score) варианта — из оригинала; text — собственный перевод,
+# text_en — оригинал для трассируемости (пользователю не показывается).
+items:
+  - id: 1
+    statements:
+      - score: 0
+        text: "Рядом с людьми я не стесняюсь своего веса или фигуры."
+        text_en: "I don't feel self-conscious about my weight or body size when I'm with others."
+      - score: 0
+        text: "Мне важно, как я выгляжу для других, но обычно я не разочаровываюсь в себе из-за этого."
+        text_en: "I feel concerned about how I look to others, but it normally does not make me feel disappointed with myself."
+      - score: 1
+        text: "Я стесняюсь своей внешности и веса, и из-за этого разочарован(а) в себе."
+        text_en: "I do get self-conscious about my appearance and weight which makes me feel disappointed in myself."
+      - score: 3
+        text: "Я очень стесняюсь своего веса, часто чувствую сильный стыд и отвращение к себе. Из-за этого стараюсь избегать общения."
+        text_en: "I feel very self-conscious about my weight and frequently, I feel intense shame and disgust for myself. I try to avoid social contacts because of my self-consciousness."
+  - id: 2
+    statements:
+      - score: 0
+        text: "Мне несложно есть медленно и спокойно."
+        text_en: "I don't have any difficulty eating slowly in the proper manner."
+      - score: 1
+        text: "Я вроде бы «заглатываю» еду, но переполнения от переедания не чувствую."
+        text_en: "Although I seem to \"gobble down\" foods, I don't end up feeling stuffed because of eating too much."
+      - score: 2
+        text: "Иногда я ем быстро, а потом чувствую неприятную переполненность."
+        text_en: "At times, I tend to eat quickly and then, I feel uncomfortably full afterwards."
+      - score: 3
+        text: "У меня привычка глотать еду почти не жуя. После этого обычно тяжесть от того, что съел(а) слишком много."
+        text_en: "I have the habit of bolting down my food, without really chewing it. When this happens I usually feel uncomfortably stuffed because I've eaten too much."
+  - id: 3
+    statements:
+      - score: 0
+        text: "Я могу справляться с желанием поесть, когда захочу."
+        text_en: "I feel capable to control my eating urges when I want to."
+      - score: 1
+        text: "Мне кажется, я справляюсь с желанием поесть хуже, чем большинство людей."
+        text_en: "I feel like I have failed to control my eating more than the average person."
+      - score: 3
+        text: "Я чувствую полную беспомощность, когда речь заходит о контроле над желанием есть."
+        text_en: "I feel utterly helpless when it comes to feeling in control of my eating urges."
+      - score: 3
+        text: "Из-за этой беспомощности я дошёл(-шла) до отчаяния в попытках взять еду под контроль."
+        text_en: "Because I feel so helpless about controlling my eating I have become very desperate about trying to get in control."
+  - id: 4
+    statements:
+      - score: 0
+        text: "У меня нет привычки есть от скуки."
+        text_en: "I don't have the habit of eating when I'm bored."
+      - score: 0
+        text: "Иногда я ем от скуки, но чаще получается занять себя и переключиться."
+        text_en: "I sometimes eat when I'm bored, but often I'm able to \"get busy\" and get my mind off food."
+      - score: 0
+        text: "Я регулярно ем от скуки, но иногда получается переключиться на что-то другое."
+        text_en: "I have a regular habit of eating when I'm bored, but occasionally, I can use some other activity to get my mind off eating."
+      - score: 2
+        text: "У меня сильная привычка есть от скуки, и ничего не помогает её сломать."
+        text_en: "I have a strong habit of eating when I'm bored. Nothing seems to help me break the habit."
+  - id: 5
+    statements:
+      - score: 0
+        text: "Обычно я ем, когда действительно голоден(-дна)."
+        text_en: "I'm usually physically hungry when I eat something."
+      - score: 1
+        text: "Иногда я ем импульсивно, хотя на самом деле не голоден(-дна)."
+        text_en: "Occasionally, I eat something on impulse even though I really am not hungry."
+      - score: 2
+        text: "Я регулярно ем то, что мне даже не нравится, лишь бы заглушить чувство голода, хотя телу еда не нужна."
+        text_en: "I have the regular habit of eating foods, that I might not really enjoy, to satisfy a hungry feeling even though physically, I don't need the food."
+      - score: 3
+        text: "Даже без настоящего голода у меня возникает «голод во рту», который проходит, только если что-то съесть. Иногда, чтобы не поправиться, я потом выплёвываю такую еду."
+        text_en: "Even though I'm not physically hungry, I get a hungry feeling in my mouth that only seems to be satisfied when I eat a food, like a sandwich, that fills my mouth. Sometimes, when I eat the food to satisfy my mouth hunger, I then spit the food out so I won't gain weight."
+  - id: 6
+    statements:
+      - score: 0
+        text: "После переедания я не чувствую вины или неприязни к себе."
+        text_en: "I don't feel any guilt or self-hate after I overeat."
+      - score: 1
+        text: "Иногда после переедания я чувствую вину или неприязнь к себе."
+        text_en: "After I overeat, occasionally I feel guilt or self-hate."
+      - score: 3
+        text: "Почти всегда после переедания я чувствую сильную вину или неприязнь к себе."
+        text_en: "Almost all the time I experience strong guilt or self-hate after I overeat."
+  - id: 7
+    statements:
+      - score: 0
+        text: "Даже если я переедаю, я не теряю контроль над едой во время диеты."
+        text_en: "I don't lose total control of my eating when dieting even after periods when I overeat."
+      - score: 2
+        text: "Иногда, съев на диете «запрещённое», я думаю «ну всё, день испорчен» и ем ещё больше."
+        text_en: "Sometimes when I eat a \"forbidden food\" on a diet, I feel like I \"blew it\" and eat even more."
+      - score: 3
+        text: "Часто, переев на диете, я говорю себе: «всё равно уже сорвано» — и ем ещё больше."
+        text_en: "Frequently, I have the habit of saying to myself, \"I've blown it now, why not go all the way\" when I overeat on a diet. When that happens I eat even more."
+      - score: 3
+        text: "Я регулярно начинаю строгие диеты, но срываюсь на переедание. Жизнь как будто состоит из «пира» и «голода»."
+        text_en: "I have a regular habit of starting strict diets for myself, but I break the diets by going on an eating binge. My life seems to be either a \"feast\" or \"famine\"."
+  - id: 8
+    statements:
+      - score: 0
+        text: "Я редко ем столько, что потом чувствую неприятную переполненность."
+        text_en: "I rarely eat so much food that I feel uncomfortably stuffed afterwards."
+      - score: 1
+        text: "Примерно раз в месяц я съедаю столько, что потом чувствую сильную тяжесть."
+        text_en: "Usually about once a month, I eat such a quantity of food, I end up feeling very stuffed."
+      - score: 2
+        text: "В течение месяца у меня регулярно бывают периоды, когда я ем помногу — в приёмы пищи или в перекусы."
+        text_en: "I have regular periods during the month when I eat large amounts of food, either at mealtime or at snacks."
+      - score: 3
+        text: "Я ем так много, что регулярно чувствую сильный дискомфорт после еды, иногда даже подташнивает."
+        text_en: "I eat so much food that I regularly feel quite uncomfortable after eating and sometimes a bit nauseous."
+  - id: 9
+    statements:
+      - score: 0
+        text: "Количество еды за день у меня не скачет регулярно то сильно вверх, то сильно вниз."
+        text_en: "My level of calorie intake does not go up very high or go down very low on a regular basis."
+      - score: 1
+        text: "Иногда после переедания я почти ничего не ем, чтобы «компенсировать» съеденное."
+        text_en: "Sometimes after I overeat, I will try to reduce my caloric intake to almost nothing to compensate for the excess calories I've eaten."
+      - score: 2
+        text: "У меня регулярная привычка переедать вечером: утром есть не хочется, а вечером ем много."
+        text_en: "I have a regular habit of overeating during the night. It seems that my routine is not to be hungry in the morning but overeat in the evening."
+      - score: 3
+        text: "Во взрослом возрасте у меня бывали периоды по неделе, когда я практически морил(а) себя голодом — после периодов переедания."
+        text_en: "In my adult years, I have had week-long periods where I practically starve myself. This follows periods when I overeat. It seems I live a life of either \"feast or famine\"."
+  - id: 10
+    statements:
+      - score: 0
+        text: "Обычно я могу остановиться, когда захочу: я понимаю, когда «достаточно»."
+        text_en: "I usually am able to stop eating when I want to. I know when \"enough is enough\"."
+      - score: 1
+        text: "Время от времени я испытываю тягу поесть, с которой не получается справиться."
+        text_en: "Every so often, I experience a compulsion to eat which I can't seem to control."
+      - score: 2
+        text: "Часто у меня возникают сильные позывы поесть, с которыми я не справляюсь, но иногда всё же удаётся их сдержать."
+        text_en: "Frequently, I experience strong urges to eat which I seem unable to control, but at other times I can control my eating urges."
+      - score: 3
+        text: "Я чувствую, что не справляюсь с позывами есть, и боюсь, что не смогу остановиться по своей воле."
+        text_en: "I feel incapable of controlling urges to eat. I have a fear of not being able to stop eating voluntarily."
+  - id: 11
+    statements:
+      - score: 0
+        text: "Мне несложно перестать есть, когда я чувствую сытость."
+        text_en: "I don't have any problem stopping eating when I feel full."
+      - score: 1
+        text: "Обычно я останавливаюсь при чувстве сытости, но иногда переедаю до неприятной тяжести."
+        text_en: "I usually can stop eating when I feel full but occasionally overeat leaving me feeling uncomfortably stuffed."
+      - score: 2
+        text: "Мне сложно остановиться, когда я начал(а) есть, и после еды обычно чувствую неприятную тяжесть."
+        text_en: "I have a problem stopping eating once I start and usually I feel uncomfortably stuffed after I eat a meal."
+      - score: 3
+        text: "Из-за того, что не получается остановиться, иногда я вызываю у себя рвоту, чтобы избавиться от тяжести."
+        text_en: "Because I have a problem not being able to stop eating when I want, I sometimes have to induce vomiting to relieve my stuffed feeling."
+  - id: 12
+    statements:
+      - score: 0
+        text: "С другими (в семье, в гостях) я ем примерно столько же, сколько наедине."
+        text_en: "I seem to eat just as much when I'm with others (family, social gatherings) as when I'm by myself."
+      - score: 1
+        text: "Иногда при других я ем меньше, чем хочется, потому что стесняюсь."
+        text_en: "Sometimes, when I'm with other persons, I don't eat as much as I want to eat because I'm self-conscious about my eating."
+      - score: 2
+        text: "Часто при других я ем совсем чуть-чуть, потому что мне очень неловко из-за того, как я ем."
+        text_en: "Frequently, I eat only a small amount of food when others are present, because I'm very embarrassed about my eating."
+      - score: 3
+        text: "Мне так стыдно за переедание, что я выбираю моменты, когда никто не увидит. Чувствую себя «тайным едоком»."
+        text_en: "I feel so ashamed about overeating that I pick times to overeat when I know no one will see me. I feel like a \"closet eater\"."
+  - id: 13
+    statements:
+      - score: 0
+        text: "Я ем три раза в день, изредка перекусывая между приёмами пищи."
+        text_en: "I eat 3 meals a day with only an occasional between meal snack."
+      - score: 0
+        text: "Я ем три раза в день и обычно перекусываю между приёмами пищи."
+        text_en: "I eat 3 meals a day, but I also normally snack between meals."
+      - score: 2
+        text: "Когда много перекусываю, начинаю пропускать обычные приёмы пищи."
+        text_en: "When I am snacking heavily, I get in the habit of skipping regular meals."
+      - score: 3
+        text: "Бывают периоды, когда я как будто ем непрерывно, без всяких приёмов пищи."
+        text_en: "There are regular periods when I seem to be continually eating, with no planned meals."
+  - id: 14
+    statements:
+      - score: 0
+        text: "Я почти не думаю о том, как сдерживать нежелательные позывы поесть."
+        text_en: "I don't think much about trying to control unwanted eating urges."
+      - score: 1
+        text: "Иногда мои мысли заняты тем, как сдержать желание поесть."
+        text_en: "At least some of the time, I feel my thoughts are pre-occupied with trying to control my eating urges."
+      - score: 2
+        text: "Часто я подолгу думаю о том, сколько съел(а) или как не съесть ещё."
+        text_en: "I feel that frequently I spend much time thinking about how much I ate or about trying not to eat anymore."
+      - score: 3
+        text: "Кажется, почти всё время бодрствования занято мыслями о еде или о том, как не есть. Я будто постоянно борюсь с собой."
+        text_en: "It seems to me that most of my waking hours are pre-occupied by thoughts about eating or not eating. I feel like I'm constantly struggling not to eat."
+  - id: 15
+    statements:
+      - score: 0
+        text: "Я думаю о еде немного."
+        text_en: "I don't think about food a great deal."
+      - score: 1
+        text: "У меня бывает сильная тяга к еде, но она проходит быстро."
+        text_en: "I have strong cravings for food but they last only for brief periods of time."
+      - score: 2
+        text: "Бывают дни, когда я не могу думать ни о чём, кроме еды."
+        text_en: "I have days when I can't seem to think about anything else but food."
+      - score: 3
+        text: "Почти все мои дни заняты мыслями о еде. Как будто я живу, чтобы есть."
+        text_en: "Most of my days seem to be pre-occupied with thoughts about food. I feel like I live to eat."
+  - id: 16
+    statements:
+      - score: 0
+        text: "Обычно я понимаю, голоден(-дна) ли я на самом деле, и беру ровно столько еды, сколько нужно."
+        text_en: "I usually know whether or not I'm physically hungry. I take the right portion of food to satisfy me."
+      - score: 1
+        text: "Иногда я не уверен(а), голоден(-дна) ли я на самом деле. В такие моменты сложно понять, сколько еды взять."
+        text_en: "Occasionally, I feel uncertain about knowing whether or not I'm physically hungry. At these times it's hard to know how much food I should take to satisfy me."
+      - score: 2
+        text: "Даже зная, сколько мне стоит есть, я не представляю, какое количество еды для меня «нормальное»."
+        text_en: "Even though I might know how many calories I should eat, I don't have any idea what is a \"normal\" amount of food for me."
+
+# Скоринг: сумма весов выбранных утверждений, диапазон 0–46.
+# Градации — общепринятые: ≤ 17 / 18–26 / ≥ 27.
+scoring:
+  bands:
+    - { min: 0, max: 17, id: low }
+    - { min: 18, max: 26, id: moderate }
+    - { min: 27, max: 46, id: severe }
+
+attribution_text_ru: "BES — Gormally, Black, Daston, Rardin (1982)"

@@ -1,0 +1,150 @@
+# EDE-QS — Eating Disorder Examination Questionnaire Short (12 пунктов),
+# основной инструмент трека «Отношения с едой» в tgbase.
+#
+# Оригинал: Gideon N, Hawkes N, Mond J, Saunders R, Tchanturia K, Serpell L.
+# Development and Psychometric Validation of the EDE-QS, a 12 Item Short Form
+# of the Eating Disorder Examination Questionnaire (EDE-Q).
+# PLoS ONE 11(5): e0152744 (2016). Статья и приложения опубликованы под
+# лицензией CC BY 4.0 — воспроизведение и перевод разрешены при указании
+# авторства.
+#
+# Полный текст опросника (инструкция, 12 пунктов, обе шкалы ответов) взят из
+# файла приложения S2 File статьи (docx), см. sources ниже.
+#
+# Русский текст пунктов — собственный перевод авторов бота с оригинала
+# (официальной русской версии EDE-QS нет). Перевод смысловой, без
+# бумажных элементов бланка: поля «Name / Date / Weight / Height»
+# в боте не воспроизводятся — бот НЕ спрашивает вес и рост ни в одном
+# инструменте трека, это осознанное продуктовое решение.
+#
+# Шкал две, как в оригинале: пункты 1–10 отвечаются в днях («за сколько
+# дней из последних 7»), пункты 11–12 — по выраженности («за последние
+# 7 дней»). Обе шкалы 0–3, сумма 0–36.
+
+instrument:
+  id: edeqs
+  name_en: "Eating Disorder Examination Questionnaire Short (EDE-QS)"
+  developers: >-
+    Nicole Gideon, Nicola Hawkes, Jonathan Mond, Rob Saunders,
+    Kate Tchanturia, Lucy Serpell.
+  primary_reference: >-
+    Gideon N, Hawkes N, Mond J, Saunders R, Tchanturia K, Serpell L.
+    Development and Psychometric Validation of the EDE-QS, a 12 Item Short
+    Form of the Eating Disorder Examination Questionnaire (EDE-Q).
+    PLoS ONE. 2016;11(5):e0152744. doi:10.1371/journal.pone.0152744.
+    Licence: CC BY 4.0.
+  cutoff_reference: >-
+    Prnjak K, Mitchison D, Griffiths S, Mond J, Gideon N, Serpell L, Hay P.
+    Further development of the 12-item EDE-QS: identifying a cut-off for
+    screening purposes. BMC Psychiatry. 2020;20:146. Порог ≥ 15 —
+    скрининговая отсечка для дальнейшей оценки.
+  sources:
+    english_original:
+      publication: "PLoS ONE 11(5): e0152744, S2 File (EDE-QS questionnaire)"
+      article: "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0152744"
+      url: "https://journals.plos.org/plosone/article/file?type=supplementary&id=info:doi/10.1371/journal.pone.0152744.s002"
+      md5: "52b2ec64f03d43beca19f5a706ec0dc6"
+      wayback_article: "https://web.archive.org/web/20260722162422/https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0152744"
+      note: >-
+        Файл приложения (docx) загружен 2026-08-26, md5 зафиксирован выше;
+        собственного вэйбек-снимка у файла приложения нет (Save Page Now
+        отдаёт 500 на URL с query-string), поэтому пиновка — по md5 файла
+        плюс вэйбек-снимок страницы статьи от 2025-07-22.
+  target_population: "Взрослые"
+  recall_period: "Последние 7 дней"
+
+# Инструкция бота перед первым вопросом (собственный текст, короткий).
+instruction_ru: >-
+  Ответь про последние 7 дней — как было на самом деле, без «как должно быть».
+
+# Заголовки двух блоков формы (перевод заголовков строк оригинала).
+days_header_ru: "Сколько дней из последних 7…"
+severity_header_ru: "За последние 7 дней…"
+
+# Шкала пунктов 1–10 — в днях (оригинал: 0 days / 1-2 days / 3-5 days / 6-7 days).
+scale_days:
+  - score: 0
+    label: "0 дней"
+  - score: 1
+    label: "1–2 дня"
+  - score: 2
+    label: "3–5 дней"
+  - score: 3
+    label: "6–7 дней"
+
+# Шкала пунктов 11–12 — по выраженности (оригинал: Not at all / Slightly /
+# Moderately / Markedly).
+scale_severity:
+  - score: 0
+    label: "Совсем нет"
+  - score: 1
+    label: "Немного"
+  - score: 2
+    label: "Умеренно"
+  - score: 3
+    label: "Сильно"
+
+# 12 пунктов. scale: days — пункты 1–10, severity — пункты 11–12.
+# text — собственный перевод; text_en — оригинал для трассируемости
+# (в пользовательские тексты не попадает).
+items:
+  - id: 1
+    scale: days
+    text: "Ты специально ограничивал(а) количество еды, чтобы повлиять на вес или форму тела (независимо от того, получалось это или нет)?"
+    text_en: "Have you been deliberately trying to limit the amount of food you eat to influence your weight or shape (whether or not you have succeeded)?"
+  - id: 2
+    scale: days
+    text: "Ты подолгу (например, 8 часов бодрствования и больше) вообще ничего не ел(а), чтобы повлиять на вес или форму тела?"
+    text_en: "Have you gone for long periods of time (e.g., 8 or more waking hours) without eating anything at all in order to influence your weight or shape?"
+  - id: 3
+    scale: days
+    text: "Из-за мыслей о еде или калориях тебе было очень трудно сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
+    text_en: "Has thinking about food, eating or calories made it very difficult to concentrate on things you are interested in (such as working, following a conversation or reading)?"
+  - id: 4
+    scale: days
+    text: "Из-за мыслей о весе или форме тела тебе было очень трудно сосредоточиться на том, что тебе интересно (работа, разговор, чтение)?"
+    text_en: "Has thinking about your weight or shape made it very difficult to concentrate on things you are interested in (such as working, following a conversation or reading)?"
+  - id: 5
+    scale: days
+    text: "Ты отчётливо боялся(-ась) поправиться?"
+    text_en: "Have you had a definite fear that you might gain weight?"
+  - id: 6
+    scale: days
+    text: "У тебя было сильное желание похудеть?"
+    text_en: "Have you had a strong desire to lose weight?"
+  - id: 7
+    scale: days
+    text: "Ты пытался(-ась) контролировать вес или форму тела, вызывая рвоту или принимая слабительное?"
+    text_en: "Have you tried to control your weight or shape by making yourself sick (vomit) or taking laxatives?"
+  - id: 8
+    scale: days
+    text: "Ты тренировался(-ась) через силу или не мог(ла) себе позволить пропустить тренировку — ради веса, формы тела или чтобы «отработать» съеденное?"
+    text_en: "Have you exercised in a driven or compulsive way as a means of controlling your weight, shape or body fat, or to burn off calories?"
+  - id: 9
+    scale: days
+    text: "У тебя было ощущение, что ты теряешь контроль над едой — прямо в момент, когда ешь?"
+    text_en: "Have you had a sense of having lost control over your eating (at the time that you were eating)?"
+  - id: 10
+    scale: days
+    text: "Сколько из этих дней — тех, когда было ощущение потери контроля, — ты съедал(а) за один раз столько, сколько другие сочли бы необычно большим количеством?"
+    text_en: "On how many of these days (i.e. days on which you had a sense of having lost control over your eating) did you eat what other people would regard as an unusually large amount of food in one go?"
+  - id: 11
+    scale: severity
+    text: "Насколько вес или форма тела влияли на то, как ты оцениваешь себя как человека?"
+    text_en: "Has your weight or shape influenced how you think about (judge) yourself as a person?"
+  - id: 12
+    scale: severity
+    text: "Насколько ты был(а) недоволен(-льна) своим весом или формой тела?"
+    text_en: "How dissatisfied have you been with your weight or shape?"
+
+# Скоринг: простая сумма 12 пунктов, диапазон 0–36. Порог ≥ 15 —
+# Prnjak et al. (2020): выше него имеет смысл дальнейшая оценка у
+# специалиста. Градаций всего две — ниже порога и на пороге/выше.
+scoring:
+  cutoff: 15
+  bands:
+    - { min: 0, max: 14, id: below }
+    - { min: 15, max: 36, id: at_or_above }
+
+# Подвал оригинальной формы, дословно:
+attribution_text_original: "Derived from the EDE-Q, © Fairburn and Beglin, 2008"

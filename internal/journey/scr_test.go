@@ -234,10 +234,12 @@ phase.mode.invalid: "Tap a mode."
 button.mode.fodmap: "Diary"
 button.mode.screening: "Check"
 button.mode.mood: "Mood"
+button.mode.eating: "Food"
 button.mode.report: "Report"
 button.mode.resume_fodmap: "Resume diary: {trial}"
 button.mode.resume_screening: "Resume check"
 button.mode.resume_mood: "Resume mood"
+button.mode.resume_eating: "Resume food"
 button.menu.home: "Home"
 scr.text: "{text}"
 scr.invalid_button: "Tap a screening button."
@@ -250,6 +252,9 @@ cmd.report.screening: "ADHD {date}: A {asrs_a}/6 (>={a_thr}) {a_verdict}; B {asr
 cmd.report.mood: "Mood {date}: {score} of 27"
 cmd.report.gad7: "Anxiety {date}: {score} of 21"
 cmd.report.who5: "WHO5 {date}: {score} of 100"
+cmd.report.edeqs: "EDEQS {date}: {score} of 36"
+cmd.report.bes: "BES {date}: {score} of 46"
+cmd.report.nias: "NIAS {date}: {picky}/{appetite}/{fear} of 15"
 scr.report.positive: "positive"
 scr.report.negative: "negative"
 scr.report.domains_empty: "none marked"
@@ -306,6 +311,10 @@ default_locale: en
 	if err != nil {
 		t.Fatalf("load synthetic mood content: %v", err)
 	}
+	eatContent, err := screening.LoadEating(writeEatTestContent(t))
+	if err != nil {
+		t.Fatalf("load synthetic eating content: %v", err)
+	}
 
 	backend := store.NewMemoryBackend()
 	cat, err := products.New(backend, prodSeed)
@@ -328,6 +337,7 @@ default_locale: en
 	runner.Register(journey.NewStageCheckinPhase())
 	registerScreeningPhases(runner, content)
 	registerMoodPhases(runner, moodContent)
+	registerEatingPhases(runner, eatContent)
 
 	return runner, stateStore, sender, backend
 }

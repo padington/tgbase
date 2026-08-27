@@ -53,6 +53,7 @@ func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData) 
 	if line := who5ReportLine(trans, locale, user); line != "" {
 		extraLines = append(extraLines, line)
 	}
+	extraLines = append(extraLines, eatingReportLines(trans, locale, user)...)
 
 	if len(user.Products) == 0 {
 		if len(extraLines) == 0 {
@@ -166,6 +167,34 @@ func who5ReportLine(trans i18n.Translator, locale i18n.Locale, user state.UserDa
 	})
 }
 
+// eatingReportLines renders the /report lines of the eating track: one lean
+// line per completed instrument. NIAS prints its three subscales — it has no
+// total by design.
+func eatingReportLines(trans i18n.Translator, locale i18n.Locale, user state.UserData) []string {
+	var out []string
+	if res := user.EdeqsResult; res != nil {
+		out = append(out, trans.T("cmd.report.edeqs", locale, map[string]any{
+			"date":  res.TakenAt.Format(reportDateLayout),
+			"score": res.Score,
+		}))
+	}
+	if res := user.BesResult; res != nil {
+		out = append(out, trans.T("cmd.report.bes", locale, map[string]any{
+			"date":  res.TakenAt.Format(reportDateLayout),
+			"score": res.Score,
+		}))
+	}
+	if res := user.NiasResult; res != nil {
+		out = append(out, trans.T("cmd.report.nias", locale, map[string]any{
+			"date":     res.TakenAt.Format(reportDateLayout),
+			"picky":    res.Picky,
+			"appetite": res.Appetite,
+			"fear":     res.Fear,
+		}))
+	}
+	return out
+}
+
 // screeningContent fetches the content bundle from the registered consent
 // phase; nil when the screening mode is not wired. Keeps journey.New
 // unchanged — phases receive the content via their constructors.
@@ -186,8 +215,18 @@ func (r *Runner) moodContent() *screening.MoodContent {
 	return nil
 }
 
+// eatingContent fetches the eating bundle from the registered eating consent
+// phase; nil when the eating track is not wired. Same pattern as
+// screeningContent / moodContent.
+func (r *Runner) eatingContent() *screening.EatingContent {
+	if p, ok := r.phases[state.StateEatConsent].(*EatConsentPhase); ok {
+		return p.c
+	}
+	return nil
+}
+
 // enterScreeningMode is the shared direct-entry routine of the screening
-// commands (/adhd, /mood). Mid-mode it re-fires the current phase's Setup
+// commands (/adhd, /mood, /food). Mid-mode it re-fires the current phase's Setup
 // (redraws the question and keyboard); from a FODMAP state it records the
 // detour and routes to the mode's entry gate (computed from the user's
 // data: the ADHD consent, or the mood consent/menu).
@@ -239,8 +278,14 @@ func (r *Runner) HandleMood(s router.Sender, msg *tgbotapi.Message) {
 	r.enterScreeningMode(msg, moodEntryState, isMoodState)
 }
 
+// HandleFood is the direct entry into the eating track (EDE-QS / BES /
+// NIAS): the consent gate for fresh users, the track menu afterwards.
+func (r *Runner) HandleFood(s router.Sender, msg *tgbotapi.Message) {
+	r.enterScreeningMode(msg, eatEntryState, isEatingState)
+}
+
 // enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
-// /mood_delete): with nothing stored it answers immediately and does not
+// /mood_delete, /food_delete): with nothing stored it answers immediately and does not
 // change state, otherwise it records the way back — the interrupted FODMAP
 // question or the landing itself to ReturnState, a mid-test position to the
 // run's ResumeState (so cancelling returns to the exact question) — and
@@ -255,6 +300,13 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		send(s, msg.Chat.ID, nothingText)
 		return
 	}
+
+	// The eating track's "opened mid-test" marker belongs to a single run of
+	// this dialog: whatever a previous, escaped dialog left behind is stale
+	// by now (the user is somewhere else entirely). Drop it before recording
+	// the current position — this is what makes the marker unable to outlive
+	// its dialog no matter which exit was taken.
+	clearEatResumeStates(&user)
 
 	switch {
 	case isFodmapJourneyState(user.State), user.State == state.StateAwaitingModeChoice:
@@ -275,6 +327,10 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		mc := user.Gad7.Clone()
 		mc.ResumeState = user.State
 		user.Gad7 = mc
+	case resumableEatState(user.State) && eatRunFor(user, user.State) != nil:
+		ec := eatRunFor(user, user.State).Clone()
+		ec.ResumeState = user.State
+		setEatRun(&user, user.State, ec)
 	}
 	user.ChatID = msg.Chat.ID
 	user.State = confirm
@@ -316,6 +372,21 @@ func (r *Runner) HandleMoodDelete(s router.Sender, msg *tgbotapi.Message) {
 		c.Module.UI.DeleteNothing)
 }
 
+// HandleFoodDelete starts the delete-confirmation flow for all stored
+// eating-track data (all three instruments plus the track consent).
+func (r *Runner) HandleFoodDelete(s router.Sender, msg *tgbotapi.Message) {
+	if msg.From == nil {
+		return
+	}
+	c := r.eatingContent()
+	if c == nil {
+		return // eating track not wired
+	}
+	r.enterDeleteConfirm(s, msg, state.StateEatDeleteConfirm,
+		hasEatConsent, // any stored eating data, incl. the consent timestamp
+		c.Module.UI.DeleteNothing)
+}
+
 // HandleAbandon aborts the current activity. Mid-screening it wipes the
 // transient raw answers (the previous completed ScreeningResult is kept) and
 // lands the user on the home landing — a recorded FODMAP detour stays
@@ -329,13 +400,30 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 	user := r.store.Get(msg.From.ID)
 	locale := r.localeForUser(user)
 
-	if isScreeningState(user.State) || isMoodState(user.State) {
+	if isScreeningState(user.State) || isMoodState(user.State) || isEatingState(user.State) {
 		// Abandon the active self-check: wipe the transient raw answers
 		// (the previous completed result is kept) and land home. The
 		// FODMAP detour in ReturnState is kept for the landing's diary
 		// button (see testExitState).
 		var confirmText string
-		if isMoodState(user.State) {
+		if isEatingState(user.State) {
+			// Only the run the current state belongs to is wiped — a paused
+			// run of another instrument stays resumable.
+			switch user.State {
+			case state.StateEatEdeqsQuestion:
+				user.Edeqs = nil
+			case state.StateEatBesQuestion:
+				user.Bes = nil
+			case state.StateEatNiasQuestion:
+				user.Nias = nil
+			}
+			// /abandon is an escape too: it can be issued from the delete
+			// dialog, which never gets to consume the marker it wrote.
+			clearEatResumeStates(&user)
+			if c := r.eatingContent(); c != nil {
+				confirmText = c.Module.UI.AbandonConfirmed
+			}
+		} else if isMoodState(user.State) {
 			// Only the run the current state belongs to is wiped — a paused
 			// run of another instrument stays resumable.
 			switch user.State {

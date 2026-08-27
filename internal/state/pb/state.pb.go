@@ -61,6 +61,13 @@ const (
 	StateKind_STATE_MOOD_OFFER_PHQ9           StateKind = 32
 	StateKind_STATE_MOOD_GAD7_QUESTION        StateKind = 33
 	StateKind_STATE_MOOD_OFFER_GAD7           StateKind = 34
+	StateKind_STATE_EAT_CONSENT               StateKind = 35
+	StateKind_STATE_EAT_MENU                  StateKind = 36
+	StateKind_STATE_EAT_EDEQS_QUESTION        StateKind = 37
+	StateKind_STATE_EAT_BES_QUESTION          StateKind = 38
+	StateKind_STATE_EAT_NIAS_QUESTION         StateKind = 39
+	StateKind_STATE_EAT_REPORT                StateKind = 40
+	StateKind_STATE_EAT_DELETE_CONFIRM        StateKind = 41
 )
 
 // Enum value maps for StateKind.
@@ -101,6 +108,13 @@ var (
 		32: "STATE_MOOD_OFFER_PHQ9",
 		33: "STATE_MOOD_GAD7_QUESTION",
 		34: "STATE_MOOD_OFFER_GAD7",
+		35: "STATE_EAT_CONSENT",
+		36: "STATE_EAT_MENU",
+		37: "STATE_EAT_EDEQS_QUESTION",
+		38: "STATE_EAT_BES_QUESTION",
+		39: "STATE_EAT_NIAS_QUESTION",
+		40: "STATE_EAT_REPORT",
+		41: "STATE_EAT_DELETE_CONFIRM",
 	}
 	StateKind_value = map[string]int32{
 		"STATE_UNSPECIFIED":               0,
@@ -138,6 +152,13 @@ var (
 		"STATE_MOOD_OFFER_PHQ9":           32,
 		"STATE_MOOD_GAD7_QUESTION":        33,
 		"STATE_MOOD_OFFER_GAD7":           34,
+		"STATE_EAT_CONSENT":               35,
+		"STATE_EAT_MENU":                  36,
+		"STATE_EAT_EDEQS_QUESTION":        37,
+		"STATE_EAT_BES_QUESTION":          38,
+		"STATE_EAT_NIAS_QUESTION":         39,
+		"STATE_EAT_REPORT":                40,
+		"STATE_EAT_DELETE_CONFIRM":        41,
 	}
 )
 
@@ -848,6 +869,322 @@ func (x *Gad7Result) GetSeverity() string {
 	return ""
 }
 
+// EatingProgress mirrors state.EatingProgress — the TRANSIENT unfinished run
+// of one eating-track instrument (EDE-QS in `edeqs`, BES in `bes`, NIAS in
+// `nias`; raw per-question answers live only here; wiped on completion /
+// restart / abandon / delete). Answers hold the picked option's score, so a
+// BES answer is the weight of the chosen statement, not its position.
+type EatingProgress struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Answers       []int32                `protobuf:"varint,1,rep,packed,name=answers,proto3" json:"answers,omitempty"`                                                    // append-only; index = item id - 1
+	ResumeState   StateKind              `protobuf:"varint,2,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"` // recorded escape position (the run's question state)
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EatingProgress) Reset() {
+	*x = EatingProgress{}
+	mi := &file_state_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EatingProgress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EatingProgress) ProtoMessage() {}
+
+func (x *EatingProgress) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EatingProgress.ProtoReflect.Descriptor instead.
+func (*EatingProgress) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *EatingProgress) GetAnswers() []int32 {
+	if x != nil {
+		return x.Answers
+	}
+	return nil
+}
+
+func (x *EatingProgress) GetResumeState() StateKind {
+	if x != nil {
+		return x.ResumeState
+	}
+	return StateKind_STATE_UNSPECIFIED
+}
+
+func (x *EatingProgress) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+// EdeqsResult mirrors state.EdeqsResult — the last completed EDE-QS run: the
+// 0–36 sum, the applied screening cutoff and the verdict it produced.
+type EdeqsResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"`       // 0..36
+	Cutoff        int32                  `protobuf:"varint,3,opt,name=cutoff,proto3" json:"cutoff,omitempty"`     // applied cutoff (15)
+	Positive      bool                   `protobuf:"varint,4,opt,name=positive,proto3" json:"positive,omitempty"` // score >= cutoff
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EdeqsResult) Reset() {
+	*x = EdeqsResult{}
+	mi := &file_state_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EdeqsResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EdeqsResult) ProtoMessage() {}
+
+func (x *EdeqsResult) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EdeqsResult.ProtoReflect.Descriptor instead.
+func (*EdeqsResult) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *EdeqsResult) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *EdeqsResult) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *EdeqsResult) GetCutoff() int32 {
+	if x != nil {
+		return x.Cutoff
+	}
+	return 0
+}
+
+func (x *EdeqsResult) GetPositive() bool {
+	if x != nil {
+		return x.Positive
+	}
+	return false
+}
+
+// BesResult mirrors state.BesResult — the last completed BES run: the 0–46
+// sum and the applied severity band, never the per-item statements.
+type BesResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Score         int32                  `protobuf:"varint,2,opt,name=score,proto3" json:"score,omitempty"` // 0..46
+	Band          string                 `protobuf:"bytes,3,opt,name=band,proto3" json:"band,omitempty"`    // low | moderate | severe
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BesResult) Reset() {
+	*x = BesResult{}
+	mi := &file_state_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BesResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BesResult) ProtoMessage() {}
+
+func (x *BesResult) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BesResult.ProtoReflect.Descriptor instead.
+func (*BesResult) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *BesResult) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *BesResult) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *BesResult) GetBand() string {
+	if x != nil {
+		return x.Band
+	}
+	return ""
+}
+
+// NiasResult mirrors state.NiasResult — the last completed NIAS run: the
+// three subscale sums with the cutoffs that were applied to them. There is
+// no NIAS total by design — the instrument is read per subscale.
+type NiasResult struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Picky            int32                  `protobuf:"varint,2,opt,name=picky,proto3" json:"picky,omitempty"`                                         // 0..15
+	Appetite         int32                  `protobuf:"varint,3,opt,name=appetite,proto3" json:"appetite,omitempty"`                                   // 0..15
+	Fear             int32                  `protobuf:"varint,4,opt,name=fear,proto3" json:"fear,omitempty"`                                           // 0..15
+	PickyCutoff      int32                  `protobuf:"varint,5,opt,name=picky_cutoff,json=pickyCutoff,proto3" json:"picky_cutoff,omitempty"`          // applied cutoff (10)
+	AppetiteCutoff   int32                  `protobuf:"varint,6,opt,name=appetite_cutoff,json=appetiteCutoff,proto3" json:"appetite_cutoff,omitempty"` // applied cutoff (9)
+	FearCutoff       int32                  `protobuf:"varint,7,opt,name=fear_cutoff,json=fearCutoff,proto3" json:"fear_cutoff,omitempty"`             // applied cutoff (10)
+	PickyPositive    bool                   `protobuf:"varint,8,opt,name=picky_positive,json=pickyPositive,proto3" json:"picky_positive,omitempty"`
+	AppetitePositive bool                   `protobuf:"varint,9,opt,name=appetite_positive,json=appetitePositive,proto3" json:"appetite_positive,omitempty"`
+	FearPositive     bool                   `protobuf:"varint,10,opt,name=fear_positive,json=fearPositive,proto3" json:"fear_positive,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *NiasResult) Reset() {
+	*x = NiasResult{}
+	mi := &file_state_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NiasResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NiasResult) ProtoMessage() {}
+
+func (x *NiasResult) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NiasResult.ProtoReflect.Descriptor instead.
+func (*NiasResult) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *NiasResult) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *NiasResult) GetPicky() int32 {
+	if x != nil {
+		return x.Picky
+	}
+	return 0
+}
+
+func (x *NiasResult) GetAppetite() int32 {
+	if x != nil {
+		return x.Appetite
+	}
+	return 0
+}
+
+func (x *NiasResult) GetFear() int32 {
+	if x != nil {
+		return x.Fear
+	}
+	return 0
+}
+
+func (x *NiasResult) GetPickyCutoff() int32 {
+	if x != nil {
+		return x.PickyCutoff
+	}
+	return 0
+}
+
+func (x *NiasResult) GetAppetiteCutoff() int32 {
+	if x != nil {
+		return x.AppetiteCutoff
+	}
+	return 0
+}
+
+func (x *NiasResult) GetFearCutoff() int32 {
+	if x != nil {
+		return x.FearCutoff
+	}
+	return 0
+}
+
+func (x *NiasResult) GetPickyPositive() bool {
+	if x != nil {
+		return x.PickyPositive
+	}
+	return false
+}
+
+func (x *NiasResult) GetAppetitePositive() bool {
+	if x != nil {
+		return x.AppetitePositive
+	}
+	return false
+}
+
+func (x *NiasResult) GetFearPositive() bool {
+	if x != nil {
+		return x.FearPositive
+	}
+	return false
+}
+
 type UserData struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	State           StateKind                   `protobuf:"varint,1,opt,name=state,proto3,enum=tgbase.state.v1.StateKind" json:"state,omitempty"`
@@ -874,13 +1211,23 @@ type UserData struct {
 	Gad7          *MoodProgress          `protobuf:"bytes,20,opt,name=gad7,proto3" json:"gad7,omitempty"`
 	Who5Result    *Who5Result            `protobuf:"bytes,21,opt,name=who5_result,json=who5Result,proto3" json:"who5_result,omitempty"`
 	Gad7Result    *Gad7Result            `protobuf:"bytes,22,opt,name=gad7_result,json=gad7Result,proto3" json:"gad7_result,omitempty"`
+	// Eating track (EDE-QS + BES + NIAS): one consent for the whole track
+	// (wiped by /food_delete), per-instrument transient runs and last
+	// completed results. No combined index — same rule as the other tracks.
+	EatConsentAt  *timestamppb.Timestamp `protobuf:"bytes,23,opt,name=eat_consent_at,json=eatConsentAt,proto3" json:"eat_consent_at,omitempty"`
+	Edeqs         *EatingProgress        `protobuf:"bytes,24,opt,name=edeqs,proto3" json:"edeqs,omitempty"`
+	EdeqsResult   *EdeqsResult           `protobuf:"bytes,25,opt,name=edeqs_result,json=edeqsResult,proto3" json:"edeqs_result,omitempty"`
+	Bes           *EatingProgress        `protobuf:"bytes,26,opt,name=bes,proto3" json:"bes,omitempty"`
+	BesResult     *BesResult             `protobuf:"bytes,27,opt,name=bes_result,json=besResult,proto3" json:"bes_result,omitempty"`
+	Nias          *EatingProgress        `protobuf:"bytes,28,opt,name=nias,proto3" json:"nias,omitempty"`
+	NiasResult    *NiasResult            `protobuf:"bytes,29,opt,name=nias_result,json=niasResult,proto3" json:"nias_result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserData) Reset() {
 	*x = UserData{}
-	mi := &file_state_proto_msgTypes[7]
+	mi := &file_state_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -892,7 +1239,7 @@ func (x *UserData) String() string {
 func (*UserData) ProtoMessage() {}
 
 func (x *UserData) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[7]
+	mi := &file_state_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -905,7 +1252,7 @@ func (x *UserData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserData.ProtoReflect.Descriptor instead.
 func (*UserData) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{7}
+	return file_state_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UserData) GetState() StateKind {
@@ -1062,6 +1409,55 @@ func (x *UserData) GetGad7Result() *Gad7Result {
 	return nil
 }
 
+func (x *UserData) GetEatConsentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EatConsentAt
+	}
+	return nil
+}
+
+func (x *UserData) GetEdeqs() *EatingProgress {
+	if x != nil {
+		return x.Edeqs
+	}
+	return nil
+}
+
+func (x *UserData) GetEdeqsResult() *EdeqsResult {
+	if x != nil {
+		return x.EdeqsResult
+	}
+	return nil
+}
+
+func (x *UserData) GetBes() *EatingProgress {
+	if x != nil {
+		return x.Bes
+	}
+	return nil
+}
+
+func (x *UserData) GetBesResult() *BesResult {
+	if x != nil {
+		return x.BesResult
+	}
+	return nil
+}
+
+func (x *UserData) GetNias() *EatingProgress {
+	if x != nil {
+		return x.Nias
+	}
+	return nil
+}
+
+func (x *UserData) GetNiasResult() *NiasResult {
+	if x != nil {
+		return x.NiasResult
+	}
+	return nil
+}
+
 type UserMap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         map[int64]*UserData    `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -1071,7 +1467,7 @@ type UserMap struct {
 
 func (x *UserMap) Reset() {
 	*x = UserMap{}
-	mi := &file_state_proto_msgTypes[8]
+	mi := &file_state_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1083,7 +1479,7 @@ func (x *UserMap) String() string {
 func (*UserMap) ProtoMessage() {}
 
 func (x *UserMap) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[8]
+	mi := &file_state_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1096,7 +1492,7 @@ func (x *UserMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMap.ProtoReflect.Descriptor instead.
 func (*UserMap) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{8}
+	return file_state_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UserMap) GetUsers() map[int64]*UserData {
@@ -1179,8 +1575,35 @@ const file_state_proto_rawDesc = "" +
 	"Gad7Result\x125\n" +
 	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
 	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x1a\n" +
-	"\bseverity\x18\x03 \x01(\tR\bseverity\"\xa1\n" +
+	"\bseverity\x18\x03 \x01(\tR\bseverity\"\xa4\x01\n" +
+	"\x0eEatingProgress\x12\x18\n" +
+	"\aanswers\x18\x01 \x03(\x05R\aanswers\x12=\n" +
+	"\fresume_state\x18\x02 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vresumeState\x129\n" +
 	"\n" +
+	"started_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\"\x8e\x01\n" +
+	"\vEdeqsResult\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x16\n" +
+	"\x06cutoff\x18\x03 \x01(\x05R\x06cutoff\x12\x1a\n" +
+	"\bpositive\x18\x04 \x01(\bR\bpositive\"l\n" +
+	"\tBesResult\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05score\x18\x02 \x01(\x05R\x05score\x12\x12\n" +
+	"\x04band\x18\x03 \x01(\tR\x04band\"\xef\x02\n" +
+	"\n" +
+	"NiasResult\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x14\n" +
+	"\x05picky\x18\x02 \x01(\x05R\x05picky\x12\x1a\n" +
+	"\bappetite\x18\x03 \x01(\x05R\bappetite\x12\x12\n" +
+	"\x04fear\x18\x04 \x01(\x05R\x04fear\x12!\n" +
+	"\fpicky_cutoff\x18\x05 \x01(\x05R\vpickyCutoff\x12'\n" +
+	"\x0fappetite_cutoff\x18\x06 \x01(\x05R\x0eappetiteCutoff\x12\x1f\n" +
+	"\vfear_cutoff\x18\a \x01(\x05R\n" +
+	"fearCutoff\x12%\n" +
+	"\x0epicky_positive\x18\b \x01(\bR\rpickyPositive\x12+\n" +
+	"\x11appetite_positive\x18\t \x01(\bR\x10appetitePositive\x12#\n" +
+	"\rfear_positive\x18\n" +
+	" \x01(\bR\ffearPositive\"\xbc\r\n" +
 	"\bUserData\x120\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\x05state\x12J\n" +
 	"\x10defecation_state\x18\x02 \x01(\x0e2\x1f.tgbase.state.v1.DefecationKindR\x0fdefecationState\x12'\n" +
@@ -1208,7 +1631,16 @@ const file_state_proto_rawDesc = "" +
 	"\vwho5_result\x18\x15 \x01(\v2\x1b.tgbase.state.v1.Who5ResultR\n" +
 	"who5Result\x12<\n" +
 	"\vgad7_result\x18\x16 \x01(\v2\x1b.tgbase.state.v1.Gad7ResultR\n" +
-	"gad7Result\x1a]\n" +
+	"gad7Result\x12@\n" +
+	"\x0eeat_consent_at\x18\x17 \x01(\v2\x1a.google.protobuf.TimestampR\featConsentAt\x125\n" +
+	"\x05edeqs\x18\x18 \x01(\v2\x1f.tgbase.state.v1.EatingProgressR\x05edeqs\x12?\n" +
+	"\fedeqs_result\x18\x19 \x01(\v2\x1c.tgbase.state.v1.EdeqsResultR\vedeqsResult\x121\n" +
+	"\x03bes\x18\x1a \x01(\v2\x1f.tgbase.state.v1.EatingProgressR\x03bes\x129\n" +
+	"\n" +
+	"bes_result\x18\x1b \x01(\v2\x1a.tgbase.state.v1.BesResultR\tbesResult\x123\n" +
+	"\x04nias\x18\x1c \x01(\v2\x1f.tgbase.state.v1.EatingProgressR\x04nias\x12<\n" +
+	"\vnias_result\x18\x1d \x01(\v2\x1b.tgbase.state.v1.NiasResultR\n" +
+	"niasResult\x1a]\n" +
 	"\rProductsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
 	"\x05value\x18\x02 \x01(\v2 .tgbase.state.v1.ProductProgressR\x05value:\x028\x01\"\x99\x01\n" +
@@ -1217,7 +1649,7 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\x9d\a\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\xd3\b\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1255,7 +1687,14 @@ const file_state_proto_rawDesc = "" +
 	"\x18STATE_MOOD_WHO5_QUESTION\x10\x1f\x12\x19\n" +
 	"\x15STATE_MOOD_OFFER_PHQ9\x10 \x12\x1c\n" +
 	"\x18STATE_MOOD_GAD7_QUESTION\x10!\x12\x19\n" +
-	"\x15STATE_MOOD_OFFER_GAD7\x10\"*p\n" +
+	"\x15STATE_MOOD_OFFER_GAD7\x10\"\x12\x15\n" +
+	"\x11STATE_EAT_CONSENT\x10#\x12\x12\n" +
+	"\x0eSTATE_EAT_MENU\x10$\x12\x1c\n" +
+	"\x18STATE_EAT_EDEQS_QUESTION\x10%\x12\x1a\n" +
+	"\x16STATE_EAT_BES_QUESTION\x10&\x12\x1b\n" +
+	"\x17STATE_EAT_NIAS_QUESTION\x10'\x12\x14\n" +
+	"\x10STATE_EAT_REPORT\x10(\x12\x1c\n" +
+	"\x18STATE_EAT_DELETE_CONFIRM\x10)*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
@@ -1275,7 +1714,7 @@ func file_state_proto_rawDescGZIP() []byte {
 }
 
 var file_state_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_state_proto_goTypes = []any{
 	(StateKind)(0),                // 0: tgbase.state.v1.StateKind
 	(DefecationKind)(0),           // 1: tgbase.state.v1.DefecationKind
@@ -1286,50 +1725,66 @@ var file_state_proto_goTypes = []any{
 	(*MoodResult)(nil),            // 6: tgbase.state.v1.MoodResult
 	(*Who5Result)(nil),            // 7: tgbase.state.v1.Who5Result
 	(*Gad7Result)(nil),            // 8: tgbase.state.v1.Gad7Result
-	(*UserData)(nil),              // 9: tgbase.state.v1.UserData
-	(*UserMap)(nil),               // 10: tgbase.state.v1.UserMap
-	nil,                           // 11: tgbase.state.v1.UserData.ProductsEntry
-	nil,                           // 12: tgbase.state.v1.UserMap.UsersEntry
-	(pb.Stage)(0),                 // 13: tgbase.products.v1.Stage
-	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
+	(*EatingProgress)(nil),        // 9: tgbase.state.v1.EatingProgress
+	(*EdeqsResult)(nil),           // 10: tgbase.state.v1.EdeqsResult
+	(*BesResult)(nil),             // 11: tgbase.state.v1.BesResult
+	(*NiasResult)(nil),            // 12: tgbase.state.v1.NiasResult
+	(*UserData)(nil),              // 13: tgbase.state.v1.UserData
+	(*UserMap)(nil),               // 14: tgbase.state.v1.UserMap
+	nil,                           // 15: tgbase.state.v1.UserData.ProductsEntry
+	nil,                           // 16: tgbase.state.v1.UserMap.UsersEntry
+	(pb.Stage)(0),                 // 17: tgbase.products.v1.Stage
+	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
 }
 var file_state_proto_depIdxs = []int32{
-	13, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
-	14, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
+	17, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
+	18, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: tgbase.state.v1.ScreeningProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	14, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
-	14, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
-	14, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
+	18, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
+	18, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
+	18, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: tgbase.state.v1.MoodProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	14, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
-	14, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
-	14, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
-	14, // 10: tgbase.state.v1.Who5Result.taken_at:type_name -> google.protobuf.Timestamp
-	14, // 11: tgbase.state.v1.Gad7Result.taken_at:type_name -> google.protobuf.Timestamp
-	0,  // 12: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
-	1,  // 13: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
-	13, // 14: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
-	14, // 15: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
-	11, // 16: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
-	14, // 17: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
-	3,  // 18: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
-	4,  // 19: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
-	0,  // 20: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
-	5,  // 21: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
-	6,  // 22: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
-	14, // 23: tgbase.state.v1.UserData.mood_consent_at:type_name -> google.protobuf.Timestamp
-	5,  // 24: tgbase.state.v1.UserData.who5:type_name -> tgbase.state.v1.MoodProgress
-	5,  // 25: tgbase.state.v1.UserData.gad7:type_name -> tgbase.state.v1.MoodProgress
-	7,  // 26: tgbase.state.v1.UserData.who5_result:type_name -> tgbase.state.v1.Who5Result
-	8,  // 27: tgbase.state.v1.UserData.gad7_result:type_name -> tgbase.state.v1.Gad7Result
-	12, // 28: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
-	2,  // 29: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
-	9,  // 30: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
-	31, // [31:31] is the sub-list for method output_type
-	31, // [31:31] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	18, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
+	18, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
+	18, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
+	18, // 10: tgbase.state.v1.Who5Result.taken_at:type_name -> google.protobuf.Timestamp
+	18, // 11: tgbase.state.v1.Gad7Result.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 12: tgbase.state.v1.EatingProgress.resume_state:type_name -> tgbase.state.v1.StateKind
+	18, // 13: tgbase.state.v1.EatingProgress.started_at:type_name -> google.protobuf.Timestamp
+	18, // 14: tgbase.state.v1.EdeqsResult.taken_at:type_name -> google.protobuf.Timestamp
+	18, // 15: tgbase.state.v1.BesResult.taken_at:type_name -> google.protobuf.Timestamp
+	18, // 16: tgbase.state.v1.NiasResult.taken_at:type_name -> google.protobuf.Timestamp
+	0,  // 17: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
+	1,  // 18: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
+	17, // 19: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
+	18, // 20: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
+	15, // 21: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
+	18, // 22: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
+	3,  // 23: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
+	4,  // 24: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
+	0,  // 25: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
+	5,  // 26: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
+	6,  // 27: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
+	18, // 28: tgbase.state.v1.UserData.mood_consent_at:type_name -> google.protobuf.Timestamp
+	5,  // 29: tgbase.state.v1.UserData.who5:type_name -> tgbase.state.v1.MoodProgress
+	5,  // 30: tgbase.state.v1.UserData.gad7:type_name -> tgbase.state.v1.MoodProgress
+	7,  // 31: tgbase.state.v1.UserData.who5_result:type_name -> tgbase.state.v1.Who5Result
+	8,  // 32: tgbase.state.v1.UserData.gad7_result:type_name -> tgbase.state.v1.Gad7Result
+	18, // 33: tgbase.state.v1.UserData.eat_consent_at:type_name -> google.protobuf.Timestamp
+	9,  // 34: tgbase.state.v1.UserData.edeqs:type_name -> tgbase.state.v1.EatingProgress
+	10, // 35: tgbase.state.v1.UserData.edeqs_result:type_name -> tgbase.state.v1.EdeqsResult
+	9,  // 36: tgbase.state.v1.UserData.bes:type_name -> tgbase.state.v1.EatingProgress
+	11, // 37: tgbase.state.v1.UserData.bes_result:type_name -> tgbase.state.v1.BesResult
+	9,  // 38: tgbase.state.v1.UserData.nias:type_name -> tgbase.state.v1.EatingProgress
+	12, // 39: tgbase.state.v1.UserData.nias_result:type_name -> tgbase.state.v1.NiasResult
+	16, // 40: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
+	2,  // 41: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
+	13, // 42: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_state_proto_init() }
@@ -1344,7 +1799,7 @@ func file_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_state_proto_rawDesc), len(file_state_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   11,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

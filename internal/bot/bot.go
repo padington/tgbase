@@ -36,10 +36,10 @@ type Config struct {
 	SettingsSeedPath   string
 	I18nDir            string
 
-	// ScreeningDir holds the read-only ADHD-screening content YAMLs
-	// (reloaded on every boot, never backend-seeded). Empty disables the
-	// screening mode: /start keeps its legacy behavior and the /adhd
-	// commands are not registered.
+	// ScreeningDir holds the read-only self-check content YAMLs — ADHD,
+	// mood and eating track (reloaded on every boot, never backend-seeded).
+	// Empty disables every self-check track: /start keeps its legacy
+	// behavior and the /adhd, /mood and /food commands are not registered.
 	ScreeningDir string
 
 	// DataPath is the legacy single-file persistence path. Kept so main.go
@@ -90,6 +90,7 @@ func New(cfg Config) (*Bot, error) {
 
 	var scrContent *screening.Content
 	var moodContent *screening.MoodContent
+	var eatingContent *screening.EatingContent
 	if cfg.ScreeningDir != "" {
 		scrContent, err = screening.Load(cfg.ScreeningDir)
 		if err != nil {
@@ -103,45 +104,17 @@ func New(cfg Config) (*Bot, error) {
 			// of the validated shape.
 			return nil, fmt.Errorf("load mood content from %s: %w", cfg.ScreeningDir, err)
 		}
+		eatingContent, err = screening.LoadEating(cfg.ScreeningDir)
+		if err != nil {
+			// Same fail-fast canon: EDE-QS/BES/NIAS items and cutoffs are
+			// pinned by the validator.
+			return nil, fmt.Errorf("load eating content from %s: %w", cfg.ScreeningDir, err)
+		}
 	}
 
 	runner := journey.New(stateStore, api, catalog, settingsStore, trans)
-	runner.Register(journey.NewDefecationPhase())
-	runner.Register(journey.NewProductCategoryPhase())
-	runner.Register(journey.NewProductChoicePhase())
-	runner.Register(journey.NewStageChoicePhase())
-	runner.Register(journey.NewStageCheckinPhase())
-	if scrContent != nil {
-		runner.Register(journey.NewModeChoicePhase())
-		runner.Register(journey.NewScrConsentPhase(scrContent))
-		runner.Register(journey.NewScrIntroPhase(scrContent))
-		runner.Register(journey.NewScrAsrsAPhase(scrContent))
-		runner.Register(journey.NewScrAsrsAGatePhase(scrContent))
-		runner.Register(journey.NewScrAsrsBPhase(scrContent))
-		runner.Register(journey.NewScrAsrsBGatePhase(scrContent))
-		runner.Register(journey.NewScrWursFormPhase(scrContent))
-		runner.Register(journey.NewScrWursPhase(scrContent))
-		runner.Register(journey.NewScrWursGatePhase(scrContent))
-		runner.Register(journey.NewScrOnsetPhase(scrContent))
-		runner.Register(journey.NewScrOnsetAgePhase(scrContent))
-		runner.Register(journey.NewScrDomainsAdultPhase(scrContent))
-		runner.Register(journey.NewScrDomainsChildPhase(scrContent))
-		runner.Register(journey.NewScrReferralPhase(scrContent))
-		runner.Register(journey.NewScrReportPhase(scrContent))
-		runner.Register(journey.NewScrDeleteConfirmPhase(scrContent))
-	}
-	if moodContent != nil {
-		runner.Register(journey.NewMoodConsentPhase(moodContent))
-		runner.Register(journey.NewMoodMenuPhase(moodContent))
-		runner.Register(journey.NewMoodQuestionPhase(moodContent))
-		runner.Register(journey.NewMoodCrisisPhase(moodContent))
-		runner.Register(journey.NewMoodQ10Phase(moodContent))
-		runner.Register(journey.NewMoodReportPhase(moodContent))
-		runner.Register(journey.NewMoodWho5Phase(moodContent))
-		runner.Register(journey.NewMoodOfferPhq9Phase(moodContent))
-		runner.Register(journey.NewMoodGad7Phase(moodContent))
-		runner.Register(journey.NewMoodOfferGad7Phase(moodContent))
-		runner.Register(journey.NewMoodDeleteConfirmPhase(moodContent))
+	for _, p := range phasesFor(scrContent, moodContent, eatingContent) {
+		runner.Register(p)
 	}
 
 	worker := reminder.NewWithCallback(
@@ -171,6 +144,10 @@ func New(cfg Config) (*Bot, error) {
 		r.HandleCommand("mood", runner.HandleMood)
 		r.HandleCommand("mood_delete", runner.HandleMoodDelete)
 	}
+	if eatingContent != nil {
+		r.HandleCommand("food", runner.HandleFood)
+		r.HandleCommand("food_delete", runner.HandleFoodDelete)
+	}
 
 	r.HandleText(func(msg *tgbotapi.Message) bool {
 		if msg.From == nil {
@@ -182,7 +159,11 @@ func New(cfg Config) (*Bot, error) {
 	// Self-register the client command menu (setMyCommands) so the hint in
 	// Telegram always matches what this binary actually handles. Best-effort:
 	// a failure is a warning, not a boot error.
-	registerCommands(api, trans, scrContent != nil, moodContent != nil)
+	registerCommands(api, trans, modes{
+		screening: scrContent != nil,
+		mood:      moodContent != nil,
+		eating:    eatingContent != nil,
+	})
 
 	return &Bot{
 		api:      api,

@@ -8,6 +8,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Eating track — «Отношения с едой» (EDE-QS + BES + NIAS, ru-only v1).**
+  Fourth mode on the `/start` landing; direct entry via `/food`, data
+  deletion via `/food_delete`. Three instruments behind ONE track-wide
+  consent and a mini-menu («📋 Основной тест» / «🍩 Переедание» / «🥄
+  Избирательность в еде» + resume rows for unfinished runs). Goal of the
+  track, stated plainly: a summary worth taking to a doctor.
+  - **EDE-QS** — 12 items about the last 7 days, from the S2 File of the
+    original PLoS ONE 2016 validation paper (CC BY 4.0). Both answer scales
+    of the paper form are reproduced and the framing switches exactly where
+    the form switches (days for items 1–10 → severity for 11–12). Sum 0–36
+    against the screening cutoff **≥ 15** (Prnjak et al. 2020); only two
+    readings, below and at-or-above. The applied cutoff is stored with the
+    result, so an old result stays readable if the content ever changes.
+  - **BES** — 16 groups of weighted statements (English original and weights
+    from the NIMH Data Archive dictionary `binge01`, group splits verified
+    against a second independent source). Statements are far too long for
+    buttons: the message renders the group as a numbered list and the
+    keyboard carries the numbers. The stored answer is the picked
+    statement's **weight**, not its index — several statements in a group
+    can share a weight, which is why the maximum is 46, not 48. Bands
+    ≤ 17 / 18–26 / ≥ 27.
+  - **NIAS** — 9 statements, three independent subscales of 0–15
+    (избирательность / аппетит / опасения) with cutoffs ≥ 10 / ≥ 9 / ≥ 10
+    (Burton Murray et al. 2021). **No total is computed** — the instrument
+    is read per subscale, and a total would be meaningless.
+  - **Burton Murray cross-reading, deterministic and in code**
+    (`screening.NiasContext`): a positive NIAS subscale means different
+    things depending on the EDE-QS. Below the cutoff → restriction without
+    body-image concern; at or above → restriction likely tied to body
+    image; EDE-QS not taken → the bot says outright that the two cannot be
+    told apart and invites the core test. The reading upgrades itself as
+    soon as the core test is completed — a NIAS result read before it is
+    re-read after it.
+  - **Combined doctor report** after every completion: each instrument with
+    its date, score and the cutoff that was applied, the NIAS subscales and
+    their reading. A **low-FODMAP context line is appended automatically**
+    whenever the user has diary activity — a clinician reading the restraint
+    items has to know that part of this person's dietary restriction is
+    medically prescribed, or the screen reads falsely positive. The report
+    is rendered on the fly and never stored.
+  - **Content safety, enforced not just intended**: no instrument in the
+    track asks for a weight, height or calorie figure, and no user-facing
+    string names a diagnosis. Pinned twice — canonical tests over the raw
+    content in `internal/screening`, and a canary in `internal/journey` that
+    walks the whole track for two users and scans the assembled chat surface
+    (every message body AND every button label, including the landing and
+    `/report` strings i18n contributes). In the doctor report the strongest
+    allowed wording is «скрин по шкале X положительный».
+  - `/abandon` wipes only the active instrument's run; `/food_delete` wipes
+    all three runs, all three results and the track consent in one write;
+    `/report` gains one lean line per completed instrument (NIAS prints its
+    three subscales). Russian texts are the bot authors' own translations —
+    no validated Russian versions of these instruments exist — with
+    provenance pinned in the content files and, per the owner's style, no
+    methodology caveats in user-facing messages.
+  - Deliberately flatter than the mood module, per the track's proof-of-
+    concept scope: **no offer chain, no crisis card, no resource cards, no
+    diary gates**. Every instrument ends the same way — score, reading,
+    doctor report, landing.
+  - Pauses need no bookkeeping: all three question phases derive the current
+    item from the answer count, so `/start`, `/menu` and 🏠 interrupt
+    anywhere and the landing's «▶️ Продолжить тест о еде» resumes on the
+    exact next question (the track menu disambiguates when several runs are
+    paused). The only thing written to an `EatingProgress.ResumeState` is
+    `/food_delete`'s "opened mid-test" marker, and it never outlives that
+    dialog — the cancel consumes it, escaping (🏠, `/start`, `/menu`,
+    `/abandon`) drops it, and the next `/food_delete` starts clean. A stale
+    marker would otherwise make a later `/food_delete` opened from the
+    landing close back INTO a merely paused run.
 - **Mood module v2 — WHO-5 quick check, GAD-7, PHQ-9 functional item.** The
   mood mode becomes a three-instrument hub behind one consent and a
   mini-menu («⚡ Быстрый чек (1 мин)» / «📋 Настроение (PHQ-9)» / «😰 Тревога

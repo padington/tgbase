@@ -22,6 +22,9 @@ func realTrans(t *testing.T) i18n.Translator {
 	return trans
 }
 
+// allModes is the fully-wired binary: every self-check track registered.
+var allModes = modes{screening: true, mood: true, eating: true}
+
 func commandNames(cmds []tgbotapi.BotCommand) []string {
 	names := make([]string, len(cmds))
 	for i, c := range cmds {
@@ -31,9 +34,13 @@ func commandNames(cmds []tgbotapi.BotCommand) []string {
 }
 
 func TestMenuCommands_FullListInFrequencyOrder(t *testing.T) {
-	cmds := menuCommands(realTrans(t), "", true, true)
+	cmds := menuCommands(realTrans(t), "", allModes)
 
-	want := []string{"menu", "adhd", "mood", "report", "about", "abandon", "adhd_delete", "mood_delete"}
+	want := []string{
+		"menu", "adhd", "mood", "food",
+		"report", "about", "abandon",
+		"adhd_delete", "mood_delete", "food_delete",
+	}
 	got := commandNames(cmds)
 	if len(got) != len(want) {
 		t.Fatalf("expected %d commands, got %d: %v", len(want), len(got), got)
@@ -46,7 +53,7 @@ func TestMenuCommands_FullListInFrequencyOrder(t *testing.T) {
 }
 
 func TestMenuCommands_ServiceCommandsExcluded(t *testing.T) {
-	cmds := menuCommands(realTrans(t), "", true, true)
+	cmds := menuCommands(realTrans(t), "", allModes)
 	for _, c := range cmds {
 		switch c.Command {
 		case "start", "ping", "whoami":
@@ -55,19 +62,45 @@ func TestMenuCommands_ServiceCommandsExcluded(t *testing.T) {
 	}
 }
 
+// A track that is not wired must contribute NEITHER of its two commands: the
+// menu is the user's contract with the running binary, and an entry the
+// router never registered is a dead command.
 func TestMenuCommands_ModesDisabled(t *testing.T) {
 	trans := realTrans(t)
 
-	got := commandNames(menuCommands(trans, "", false, true))
-	want := []string{"menu", "mood", "report", "about", "abandon", "mood_delete"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("screening off: expected %v, got %v", want, got)
+	cases := []struct {
+		name  string
+		modes modes
+		want  []string
+	}{
+		{
+			"screening off",
+			modes{screening: false, mood: true, eating: true},
+			[]string{"menu", "mood", "food", "report", "about", "abandon", "mood_delete", "food_delete"},
+		},
+		{
+			"mood off",
+			modes{screening: true, mood: false, eating: true},
+			[]string{"menu", "adhd", "food", "report", "about", "abandon", "adhd_delete", "food_delete"},
+		},
+		{
+			"eating off",
+			modes{screening: true, mood: true, eating: false},
+			[]string{"menu", "adhd", "mood", "report", "about", "abandon", "adhd_delete", "mood_delete"},
+		},
+		{
+			"all tracks off",
+			modes{},
+			[]string{"menu", "report", "about", "abandon"},
+		},
 	}
-
-	got = commandNames(menuCommands(trans, "", true, false))
-	want = []string{"menu", "adhd", "report", "about", "abandon", "adhd_delete"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("mood off: expected %v, got %v", want, got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := commandNames(menuCommands(trans, "", tc.modes))
+			if strings.Join(got, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
 	}
 }
 
@@ -77,7 +110,7 @@ func TestMenuCommands_ModesDisabled(t *testing.T) {
 func TestMenuCommands_DescriptionsResolveFromI18n(t *testing.T) {
 	trans := realTrans(t)
 	for _, locale := range []i18n.Locale{"", "en"} {
-		for _, c := range menuCommands(trans, locale, true, true) {
+		for _, c := range menuCommands(trans, locale, allModes) {
 			if c.Description == "" || strings.HasPrefix(c.Description, "cmd.") {
 				t.Errorf("locale %q: /%s description did not resolve: %q", locale, c.Command, c.Description)
 			}
@@ -91,19 +124,19 @@ func TestMenuCommands_DescriptionsResolveFromI18n(t *testing.T) {
 func TestMenuCommands_LocalizedDescriptions(t *testing.T) {
 	trans := realTrans(t)
 
-	ru := menuCommands(trans, "", true, true)
+	ru := menuCommands(trans, "", allModes)
 	if ru[0].Description != "главное меню" {
 		t.Fatalf("default-locale /menu description: got %q", ru[0].Description)
 	}
 
-	en := menuCommands(trans, "en", true, true)
+	en := menuCommands(trans, "en", allModes)
 	if en[0].Description != "main menu" {
 		t.Fatalf("en /menu description: got %q", en[0].Description)
 	}
 }
 
 func TestMenuConfigs_DefaultPlusEnglish(t *testing.T) {
-	cfgs := menuConfigs(realTrans(t), true, true)
+	cfgs := menuConfigs(realTrans(t), allModes)
 	if len(cfgs) != 2 {
 		t.Fatalf("expected 2 setMyCommands configs (default + en), got %d", len(cfgs))
 	}
@@ -137,7 +170,7 @@ func (m *mockRegistrar) Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, er
 
 func TestRegisterCommands_SendsBothLocaleVariants(t *testing.T) {
 	reg := &mockRegistrar{}
-	registerCommands(reg, realTrans(t), true, true)
+	registerCommands(reg, realTrans(t), allModes)
 
 	if len(reg.requests) != 2 {
 		t.Fatalf("expected 2 setMyCommands requests, got %d", len(reg.requests))
@@ -157,7 +190,7 @@ func TestRegisterCommands_APIFailureIsNotFatal(t *testing.T) {
 	reg := &mockRegistrar{err: errors.New("telegram is down")}
 
 	// Must neither panic nor abort after the first failure.
-	registerCommands(reg, realTrans(t), true, true)
+	registerCommands(reg, realTrans(t), allModes)
 
 	if len(reg.requests) != 2 {
 		t.Fatalf("expected registration to attempt all configs despite errors, got %d", len(reg.requests))

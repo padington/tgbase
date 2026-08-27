@@ -70,7 +70,7 @@ func (r *Runner) HandleStart(s router.Sender, msg *tgbotapi.Message) {
 
 // routeToLanding is the universal escape shared by /start, /menu and the 🏠
 // button: it records how to come back — a FODMAP journey state to
-// ReturnState, a resumable screening/mood state to the run's ResumeState —
+// ReturnState, a resumable screening/mood/eating state to the run's ResumeState —
 // then shows the landing. Non-resumable states (delete confirmations, the
 // consent/intro gates) never overwrite an earlier recorded position.
 func (r *Runner) routeToLanding(userID, chatID int64, langCode string) {
@@ -93,6 +93,20 @@ func (r *Runner) routeToLanding(userID, chatID int64, langCode string) {
 			mc.ResumeState = cur
 			user.Mood = mc
 		}
+	case isEatingState(cur):
+		// Escape mid-eating-test: nothing to record. Every eating question
+		// phase derives its position from the recorded answers (like the
+		// mood module's WHO-5 and GAD-7), so the run resumes exactly where
+		// it paused without a stored marker. EatingProgress.ResumeState is
+		// reserved for the delete dialog, which uses it to tell "opened
+		// mid-test" from "opened on the landing" — writing it here would
+		// make a merely paused run look interrupted later.
+		//
+		// The other half of that rule: escaping FROM the delete dialog
+		// bypasses the cancel button that consumes the marker, so drop it
+		// here. A leftover marker would make the next /food_delete —
+		// opened from the landing — close back INTO the paused run.
+		clearEatResumeStates(&user)
 	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
 		// Remember where to return after a detour. A repeated escape from
 		// the landing itself is idempotent — ReturnState is kept.

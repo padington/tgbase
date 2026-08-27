@@ -14,24 +14,35 @@ type commandRegistrar interface {
 	Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error)
 }
 
+// modes says which optional self-check tracks this binary actually wired.
+// The menu is built from it so the client hint can never advertise a command
+// the router does not handle.
+type modes struct {
+	screening bool // ADHD track: /adhd, /adhd_delete
+	mood      bool // mood module: /mood, /mood_delete
+	eating    bool // eating track: /food, /food_delete
+}
+
 // menuCommands returns the client command menu in usage-frequency order.
 // Descriptions come from i18n ("cmd.<name>.desc"). Deliberate omissions:
 // /start (Telegram renders its own Start button) and the operator commands
-// /ping and /whoami. adhd/mood entries appear only when the corresponding
-// mode is actually wired, so the menu always matches the running binary.
-func menuCommands(trans i18n.Translator, locale i18n.Locale, screening, mood bool) []tgbotapi.BotCommand {
+// /ping and /whoami. Per-track entries appear only when that track is
+// actually wired, so the menu always matches the running binary.
+func menuCommands(trans i18n.Translator, locale i18n.Locale, m modes) []tgbotapi.BotCommand {
 	entries := []struct {
 		name    string
 		enabled bool
 	}{
 		{"menu", true},
-		{"adhd", screening},
-		{"mood", mood},
+		{"adhd", m.screening},
+		{"mood", m.mood},
+		{"food", m.eating},
 		{"report", true},
 		{"about", true},
 		{"abandon", true},
-		{"adhd_delete", screening},
-		{"mood_delete", mood},
+		{"adhd_delete", m.screening},
+		{"mood_delete", m.mood},
+		{"food_delete", m.eating},
 	}
 	var out []tgbotapi.BotCommand
 	for _, e := range entries {
@@ -49,12 +60,12 @@ func menuCommands(trans i18n.Translator, locale i18n.Locale, screening, mood boo
 // menuConfigs builds the setMyCommands payloads: the default-scope list with
 // default-locale (ru) descriptions, plus a language_code="en" variant that
 // overrides it for clients running in English.
-func menuConfigs(trans i18n.Translator, screening, mood bool) []tgbotapi.SetMyCommandsConfig {
+func menuConfigs(trans i18n.Translator, m modes) []tgbotapi.SetMyCommandsConfig {
 	return []tgbotapi.SetMyCommandsConfig{
-		tgbotapi.NewSetMyCommands(menuCommands(trans, "", screening, mood)...),
+		tgbotapi.NewSetMyCommands(menuCommands(trans, "", m)...),
 		tgbotapi.NewSetMyCommandsWithScopeAndLanguage(
 			tgbotapi.NewBotCommandScopeDefault(), "en",
-			menuCommands(trans, "en", screening, mood)...),
+			menuCommands(trans, "en", m)...),
 	}
 }
 
@@ -62,8 +73,8 @@ func menuConfigs(trans i18n.Translator, screening, mood bool) []tgbotapi.SetMyCo
 // hint never drifts from the deployed binary (no manual BotFather step).
 // Failures are logged as warnings and never fatal: a broken setMyCommands
 // call must not stop the bot from serving updates.
-func registerCommands(api commandRegistrar, trans i18n.Translator, screening, mood bool) {
-	for _, cfg := range menuConfigs(trans, screening, mood) {
+func registerCommands(api commandRegistrar, trans i18n.Translator, m modes) {
+	for _, cfg := range menuConfigs(trans, m) {
 		if _, err := api.Request(cfg); err != nil {
 			log.Printf("bot: warning: setMyCommands (lang=%q) failed, command menu may be stale: %v", cfg.LanguageCode, err)
 		}
