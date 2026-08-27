@@ -1288,6 +1288,98 @@ func TestEat_DeleteFromADiaryQuestionReturnsToIt(t *testing.T) {
 	}
 }
 
+// TestEat_DeleteMarkerNeverOutlivesTheDialog is the regression for the
+// dialog's escape routes: the «opened mid-test» marker is owned by ONE run of
+// the dialog, but 🏠 / /start / /menu / /abandon all leave without touching
+// the cancel button that consumes it. A leftover marker made the NEXT
+// /food_delete — opened from the landing — close back INTO the paused run
+// instead of onto the landing, and silently dropped the detour recorded on
+// that second entry.
+func TestEat_DeleteMarkerNeverOutlivesTheDialog(t *testing.T) {
+	escapes := []struct {
+		name string
+		do   func(runner *journey.Runner, sender *mockSender)
+	}{
+		{"home button", func(runner *journey.Runner, sender *mockSender) {
+			say(runner, sender, 1, "Home")
+		}},
+		{"/start", func(runner *journey.Runner, sender *mockSender) {
+			runner.HandleStart(sender, newMsg(1, "/start"))
+		}},
+		{"/abandon", func(runner *journey.Runner, sender *mockSender) {
+			runner.HandleAbandon(sender, newMsg(1, "/abandon"))
+		}},
+	}
+
+	for _, escape := range escapes {
+		t.Run(escape.name, func(t *testing.T) {
+			runner, st, sender, _ := setupScr(t)
+
+			openEatMenu(t, runner, st, sender, 1)
+			say(runner, sender, 1, "Core test")
+			say(runner, sender, 1, "D2")
+
+			runner.HandleFoodDelete(sender, newMsg(1, "/food_delete"))
+			if got := st.Get(1).State; got != state.StateEatDeleteConfirm {
+				t.Fatalf("expected the delete confirmation, got %q", got)
+			}
+			escape.do(runner, sender)
+
+			d := st.Get(1)
+			if d.State != state.StateAwaitingModeChoice {
+				t.Fatalf("the escape must land on the landing, got %q", d.State)
+			}
+			if d.Edeqs != nil && d.Edeqs.ResumeState != "" {
+				t.Errorf("the mid-test marker must not survive the escape, got %q",
+					d.Edeqs.ResumeState)
+			}
+
+			// Reopened from the landing, the dialog must close onto the
+			// landing — not into the run the previous dialog was opened from.
+			runner.HandleFoodDelete(sender, newMsg(1, "/food_delete"))
+			if got := st.Get(1).State; got != state.StateEatDeleteConfirm {
+				t.Fatalf("expected the delete confirmation, got %q", got)
+			}
+			say(runner, sender, 1, "Keep food data")
+
+			d = st.Get(1)
+			if d.State != state.StateAwaitingModeChoice {
+				t.Fatalf("cancel from the landing must return to the landing, got %q", d.State)
+			}
+			if d.ReturnState != "" {
+				t.Errorf("the consumed detour must be cleared, got %q", d.ReturnState)
+			}
+		})
+	}
+}
+
+// TestEat_DeleteConfirmFromADiaryQuestionAfterAnEscape: the confirm path is
+// the other half of the same bug — a stale marker made /food_delete issued
+// mid-diary look "mid-test", so confirming landed home instead of returning
+// to the interrupted diary question.
+func TestEat_DeleteConfirmFromADiaryQuestionAfterAnEscape(t *testing.T) {
+	runner, st, sender, _ := setupScr(t)
+
+	openEatMenu(t, runner, st, sender, 1)
+	say(runner, sender, 1, "Core test")
+	say(runner, sender, 1, "D2")
+
+	runner.HandleFoodDelete(sender, newMsg(1, "/food_delete")) // writes the marker
+	say(runner, sender, 1, "Home")                             // escapes without consuming it
+
+	driveToCheckin(t, runner, st, sender, 1)
+	runner.HandleFoodDelete(sender, newMsg(1, "/food_delete"))
+	say(runner, sender, 1, "Yes, drop food data")
+
+	d := st.Get(1)
+	if d.State != state.StateAwaitingStageCheckin {
+		t.Fatalf("confirm from the diary must return to the diary question, got %q", d.State)
+	}
+	if d.Edeqs != nil || d.EatConsentAt != nil {
+		t.Errorf("confirm must wipe the track: %+v", d)
+	}
+}
+
 // --- privacy ----------------------------------------------------------------
 
 // TestEat_RawAnswersNeverOutliveTheRun: raw per-question answers are

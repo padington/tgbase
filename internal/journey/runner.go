@@ -101,6 +101,12 @@ func (r *Runner) routeToLanding(userID, chatID int64, langCode string) {
 		// reserved for the delete dialog, which uses it to tell "opened
 		// mid-test" from "opened on the landing" — writing it here would
 		// make a merely paused run look interrupted later.
+		//
+		// The other half of that rule: escaping FROM the delete dialog
+		// bypasses the cancel button that consumes the marker, so drop it
+		// here. A leftover marker would make the next /food_delete —
+		// opened from the landing — close back INTO the paused run.
+		clearEatResumeStates(&user)
 	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
 		// Remember where to return after a detour. A repeated escape from
 		// the landing itself is idempotent — ReturnState is kept.

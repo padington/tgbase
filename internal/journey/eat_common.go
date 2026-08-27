@@ -75,6 +75,12 @@ func setEatRun(u *state.UserData, kind state.StateKind, run *state.EatingProgres
 // question phases never read it — so it must not outlive the dialog: a
 // leftover marker would make a later /food_delete opened from the landing
 // close back INTO the paused run instead of onto the landing.
+//
+// Called from every way out of the dialog: its own «Оставить» button, the
+// landing escapes (🏠 / /start / /menu, via routeToLanding) and /abandon —
+// plus enterDeleteConfirm itself, which starts each dialog from a clean
+// marker and so covers exits nobody enumerated (a jump straight into
+// another track's delete dialog, say).
 func clearEatResumeStates(u *state.UserData) {
 	u.Edeqs = withoutEatResume(u.Edeqs)
 	u.Bes = withoutEatResume(u.Bes)

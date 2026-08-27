@@ -301,6 +301,13 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		return
 	}
 
+	// The eating track's "opened mid-test" marker belongs to a single run of
+	// this dialog: whatever a previous, escaped dialog left behind is stale
+	// by now (the user is somewhere else entirely). Drop it before recording
+	// the current position — this is what makes the marker unable to outlive
+	// its dialog no matter which exit was taken.
+	clearEatResumeStates(&user)
+
 	switch {
 	case isFodmapJourneyState(user.State), user.State == state.StateAwaitingModeChoice:
 		user.ReturnState = user.State
@@ -410,6 +417,9 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 			case state.StateEatNiasQuestion:
 				user.Nias = nil
 			}
+			// /abandon is an escape too: it can be issued from the delete
+			// dialog, which never gets to consume the marker it wrote.
+			clearEatResumeStates(&user)
 			if c := r.eatingContent(); c != nil {
 				confirmText = c.Module.UI.AbandonConfirmed
 			}
