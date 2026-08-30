@@ -22,8 +22,8 @@ func realTrans(t *testing.T) i18n.Translator {
 	return trans
 }
 
-// allModes is the fully-wired binary: every self-check track registered.
-var allModes = modes{screening: true, mood: true, eating: true}
+// allModes is the fully-wired binary: every track registered.
+var allModes = modes{screening: true, mood: true, eating: true, pushups: true}
 
 func commandNames(cmds []tgbotapi.BotCommand) []string {
 	names := make([]string, len(cmds))
@@ -37,9 +37,9 @@ func TestMenuCommands_FullListInFrequencyOrder(t *testing.T) {
 	cmds := menuCommands(realTrans(t), "", allModes)
 
 	want := []string{
-		"menu", "adhd", "mood", "food",
+		"menu", "adhd", "mood", "food", "pushups",
 		"report", "about", "abandon",
-		"adhd_delete", "mood_delete", "food_delete",
+		"adhd_delete", "mood_delete", "food_delete", "pushups_delete",
 	}
 	got := commandNames(cmds)
 	if len(got) != len(want) {
@@ -75,18 +75,27 @@ func TestMenuCommands_ModesDisabled(t *testing.T) {
 	}{
 		{
 			"screening off",
-			modes{screening: false, mood: true, eating: true},
-			[]string{"menu", "mood", "food", "report", "about", "abandon", "mood_delete", "food_delete"},
+			modes{screening: false, mood: true, eating: true, pushups: true},
+			[]string{"menu", "mood", "food", "pushups", "report", "about", "abandon",
+				"mood_delete", "food_delete", "pushups_delete"},
 		},
 		{
 			"mood off",
-			modes{screening: true, mood: false, eating: true},
-			[]string{"menu", "adhd", "food", "report", "about", "abandon", "adhd_delete", "food_delete"},
+			modes{screening: true, mood: false, eating: true, pushups: true},
+			[]string{"menu", "adhd", "food", "pushups", "report", "about", "abandon",
+				"adhd_delete", "food_delete", "pushups_delete"},
 		},
 		{
 			"eating off",
-			modes{screening: true, mood: true, eating: false},
-			[]string{"menu", "adhd", "mood", "report", "about", "abandon", "adhd_delete", "mood_delete"},
+			modes{screening: true, mood: true, eating: false, pushups: true},
+			[]string{"menu", "adhd", "mood", "pushups", "report", "about", "abandon",
+				"adhd_delete", "mood_delete", "pushups_delete"},
+		},
+		{
+			"pushups off",
+			modes{screening: true, mood: true, eating: true},
+			[]string{"menu", "adhd", "mood", "food", "report", "about", "abandon",
+				"adhd_delete", "mood_delete", "food_delete"},
 		},
 		{
 			"all tracks off",
@@ -116,6 +125,34 @@ func TestMenuCommands_DescriptionsResolveFromI18n(t *testing.T) {
 			}
 			if n := len(c.Description); n < 3 || n > 256 {
 				t.Errorf("locale %q: /%s description length %d outside Telegram's 3..256", locale, c.Command, n)
+			}
+		}
+	}
+}
+
+// The command menu is a chat surface too, so the pushup track's canary rules
+// apply to it: no branding of the commercial program whose tables the track
+// does not copy, no "N reps in M weeks" promise, and no body figures. This
+// is the one place those strings live outside the track's own content file,
+// which is exactly why they need their own check.
+func TestMenuCommands_PushupDescriptionsCarryNoPromiseOrBranding(t *testing.T) {
+	trans := realTrans(t)
+	banned := []string{
+		string([]byte{'h', 'u', 'n', 'd', 'r', 'e', 'd', 'p', 'u', 's', 'h', 'u', 'p', 's'}),
+		string([]byte{'s', 'p', 'e', 'i', 'r', 's'}),
+		"100", "сто отжиман", "недел", "week", "кг", "ккал", "kg", "calorie",
+	}
+	for _, locale := range []i18n.Locale{"", "en"} {
+		for _, c := range menuCommands(trans, locale, allModes) {
+			if c.Command != "pushups" && c.Command != "pushups_delete" {
+				continue
+			}
+			desc := strings.ToLower(c.Description)
+			for _, b := range banned {
+				if strings.Contains(desc, b) {
+					t.Errorf("locale %q: /%s description contains %q: %q",
+						locale, c.Command, b, c.Description)
+				}
 			}
 		}
 	}
