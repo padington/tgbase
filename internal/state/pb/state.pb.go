@@ -68,6 +68,21 @@ const (
 	StateKind_STATE_EAT_NIAS_QUESTION         StateKind = 39
 	StateKind_STATE_EAT_REPORT                StateKind = 40
 	StateKind_STATE_EAT_DELETE_CONFIRM        StateKind = 41
+	// Pushup track (pu_*). STATE_PU_REST is the first state the reminder loop
+	// scans for a within-session ping; the rest are ordinary input states.
+	StateKind_STATE_PU_CONSENT        StateKind = 42
+	StateKind_STATE_PU_GATE           StateKind = 43
+	StateKind_STATE_PU_GOAL           StateKind = 44
+	StateKind_STATE_PU_VARIATION      StateKind = 45
+	StateKind_STATE_PU_TEST           StateKind = 46
+	StateKind_STATE_PU_MENU           StateKind = 47
+	StateKind_STATE_PU_SET            StateKind = 48
+	StateKind_STATE_PU_REST           StateKind = 49
+	StateKind_STATE_PU_EFFORT         StateKind = 50
+	StateKind_STATE_PU_WEEK_FORK      StateKind = 51
+	StateKind_STATE_PU_RED_CARD       StateKind = 52
+	StateKind_STATE_PU_PROGRESS       StateKind = 53
+	StateKind_STATE_PU_DELETE_CONFIRM StateKind = 54
 )
 
 // Enum value maps for StateKind.
@@ -115,6 +130,19 @@ var (
 		39: "STATE_EAT_NIAS_QUESTION",
 		40: "STATE_EAT_REPORT",
 		41: "STATE_EAT_DELETE_CONFIRM",
+		42: "STATE_PU_CONSENT",
+		43: "STATE_PU_GATE",
+		44: "STATE_PU_GOAL",
+		45: "STATE_PU_VARIATION",
+		46: "STATE_PU_TEST",
+		47: "STATE_PU_MENU",
+		48: "STATE_PU_SET",
+		49: "STATE_PU_REST",
+		50: "STATE_PU_EFFORT",
+		51: "STATE_PU_WEEK_FORK",
+		52: "STATE_PU_RED_CARD",
+		53: "STATE_PU_PROGRESS",
+		54: "STATE_PU_DELETE_CONFIRM",
 	}
 	StateKind_value = map[string]int32{
 		"STATE_UNSPECIFIED":               0,
@@ -159,6 +187,19 @@ var (
 		"STATE_EAT_NIAS_QUESTION":         39,
 		"STATE_EAT_REPORT":                40,
 		"STATE_EAT_DELETE_CONFIRM":        41,
+		"STATE_PU_CONSENT":                42,
+		"STATE_PU_GATE":                   43,
+		"STATE_PU_GOAL":                   44,
+		"STATE_PU_VARIATION":              45,
+		"STATE_PU_TEST":                   46,
+		"STATE_PU_MENU":                   47,
+		"STATE_PU_SET":                    48,
+		"STATE_PU_REST":                   49,
+		"STATE_PU_EFFORT":                 50,
+		"STATE_PU_WEEK_FORK":              51,
+		"STATE_PU_RED_CARD":               52,
+		"STATE_PU_PROGRESS":               53,
+		"STATE_PU_DELETE_CONFIRM":         54,
 	}
 )
 
@@ -1185,6 +1226,543 @@ func (x *NiasResult) GetFearPositive() bool {
 	return false
 }
 
+// PushupProgram mirrors state.PushupProgram — the PERSISTENT state of the
+// pushup track (absent = the track was never started). `base` is the single
+// variable the generator reads: every rep count the user sees is derived
+// from it by internal/screening, so no table of numbers is persisted here.
+// The cosmetic level (1 + base/step) is derived on display, never stored.
+type PushupProgram struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Variation         string                 `protobuf:"bytes,1,opt,name=variation,proto3" json:"variation,omitempty"`                                 // ladder rung id (wall … feet_up)
+	Goal              string                 `protobuf:"bytes,2,opt,name=goal,proto3" json:"goal,omitempty"`                                           // reps | strength — branches the plateau logic for life
+	Base              int32                  `protobuf:"varint,3,opt,name=base,proto3" json:"base,omitempty"`                                          // B, the last max-test result; >= min_base once tested
+	WeekIdx           int32                  `protobuf:"varint,4,opt,name=week_idx,json=weekIdx,proto3" json:"week_idx,omitempty"`                     // completed weeks
+	SessionInWeek     int32                  `protobuf:"varint,5,opt,name=session_in_week,json=sessionInWeek,proto3" json:"session_in_week,omitempty"` // 0..sessions_per_week-1, also the generator's day index
+	WeekOutcomes      []string               `protobuf:"bytes,6,rep,name=week_outcomes,json=weekOutcomes,proto3" json:"week_outcomes,omitempty"`       // over|plan|short of the CURRENT week, <= sessions_per_week
+	RepeatCount       int32                  `protobuf:"varint,7,opt,name=repeat_count,json=repeatCount,proto3" json:"repeat_count,omitempty"`         // consecutive repeated weeks (fork at repeat_fork_after)
+	EffortAdj         float64                `protobuf:"fixed64,8,opt,name=effort_adj,json=effortAdj,proto3" json:"effort_adj,omitempty"`              // accumulated self-report factor, clamped by the content
+	RestBonusSec      int32                  `protobuf:"varint,9,opt,name=rest_bonus_sec,json=restBonusSec,proto3" json:"rest_bonus_sec,omitempty"`    // the one-off "+30 s to everything"
+	SessionsDone      int32                  `protobuf:"varint,10,opt,name=sessions_done,json=sessionsDone,proto3" json:"sessions_done,omitempty"`
+	SessionsSinceTest int32                  `protobuf:"varint,11,opt,name=sessions_since_test,json=sessionsSinceTest,proto3" json:"sessions_since_test,omitempty"` // retest is due at retest_every_sessions
+	TotalReps         int32                  `protobuf:"varint,12,opt,name=total_reps,json=totalReps,proto3" json:"total_reps,omitempty"`                           // lifetime volume (a never-decreasing metric)
+	LastSessionAt     *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=last_session_at,json=lastSessionAt,proto3" json:"last_session_at,omitempty"`
+	NextDueAt         *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=next_due_at,json=nextDueAt,proto3" json:"next_due_at,omitempty"`        // data-driven scan key of the "time to train" ping
+	DuePingSent       bool                   `protobuf:"varint,15,opt,name=due_ping_sent,json=duePingSent,proto3" json:"due_ping_sent,omitempty"` // at most one due ping per due date
+	StreakWeeks       int32                  `protobuf:"varint,16,opt,name=streak_weeks,json=streakWeeks,proto3" json:"streak_weeks,omitempty"`
+	FreezeUsedAt      *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=freeze_used_at,json=freezeUsedAt,proto3" json:"freeze_used_at,omitempty"`
+	StartedAt         *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	GateIdx           int32                  `protobuf:"varint,19,opt,name=gate_idx,json=gateIdx,proto3" json:"gate_idx,omitempty"`                     // safety-gate questions answered during setup
+	StartStepDown     int32                  `protobuf:"varint,20,opt,name=start_step_down,json=startStepDown,proto3" json:"start_step_down,omitempty"` // rungs the gate asked to start below the picked one
+	Deload            bool                   `protobuf:"varint,21,opt,name=deload,proto3" json:"deload,omitempty"`                                      // next session runs reduced (dropped retest / long pause)
+	RetestPending     bool                   `protobuf:"varint,22,opt,name=retest_pending,json=retestPending,proto3" json:"retest_pending,omitempty"`   // a retest is owed before the next ordinary session
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *PushupProgram) Reset() {
+	*x = PushupProgram{}
+	mi := &file_state_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushupProgram) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushupProgram) ProtoMessage() {}
+
+func (x *PushupProgram) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushupProgram.ProtoReflect.Descriptor instead.
+func (*PushupProgram) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *PushupProgram) GetVariation() string {
+	if x != nil {
+		return x.Variation
+	}
+	return ""
+}
+
+func (x *PushupProgram) GetGoal() string {
+	if x != nil {
+		return x.Goal
+	}
+	return ""
+}
+
+func (x *PushupProgram) GetBase() int32 {
+	if x != nil {
+		return x.Base
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetWeekIdx() int32 {
+	if x != nil {
+		return x.WeekIdx
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetSessionInWeek() int32 {
+	if x != nil {
+		return x.SessionInWeek
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetWeekOutcomes() []string {
+	if x != nil {
+		return x.WeekOutcomes
+	}
+	return nil
+}
+
+func (x *PushupProgram) GetRepeatCount() int32 {
+	if x != nil {
+		return x.RepeatCount
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetEffortAdj() float64 {
+	if x != nil {
+		return x.EffortAdj
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetRestBonusSec() int32 {
+	if x != nil {
+		return x.RestBonusSec
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetSessionsDone() int32 {
+	if x != nil {
+		return x.SessionsDone
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetSessionsSinceTest() int32 {
+	if x != nil {
+		return x.SessionsSinceTest
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetTotalReps() int32 {
+	if x != nil {
+		return x.TotalReps
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetLastSessionAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSessionAt
+	}
+	return nil
+}
+
+func (x *PushupProgram) GetNextDueAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NextDueAt
+	}
+	return nil
+}
+
+func (x *PushupProgram) GetDuePingSent() bool {
+	if x != nil {
+		return x.DuePingSent
+	}
+	return false
+}
+
+func (x *PushupProgram) GetStreakWeeks() int32 {
+	if x != nil {
+		return x.StreakWeeks
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetFreezeUsedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FreezeUsedAt
+	}
+	return nil
+}
+
+func (x *PushupProgram) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *PushupProgram) GetGateIdx() int32 {
+	if x != nil {
+		return x.GateIdx
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetStartStepDown() int32 {
+	if x != nil {
+		return x.StartStepDown
+	}
+	return 0
+}
+
+func (x *PushupProgram) GetDeload() bool {
+	if x != nil {
+		return x.Deload
+	}
+	return false
+}
+
+func (x *PushupProgram) GetRetestPending() bool {
+	if x != nil {
+		return x.RetestPending
+	}
+	return false
+}
+
+// PushupSession mirrors state.PushupSession — the TRANSIENT unfinished
+// session (absent when none). `targets` is variable-length (4..7) because
+// the set count grows with the base, and its LAST element is the floor of
+// the open set, which is why there are no fixed per-set fields.
+type PushupSession struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`                                                                   // workout | test | retest
+	DayIdx        int32                  `protobuf:"varint,2,opt,name=day_idx,json=dayIdx,proto3" json:"day_idx,omitempty"`                                                // 0..sessions_per_week-1
+	Targets       []int32                `protobuf:"varint,3,rep,packed,name=targets,proto3" json:"targets,omitempty"`                                                     // fixed sets + the open set's floor (last)
+	OpenFloor     int32                  `protobuf:"varint,4,opt,name=open_floor,json=openFloor,proto3" json:"open_floor,omitempty"`                                       // == last element of targets, kept for readability
+	Actual        []int32                `protobuf:"varint,5,rep,packed,name=actual,proto3" json:"actual,omitempty"`                                                       // append-only, index-aligned with targets
+	Idx           int32                  `protobuf:"varint,6,opt,name=idx,proto3" json:"idx,omitempty"`                                                                    // cursor: the set being performed
+	RestSec       int32                  `protobuf:"varint,7,opt,name=rest_sec,json=restSec,proto3" json:"rest_sec,omitempty"`                                             // rest planned between sets of THIS session
+	RestUntil     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=rest_until,json=restUntil,proto3" json:"rest_until,omitempty"`                                        // scan key of the rest-over ping
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`                                        // session TTL is measured from here
+	ResumeState   StateKind              `protobuf:"varint,10,opt,name=resume_state,json=resumeState,proto3,enum=tgbase.state.v1.StateKind" json:"resume_state,omitempty"` // recorded escape position (pu_set | pu_rest)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushupSession) Reset() {
+	*x = PushupSession{}
+	mi := &file_state_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushupSession) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushupSession) ProtoMessage() {}
+
+func (x *PushupSession) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushupSession.ProtoReflect.Descriptor instead.
+func (*PushupSession) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PushupSession) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *PushupSession) GetDayIdx() int32 {
+	if x != nil {
+		return x.DayIdx
+	}
+	return 0
+}
+
+func (x *PushupSession) GetTargets() []int32 {
+	if x != nil {
+		return x.Targets
+	}
+	return nil
+}
+
+func (x *PushupSession) GetOpenFloor() int32 {
+	if x != nil {
+		return x.OpenFloor
+	}
+	return 0
+}
+
+func (x *PushupSession) GetActual() []int32 {
+	if x != nil {
+		return x.Actual
+	}
+	return nil
+}
+
+func (x *PushupSession) GetIdx() int32 {
+	if x != nil {
+		return x.Idx
+	}
+	return 0
+}
+
+func (x *PushupSession) GetRestSec() int32 {
+	if x != nil {
+		return x.RestSec
+	}
+	return 0
+}
+
+func (x *PushupSession) GetRestUntil() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RestUntil
+	}
+	return nil
+}
+
+func (x *PushupSession) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *PushupSession) GetResumeState() StateKind {
+	if x != nil {
+		return x.ResumeState
+	}
+	return StateKind_STATE_UNSPECIFIED
+}
+
+// PushupTest mirrors state.PushupTest — the last COMPLETED max test. Kept
+// apart from the program exactly like ScreeningResult is kept apart from
+// ScreeningProgress: the test is a reproducible measurement, the program is
+// the mutable load built on top of it.
+type PushupTest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TakenAt       *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=taken_at,json=takenAt,proto3" json:"taken_at,omitempty"`
+	Variation     string                 `protobuf:"bytes,2,opt,name=variation,proto3" json:"variation,omitempty"` // the rung the test was taken on
+	Reps          int32                  `protobuf:"varint,3,opt,name=reps,proto3" json:"reps,omitempty"`
+	Capped        bool                   `protobuf:"varint,4,opt,name=capped,proto3" json:"capped,omitempty"` // hit the test ceiling → offer a harder rung
+	Source        string                 `protobuf:"bytes,5,opt,name=source,proto3" json:"source,omitempty"`  // initial | retest
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushupTest) Reset() {
+	*x = PushupTest{}
+	mi := &file_state_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushupTest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushupTest) ProtoMessage() {}
+
+func (x *PushupTest) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushupTest.ProtoReflect.Descriptor instead.
+func (*PushupTest) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *PushupTest) GetTakenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.TakenAt
+	}
+	return nil
+}
+
+func (x *PushupTest) GetVariation() string {
+	if x != nil {
+		return x.Variation
+	}
+	return ""
+}
+
+func (x *PushupTest) GetReps() int32 {
+	if x != nil {
+		return x.Reps
+	}
+	return 0
+}
+
+func (x *PushupTest) GetCapped() bool {
+	if x != nil {
+		return x.Capped
+	}
+	return false
+}
+
+func (x *PushupTest) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+// PushupSessionLog mirrors state.PushupSessionLog — one finished session in
+// the history ring. Numbers only, never free text; the ring is capped
+// (history_cap) because this is the only track that keeps a history rather
+// than just the last result.
+type PushupSessionLog struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
+	DayIdx        int32                  `protobuf:"varint,2,opt,name=day_idx,json=dayIdx,proto3" json:"day_idx,omitempty"`
+	Sets          []int32                `protobuf:"varint,3,rep,packed,name=sets,proto3" json:"sets,omitempty"` // what was actually done, per set
+	Planned       int32                  `protobuf:"varint,4,opt,name=planned,proto3" json:"planned,omitempty"`  // planned volume (fixed sets + open floor)
+	Done          int32                  `protobuf:"varint,5,opt,name=done,proto3" json:"done,omitempty"`        // actual volume
+	OpenTarget    int32                  `protobuf:"varint,6,opt,name=open_target,json=openTarget,proto3" json:"open_target,omitempty"`
+	OpenActual    int32                  `protobuf:"varint,7,opt,name=open_actual,json=openActual,proto3" json:"open_actual,omitempty"`
+	Outcome       string                 `protobuf:"bytes,8,opt,name=outcome,proto3" json:"outcome,omitempty"` // over | plan | short
+	Effort        string                 `protobuf:"bytes,9,opt,name=effort,proto3" json:"effort,omitempty"`   // hard | ok | easy
+	Base          int32                  `protobuf:"varint,10,opt,name=base,proto3" json:"base,omitempty"`     // the base this session was generated from
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PushupSessionLog) Reset() {
+	*x = PushupSessionLog{}
+	mi := &file_state_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PushupSessionLog) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PushupSessionLog) ProtoMessage() {}
+
+func (x *PushupSessionLog) ProtoReflect() protoreflect.Message {
+	mi := &file_state_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PushupSessionLog.ProtoReflect.Descriptor instead.
+func (*PushupSessionLog) Descriptor() ([]byte, []int) {
+	return file_state_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *PushupSessionLog) GetDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Date
+	}
+	return nil
+}
+
+func (x *PushupSessionLog) GetDayIdx() int32 {
+	if x != nil {
+		return x.DayIdx
+	}
+	return 0
+}
+
+func (x *PushupSessionLog) GetSets() []int32 {
+	if x != nil {
+		return x.Sets
+	}
+	return nil
+}
+
+func (x *PushupSessionLog) GetPlanned() int32 {
+	if x != nil {
+		return x.Planned
+	}
+	return 0
+}
+
+func (x *PushupSessionLog) GetDone() int32 {
+	if x != nil {
+		return x.Done
+	}
+	return 0
+}
+
+func (x *PushupSessionLog) GetOpenTarget() int32 {
+	if x != nil {
+		return x.OpenTarget
+	}
+	return 0
+}
+
+func (x *PushupSessionLog) GetOpenActual() int32 {
+	if x != nil {
+		return x.OpenActual
+	}
+	return 0
+}
+
+func (x *PushupSessionLog) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *PushupSessionLog) GetEffort() string {
+	if x != nil {
+		return x.Effort
+	}
+	return ""
+}
+
+func (x *PushupSessionLog) GetBase() int32 {
+	if x != nil {
+		return x.Base
+	}
+	return 0
+}
+
 type UserData struct {
 	state           protoimpl.MessageState      `protogen:"open.v1"`
 	State           StateKind                   `protobuf:"varint,1,opt,name=state,proto3,enum=tgbase.state.v1.StateKind" json:"state,omitempty"`
@@ -1214,20 +1792,29 @@ type UserData struct {
 	// Eating track (EDE-QS + BES + NIAS): one consent for the whole track
 	// (wiped by /food_delete), per-instrument transient runs and last
 	// completed results. No combined index — same rule as the other tracks.
-	EatConsentAt  *timestamppb.Timestamp `protobuf:"bytes,23,opt,name=eat_consent_at,json=eatConsentAt,proto3" json:"eat_consent_at,omitempty"`
-	Edeqs         *EatingProgress        `protobuf:"bytes,24,opt,name=edeqs,proto3" json:"edeqs,omitempty"`
-	EdeqsResult   *EdeqsResult           `protobuf:"bytes,25,opt,name=edeqs_result,json=edeqsResult,proto3" json:"edeqs_result,omitempty"`
-	Bes           *EatingProgress        `protobuf:"bytes,26,opt,name=bes,proto3" json:"bes,omitempty"`
-	BesResult     *BesResult             `protobuf:"bytes,27,opt,name=bes_result,json=besResult,proto3" json:"bes_result,omitempty"`
-	Nias          *EatingProgress        `protobuf:"bytes,28,opt,name=nias,proto3" json:"nias,omitempty"`
-	NiasResult    *NiasResult            `protobuf:"bytes,29,opt,name=nias_result,json=niasResult,proto3" json:"nias_result,omitempty"`
+	EatConsentAt *timestamppb.Timestamp `protobuf:"bytes,23,opt,name=eat_consent_at,json=eatConsentAt,proto3" json:"eat_consent_at,omitempty"`
+	Edeqs        *EatingProgress        `protobuf:"bytes,24,opt,name=edeqs,proto3" json:"edeqs,omitempty"`
+	EdeqsResult  *EdeqsResult           `protobuf:"bytes,25,opt,name=edeqs_result,json=edeqsResult,proto3" json:"edeqs_result,omitempty"`
+	Bes          *EatingProgress        `protobuf:"bytes,26,opt,name=bes,proto3" json:"bes,omitempty"`
+	BesResult    *BesResult             `protobuf:"bytes,27,opt,name=bes_result,json=besResult,proto3" json:"bes_result,omitempty"`
+	Nias         *EatingProgress        `protobuf:"bytes,28,opt,name=nias,proto3" json:"nias,omitempty"`
+	NiasResult   *NiasResult            `protobuf:"bytes,29,opt,name=nias_result,json=niasResult,proto3" json:"nias_result,omitempty"`
+	// Pushup track: one consent for the whole track (wiped by /pushups_delete),
+	// the persistent program, the transient session, the last max test and the
+	// capped history ring. This is the first track that persists a program and
+	// a history instead of a single last result.
+	PuConsentAt   *timestamppb.Timestamp `protobuf:"bytes,30,opt,name=pu_consent_at,json=puConsentAt,proto3" json:"pu_consent_at,omitempty"`
+	Pushups       *PushupProgram         `protobuf:"bytes,31,opt,name=pushups,proto3" json:"pushups,omitempty"`
+	PuSession     *PushupSession         `protobuf:"bytes,32,opt,name=pu_session,json=puSession,proto3" json:"pu_session,omitempty"`
+	PuTest        *PushupTest            `protobuf:"bytes,33,opt,name=pu_test,json=puTest,proto3" json:"pu_test,omitempty"`
+	PuHistory     []*PushupSessionLog    `protobuf:"bytes,34,rep,name=pu_history,json=puHistory,proto3" json:"pu_history,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserData) Reset() {
 	*x = UserData{}
-	mi := &file_state_proto_msgTypes[11]
+	mi := &file_state_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1239,7 +1826,7 @@ func (x *UserData) String() string {
 func (*UserData) ProtoMessage() {}
 
 func (x *UserData) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[11]
+	mi := &file_state_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1252,7 +1839,7 @@ func (x *UserData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserData.ProtoReflect.Descriptor instead.
 func (*UserData) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{11}
+	return file_state_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UserData) GetState() StateKind {
@@ -1458,6 +2045,41 @@ func (x *UserData) GetNiasResult() *NiasResult {
 	return nil
 }
 
+func (x *UserData) GetPuConsentAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PuConsentAt
+	}
+	return nil
+}
+
+func (x *UserData) GetPushups() *PushupProgram {
+	if x != nil {
+		return x.Pushups
+	}
+	return nil
+}
+
+func (x *UserData) GetPuSession() *PushupSession {
+	if x != nil {
+		return x.PuSession
+	}
+	return nil
+}
+
+func (x *UserData) GetPuTest() *PushupTest {
+	if x != nil {
+		return x.PuTest
+	}
+	return nil
+}
+
+func (x *UserData) GetPuHistory() []*PushupSessionLog {
+	if x != nil {
+		return x.PuHistory
+	}
+	return nil
+}
+
 type UserMap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         map[int64]*UserData    `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -1467,7 +2089,7 @@ type UserMap struct {
 
 func (x *UserMap) Reset() {
 	*x = UserMap{}
-	mi := &file_state_proto_msgTypes[12]
+	mi := &file_state_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1479,7 +2101,7 @@ func (x *UserMap) String() string {
 func (*UserMap) ProtoMessage() {}
 
 func (x *UserMap) ProtoReflect() protoreflect.Message {
-	mi := &file_state_proto_msgTypes[12]
+	mi := &file_state_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1492,7 +2114,7 @@ func (x *UserMap) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserMap.ProtoReflect.Descriptor instead.
 func (*UserMap) Descriptor() ([]byte, []int) {
-	return file_state_proto_rawDescGZIP(), []int{12}
+	return file_state_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UserMap) GetUsers() map[int64]*UserData {
@@ -1603,7 +2225,70 @@ const file_state_proto_rawDesc = "" +
 	"\x0epicky_positive\x18\b \x01(\bR\rpickyPositive\x12+\n" +
 	"\x11appetite_positive\x18\t \x01(\bR\x10appetitePositive\x12#\n" +
 	"\rfear_positive\x18\n" +
-	" \x01(\bR\ffearPositive\"\xbc\r\n" +
+	" \x01(\bR\ffearPositive\"\xdf\x06\n" +
+	"\rPushupProgram\x12\x1c\n" +
+	"\tvariation\x18\x01 \x01(\tR\tvariation\x12\x12\n" +
+	"\x04goal\x18\x02 \x01(\tR\x04goal\x12\x12\n" +
+	"\x04base\x18\x03 \x01(\x05R\x04base\x12\x19\n" +
+	"\bweek_idx\x18\x04 \x01(\x05R\aweekIdx\x12&\n" +
+	"\x0fsession_in_week\x18\x05 \x01(\x05R\rsessionInWeek\x12#\n" +
+	"\rweek_outcomes\x18\x06 \x03(\tR\fweekOutcomes\x12!\n" +
+	"\frepeat_count\x18\a \x01(\x05R\vrepeatCount\x12\x1d\n" +
+	"\n" +
+	"effort_adj\x18\b \x01(\x01R\teffortAdj\x12$\n" +
+	"\x0erest_bonus_sec\x18\t \x01(\x05R\frestBonusSec\x12#\n" +
+	"\rsessions_done\x18\n" +
+	" \x01(\x05R\fsessionsDone\x12.\n" +
+	"\x13sessions_since_test\x18\v \x01(\x05R\x11sessionsSinceTest\x12\x1d\n" +
+	"\n" +
+	"total_reps\x18\f \x01(\x05R\ttotalReps\x12B\n" +
+	"\x0flast_session_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\rlastSessionAt\x12:\n" +
+	"\vnext_due_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tnextDueAt\x12\"\n" +
+	"\rdue_ping_sent\x18\x0f \x01(\bR\vduePingSent\x12!\n" +
+	"\fstreak_weeks\x18\x10 \x01(\x05R\vstreakWeeks\x12@\n" +
+	"\x0efreeze_used_at\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\ffreezeUsedAt\x129\n" +
+	"\n" +
+	"started_at\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12\x19\n" +
+	"\bgate_idx\x18\x13 \x01(\x05R\agateIdx\x12&\n" +
+	"\x0fstart_step_down\x18\x14 \x01(\x05R\rstartStepDown\x12\x16\n" +
+	"\x06deload\x18\x15 \x01(\bR\x06deload\x12%\n" +
+	"\x0eretest_pending\x18\x16 \x01(\bR\rretestPending\"\xef\x02\n" +
+	"\rPushupSession\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x17\n" +
+	"\aday_idx\x18\x02 \x01(\x05R\x06dayIdx\x12\x18\n" +
+	"\atargets\x18\x03 \x03(\x05R\atargets\x12\x1d\n" +
+	"\n" +
+	"open_floor\x18\x04 \x01(\x05R\topenFloor\x12\x16\n" +
+	"\x06actual\x18\x05 \x03(\x05R\x06actual\x12\x10\n" +
+	"\x03idx\x18\x06 \x01(\x05R\x03idx\x12\x19\n" +
+	"\brest_sec\x18\a \x01(\x05R\arestSec\x129\n" +
+	"\n" +
+	"rest_until\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\trestUntil\x129\n" +
+	"\n" +
+	"started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12=\n" +
+	"\fresume_state\x18\n" +
+	" \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\vresumeState\"\xa5\x01\n" +
+	"\n" +
+	"PushupTest\x125\n" +
+	"\btaken_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\atakenAt\x12\x1c\n" +
+	"\tvariation\x18\x02 \x01(\tR\tvariation\x12\x12\n" +
+	"\x04reps\x18\x03 \x01(\x05R\x04reps\x12\x16\n" +
+	"\x06capped\x18\x04 \x01(\bR\x06capped\x12\x16\n" +
+	"\x06source\x18\x05 \x01(\tR\x06source\"\xa5\x02\n" +
+	"\x10PushupSessionLog\x12.\n" +
+	"\x04date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04date\x12\x17\n" +
+	"\aday_idx\x18\x02 \x01(\x05R\x06dayIdx\x12\x12\n" +
+	"\x04sets\x18\x03 \x03(\x05R\x04sets\x12\x18\n" +
+	"\aplanned\x18\x04 \x01(\x05R\aplanned\x12\x12\n" +
+	"\x04done\x18\x05 \x01(\x05R\x04done\x12\x1f\n" +
+	"\vopen_target\x18\x06 \x01(\x05R\n" +
+	"openTarget\x12\x1f\n" +
+	"\vopen_actual\x18\a \x01(\x05R\n" +
+	"openActual\x12\x18\n" +
+	"\aoutcome\x18\b \x01(\tR\aoutcome\x12\x16\n" +
+	"\x06effort\x18\t \x01(\tR\x06effort\x12\x12\n" +
+	"\x04base\x18\n" +
+	" \x01(\x05R\x04base\"\xed\x0f\n" +
 	"\bUserData\x120\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1a.tgbase.state.v1.StateKindR\x05state\x12J\n" +
 	"\x10defecation_state\x18\x02 \x01(\x0e2\x1f.tgbase.state.v1.DefecationKindR\x0fdefecationState\x12'\n" +
@@ -1640,7 +2325,14 @@ const file_state_proto_rawDesc = "" +
 	"bes_result\x18\x1b \x01(\v2\x1a.tgbase.state.v1.BesResultR\tbesResult\x123\n" +
 	"\x04nias\x18\x1c \x01(\v2\x1f.tgbase.state.v1.EatingProgressR\x04nias\x12<\n" +
 	"\vnias_result\x18\x1d \x01(\v2\x1b.tgbase.state.v1.NiasResultR\n" +
-	"niasResult\x1a]\n" +
+	"niasResult\x12>\n" +
+	"\rpu_consent_at\x18\x1e \x01(\v2\x1a.google.protobuf.TimestampR\vpuConsentAt\x128\n" +
+	"\apushups\x18\x1f \x01(\v2\x1e.tgbase.state.v1.PushupProgramR\apushups\x12=\n" +
+	"\n" +
+	"pu_session\x18  \x01(\v2\x1e.tgbase.state.v1.PushupSessionR\tpuSession\x124\n" +
+	"\apu_test\x18! \x01(\v2\x1b.tgbase.state.v1.PushupTestR\x06puTest\x12@\n" +
+	"\n" +
+	"pu_history\x18\" \x03(\v2!.tgbase.state.v1.PushupSessionLogR\tpuHistory\x1a]\n" +
 	"\rProductsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x126\n" +
 	"\x05value\x18\x02 \x01(\v2 .tgbase.state.v1.ProductProgressR\x05value:\x028\x01\"\x99\x01\n" +
@@ -1649,7 +2341,8 @@ const file_state_proto_rawDesc = "" +
 	"\n" +
 	"UsersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\xd3\b\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.tgbase.state.v1.UserDataR\x05value:\x028\x01*\xea\n" +
+	"\n" +
 	"\tStateKind\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -1694,7 +2387,20 @@ const file_state_proto_rawDesc = "" +
 	"\x16STATE_EAT_BES_QUESTION\x10&\x12\x1b\n" +
 	"\x17STATE_EAT_NIAS_QUESTION\x10'\x12\x14\n" +
 	"\x10STATE_EAT_REPORT\x10(\x12\x1c\n" +
-	"\x18STATE_EAT_DELETE_CONFIRM\x10)*p\n" +
+	"\x18STATE_EAT_DELETE_CONFIRM\x10)\x12\x14\n" +
+	"\x10STATE_PU_CONSENT\x10*\x12\x11\n" +
+	"\rSTATE_PU_GATE\x10+\x12\x11\n" +
+	"\rSTATE_PU_GOAL\x10,\x12\x16\n" +
+	"\x12STATE_PU_VARIATION\x10-\x12\x11\n" +
+	"\rSTATE_PU_TEST\x10.\x12\x11\n" +
+	"\rSTATE_PU_MENU\x10/\x12\x10\n" +
+	"\fSTATE_PU_SET\x100\x12\x11\n" +
+	"\rSTATE_PU_REST\x101\x12\x13\n" +
+	"\x0fSTATE_PU_EFFORT\x102\x12\x16\n" +
+	"\x12STATE_PU_WEEK_FORK\x103\x12\x15\n" +
+	"\x11STATE_PU_RED_CARD\x104\x12\x15\n" +
+	"\x11STATE_PU_PROGRESS\x105\x12\x1b\n" +
+	"\x17STATE_PU_DELETE_CONFIRM\x106*p\n" +
 	"\x0eDefecationKind\x12\x1a\n" +
 	"\x16DEFECATION_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEFECATION_FLUID\x10\x01\x12\x15\n" +
@@ -1714,7 +2420,7 @@ func file_state_proto_rawDescGZIP() []byte {
 }
 
 var file_state_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_state_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_state_proto_goTypes = []any{
 	(StateKind)(0),                // 0: tgbase.state.v1.StateKind
 	(DefecationKind)(0),           // 1: tgbase.state.v1.DefecationKind
@@ -1729,62 +2435,80 @@ var file_state_proto_goTypes = []any{
 	(*EdeqsResult)(nil),           // 10: tgbase.state.v1.EdeqsResult
 	(*BesResult)(nil),             // 11: tgbase.state.v1.BesResult
 	(*NiasResult)(nil),            // 12: tgbase.state.v1.NiasResult
-	(*UserData)(nil),              // 13: tgbase.state.v1.UserData
-	(*UserMap)(nil),               // 14: tgbase.state.v1.UserMap
-	nil,                           // 15: tgbase.state.v1.UserData.ProductsEntry
-	nil,                           // 16: tgbase.state.v1.UserMap.UsersEntry
-	(pb.Stage)(0),                 // 17: tgbase.products.v1.Stage
-	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
+	(*PushupProgram)(nil),         // 13: tgbase.state.v1.PushupProgram
+	(*PushupSession)(nil),         // 14: tgbase.state.v1.PushupSession
+	(*PushupTest)(nil),            // 15: tgbase.state.v1.PushupTest
+	(*PushupSessionLog)(nil),      // 16: tgbase.state.v1.PushupSessionLog
+	(*UserData)(nil),              // 17: tgbase.state.v1.UserData
+	(*UserMap)(nil),               // 18: tgbase.state.v1.UserMap
+	nil,                           // 19: tgbase.state.v1.UserData.ProductsEntry
+	nil,                           // 20: tgbase.state.v1.UserMap.UsersEntry
+	(pb.Stage)(0),                 // 21: tgbase.products.v1.Stage
+	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
 }
 var file_state_proto_depIdxs = []int32{
-	17, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
-	18, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
+	21, // 0: tgbase.state.v1.ProductProgress.last_stage:type_name -> tgbase.products.v1.Stage
+	22, // 1: tgbase.state.v1.ProductProgress.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 2: tgbase.state.v1.ScreeningProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	18, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
-	18, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
-	18, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 3: tgbase.state.v1.ScreeningProgress.consent_at:type_name -> google.protobuf.Timestamp
+	22, // 4: tgbase.state.v1.ScreeningProgress.started_at:type_name -> google.protobuf.Timestamp
+	22, // 5: tgbase.state.v1.ScreeningResult.taken_at:type_name -> google.protobuf.Timestamp
 	0,  // 6: tgbase.state.v1.MoodProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	18, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
-	18, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
-	18, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
-	18, // 10: tgbase.state.v1.Who5Result.taken_at:type_name -> google.protobuf.Timestamp
-	18, // 11: tgbase.state.v1.Gad7Result.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 7: tgbase.state.v1.MoodProgress.consent_at:type_name -> google.protobuf.Timestamp
+	22, // 8: tgbase.state.v1.MoodProgress.started_at:type_name -> google.protobuf.Timestamp
+	22, // 9: tgbase.state.v1.MoodResult.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 10: tgbase.state.v1.Who5Result.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 11: tgbase.state.v1.Gad7Result.taken_at:type_name -> google.protobuf.Timestamp
 	0,  // 12: tgbase.state.v1.EatingProgress.resume_state:type_name -> tgbase.state.v1.StateKind
-	18, // 13: tgbase.state.v1.EatingProgress.started_at:type_name -> google.protobuf.Timestamp
-	18, // 14: tgbase.state.v1.EdeqsResult.taken_at:type_name -> google.protobuf.Timestamp
-	18, // 15: tgbase.state.v1.BesResult.taken_at:type_name -> google.protobuf.Timestamp
-	18, // 16: tgbase.state.v1.NiasResult.taken_at:type_name -> google.protobuf.Timestamp
-	0,  // 17: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
-	1,  // 18: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
-	17, // 19: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
-	18, // 20: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
-	15, // 21: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
-	18, // 22: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
-	3,  // 23: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
-	4,  // 24: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
-	0,  // 25: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
-	5,  // 26: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
-	6,  // 27: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
-	18, // 28: tgbase.state.v1.UserData.mood_consent_at:type_name -> google.protobuf.Timestamp
-	5,  // 29: tgbase.state.v1.UserData.who5:type_name -> tgbase.state.v1.MoodProgress
-	5,  // 30: tgbase.state.v1.UserData.gad7:type_name -> tgbase.state.v1.MoodProgress
-	7,  // 31: tgbase.state.v1.UserData.who5_result:type_name -> tgbase.state.v1.Who5Result
-	8,  // 32: tgbase.state.v1.UserData.gad7_result:type_name -> tgbase.state.v1.Gad7Result
-	18, // 33: tgbase.state.v1.UserData.eat_consent_at:type_name -> google.protobuf.Timestamp
-	9,  // 34: tgbase.state.v1.UserData.edeqs:type_name -> tgbase.state.v1.EatingProgress
-	10, // 35: tgbase.state.v1.UserData.edeqs_result:type_name -> tgbase.state.v1.EdeqsResult
-	9,  // 36: tgbase.state.v1.UserData.bes:type_name -> tgbase.state.v1.EatingProgress
-	11, // 37: tgbase.state.v1.UserData.bes_result:type_name -> tgbase.state.v1.BesResult
-	9,  // 38: tgbase.state.v1.UserData.nias:type_name -> tgbase.state.v1.EatingProgress
-	12, // 39: tgbase.state.v1.UserData.nias_result:type_name -> tgbase.state.v1.NiasResult
-	16, // 40: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
-	2,  // 41: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
-	13, // 42: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
-	43, // [43:43] is the sub-list for method output_type
-	43, // [43:43] is the sub-list for method input_type
-	43, // [43:43] is the sub-list for extension type_name
-	43, // [43:43] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	22, // 13: tgbase.state.v1.EatingProgress.started_at:type_name -> google.protobuf.Timestamp
+	22, // 14: tgbase.state.v1.EdeqsResult.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 15: tgbase.state.v1.BesResult.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 16: tgbase.state.v1.NiasResult.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 17: tgbase.state.v1.PushupProgram.last_session_at:type_name -> google.protobuf.Timestamp
+	22, // 18: tgbase.state.v1.PushupProgram.next_due_at:type_name -> google.protobuf.Timestamp
+	22, // 19: tgbase.state.v1.PushupProgram.freeze_used_at:type_name -> google.protobuf.Timestamp
+	22, // 20: tgbase.state.v1.PushupProgram.started_at:type_name -> google.protobuf.Timestamp
+	22, // 21: tgbase.state.v1.PushupSession.rest_until:type_name -> google.protobuf.Timestamp
+	22, // 22: tgbase.state.v1.PushupSession.started_at:type_name -> google.protobuf.Timestamp
+	0,  // 23: tgbase.state.v1.PushupSession.resume_state:type_name -> tgbase.state.v1.StateKind
+	22, // 24: tgbase.state.v1.PushupTest.taken_at:type_name -> google.protobuf.Timestamp
+	22, // 25: tgbase.state.v1.PushupSessionLog.date:type_name -> google.protobuf.Timestamp
+	0,  // 26: tgbase.state.v1.UserData.state:type_name -> tgbase.state.v1.StateKind
+	1,  // 27: tgbase.state.v1.UserData.defecation_state:type_name -> tgbase.state.v1.DefecationKind
+	21, // 28: tgbase.state.v1.UserData.current_stage:type_name -> tgbase.products.v1.Stage
+	22, // 29: tgbase.state.v1.UserData.stage_started_at:type_name -> google.protobuf.Timestamp
+	19, // 30: tgbase.state.v1.UserData.products:type_name -> tgbase.state.v1.UserData.ProductsEntry
+	22, // 31: tgbase.state.v1.UserData.entered_at:type_name -> google.protobuf.Timestamp
+	3,  // 32: tgbase.state.v1.UserData.screening:type_name -> tgbase.state.v1.ScreeningProgress
+	4,  // 33: tgbase.state.v1.UserData.screening_result:type_name -> tgbase.state.v1.ScreeningResult
+	0,  // 34: tgbase.state.v1.UserData.return_state:type_name -> tgbase.state.v1.StateKind
+	5,  // 35: tgbase.state.v1.UserData.mood:type_name -> tgbase.state.v1.MoodProgress
+	6,  // 36: tgbase.state.v1.UserData.mood_result:type_name -> tgbase.state.v1.MoodResult
+	22, // 37: tgbase.state.v1.UserData.mood_consent_at:type_name -> google.protobuf.Timestamp
+	5,  // 38: tgbase.state.v1.UserData.who5:type_name -> tgbase.state.v1.MoodProgress
+	5,  // 39: tgbase.state.v1.UserData.gad7:type_name -> tgbase.state.v1.MoodProgress
+	7,  // 40: tgbase.state.v1.UserData.who5_result:type_name -> tgbase.state.v1.Who5Result
+	8,  // 41: tgbase.state.v1.UserData.gad7_result:type_name -> tgbase.state.v1.Gad7Result
+	22, // 42: tgbase.state.v1.UserData.eat_consent_at:type_name -> google.protobuf.Timestamp
+	9,  // 43: tgbase.state.v1.UserData.edeqs:type_name -> tgbase.state.v1.EatingProgress
+	10, // 44: tgbase.state.v1.UserData.edeqs_result:type_name -> tgbase.state.v1.EdeqsResult
+	9,  // 45: tgbase.state.v1.UserData.bes:type_name -> tgbase.state.v1.EatingProgress
+	11, // 46: tgbase.state.v1.UserData.bes_result:type_name -> tgbase.state.v1.BesResult
+	9,  // 47: tgbase.state.v1.UserData.nias:type_name -> tgbase.state.v1.EatingProgress
+	12, // 48: tgbase.state.v1.UserData.nias_result:type_name -> tgbase.state.v1.NiasResult
+	22, // 49: tgbase.state.v1.UserData.pu_consent_at:type_name -> google.protobuf.Timestamp
+	13, // 50: tgbase.state.v1.UserData.pushups:type_name -> tgbase.state.v1.PushupProgram
+	14, // 51: tgbase.state.v1.UserData.pu_session:type_name -> tgbase.state.v1.PushupSession
+	15, // 52: tgbase.state.v1.UserData.pu_test:type_name -> tgbase.state.v1.PushupTest
+	16, // 53: tgbase.state.v1.UserData.pu_history:type_name -> tgbase.state.v1.PushupSessionLog
+	20, // 54: tgbase.state.v1.UserMap.users:type_name -> tgbase.state.v1.UserMap.UsersEntry
+	2,  // 55: tgbase.state.v1.UserData.ProductsEntry.value:type_name -> tgbase.state.v1.ProductProgress
+	17, // 56: tgbase.state.v1.UserMap.UsersEntry.value:type_name -> tgbase.state.v1.UserData
+	57, // [57:57] is the sub-list for method output_type
+	57, // [57:57] is the sub-list for method input_type
+	57, // [57:57] is the sub-list for extension type_name
+	57, // [57:57] is the sub-list for extension extendee
+	0,  // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_state_proto_init() }
@@ -1799,7 +2523,7 @@ func file_state_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_state_proto_rawDesc), len(file_state_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   15,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
