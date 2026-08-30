@@ -8,6 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Pushup track — «Отжимания» (ru-only v1).** Fifth mode on the `/start`
+  landing; direct entry via `/pushups`, deletion via `/pushups_delete`. The
+  first mode that is not a questionnaire: it runs a training **program**, and
+  it is the first track in the bot with a timer, a session history and a
+  reminder that belongs to data rather than to a state.
+  - **One number, no tables.** A max test sets the **base** `B`, the only
+    program variable. Every number the user ever sees — the sets of a
+    session, the floor of the open last set, the rest length, the weekly
+    step — is *generated* from `B` by pure functions in `internal/screening`.
+    Nothing tabulated is copied or stored: the scheme (test → 3 sessions a
+    week → several sets with the last one open → retest) is a method, and
+    methods are not protectable, while the tables of the commercial program
+    that popularised it are. The generator's parameters (`day_factors`,
+    `work_share` / `open_share`, set-count thresholds, rest seconds, volume
+    ceilings, progression steps) live as **data** in
+    `screening/pushups_ru.yaml`, so the shape of the program is tunable
+    without touching logic. The source's branding appears nowhere — in the
+    texts, the commands, the yaml or the commit messages — and a canary
+    keeps it that way.
+  - **Progress by result, not by the calendar.** A week is three sessions
+    whenever they happen. Each session classifies as `over` / `plan` /
+    `short`; the weekly rule (a development of the 2-for-2 idea) raises the
+    base, holds it, or repeats the week with a slightly lower one. **A
+    partially completed session still counts** — «short» is a first-class
+    outcome, not a failure — and **a repeated week is always announced with
+    its base delta**, because a base that moves silently reads as a bug.
+    Three repeats in a row open a two-button fork: an easier rung with an
+    immediate retest, or +30 s of rest. Continuous base ⇒ no gaps in
+    coverage; there are no discrete "columns" to fall between.
+  - **Safety in code, not in prose.** A three-question entry gate
+    (ACSM/PAR-Q+-shaped): "yes" to the cardio/metabolic/renal question stops
+    the track and wipes the half-built program *and* the consent; joint pain
+    starts two rungs easier; pregnancy adds a doctor line and the easiest
+    rung. Then: a volume ceiling the planner applies silently (2.5 × B for
+    the first six sessions, 3.5 × B after), a cap on the test, a hard 24-hour
+    block between sessions that «Всё равно тренироваться» cannot buy through
+    (that button only overrides the softer 24–48 h warning), and a red-flag
+    check-in before the first session of every week that pauses the track on
+    **facts** (cola-coloured urine, pain growing after 48 h, arms that will
+    not straighten, lopsided swelling), not on a score.
+  - **Server-side rest timer** — the one thing a chat does better than the
+    mobile apps whose timers die when backgrounded. One set = one message:
+    `pu_set` asks, `pu_rest` acknowledges and waits, the reminder loop
+    delivers exactly ONE «Поехали» when the rest is over, «Готов раньше»
+    does the same immediately, and a number sent during the rest is taken as
+    the next set rather than rejected. No per-second `editMessageText` (Bot
+    API rate limit), and **resting longer is never counted as a miss**. A
+    session that outlives its 24-hour TTL is closed as a partial one,
+    recorded by what was actually done, so the automaton is never parked.
+  - **Due ping with rules.** «Пора тренироваться» is the first reminder in
+    the bot not tied to a state, so it is fenced by the store's own filter
+    (`state.Store.AllPushupDue`): only a user idle, on the landing or in the
+    track menu is reachable — never one mid-check-in, mid-self-check or
+    mid-set — never while an open session is still resumable, and at most
+    once per due date. Two messages per cycle maximum (the ping, then one
+    «Тренировка ждёт»), then silence until a session moves the date. Rest
+    days say nothing.
+  - **Nothing about the body is asked or stored** — no weight, height, BMI
+    or calorie figure anywhere in the track, and the ladder of variations is
+    described as "easier / harder" only, never as a share of body weight.
+    The bot hosts an eating self-check that pins exactly this property; the
+    new track inherits the pin and enforces it with its own canary over the
+    assembled chat surface (every message body and every keyboard label,
+    including the landing, `/report` and both pings), which also bans source
+    branding, "N reps in M weeks" promises, methodology hedging and
+    unrendered `{placeholders}`. The stated goal is to double your own test;
+    the track has no finish line.
+  - **Persistence**: `PuConsentAt`, `Pushups` (the program), `PuSession`
+    (transient, cloned on every mutation), `PuTest` and `PuHistory` — a ring
+    of the last 36 sessions (≈ 12 weeks) of numbers only, capped because it
+    all lives inside the shared `users.json`. The proto schema mirrors every
+    new shape. `/abandon` drops the SESSION only — base, week and history
+    stand; `/pushups_delete` wipes program, session, tests, history and the
+    consent in one write.
+  - Deliberately **not** in v1: no norm bands by age or sex, no images (the
+    progress screen draws a text sparkline), no day streaks, and only the
+    four basic rungs in the picker.
 - **Eating track — «Отношения с едой» (EDE-QS + BES + NIAS, ru-only v1).**
   Fourth mode on the `/start` landing; direct entry via `/food`, data
   deletion via `/food_delete`. Three instruments behind ONE track-wide
