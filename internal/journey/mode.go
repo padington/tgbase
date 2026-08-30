@@ -1,20 +1,36 @@
 package journey
 
 import (
+	"github.com/padington/tgbase/internal/screening"
 	"github.com/padington/tgbase/internal/state"
 )
 
 // ModeChoicePhase owns StateAwaitingModeChoice — the home landing shown on
 // /start and /menu: a short greeting plus one button per mode (FODMAP diary,
-// ADHD self-check, mood self-check, eating self-check) and a report button. The landing is
+// ADHD self-check, mood self-check, eating self-check, pushup track) and a
+// report button. The landing is
 // contextual: an unfinished self-check adds a "resume" button on top, an
 // active FODMAP trial adds a "back to the diary" button naming the product
 // and stage. Picking the diary MODE button reproduces exactly the legacy
 // /start semantics (interrupt the active trial, clear picker state); the
-// resume buttons and the three self-check buttons leave everything untouched.
-type ModeChoicePhase struct{}
+// resume buttons and the four track buttons leave everything untouched.
+//
+// The pushup track is the one mode whose landing strings come from its own
+// content bundle rather than from i18n (`pu`, optional): the bundle already
+// owns the button and the «подход N/M» resume label, and keeping them there
+// means one place edits the whole track. Without the bundle the landing
+// simply has no pushup row — /pushups still works.
+type ModeChoicePhase struct {
+	pu *screening.PushupContent
+}
 
 func NewModeChoicePhase() *ModeChoicePhase { return &ModeChoicePhase{} }
+
+// NewModeChoicePhaseWithPushups is the landing wired with the pushup track:
+// its mode button and its contextual resume row.
+func NewModeChoicePhaseWithPushups(pu *screening.PushupContent) *ModeChoicePhase {
+	return &ModeChoicePhase{pu: pu}
+}
 
 func (ModeChoicePhase) State() state.StateKind { return state.StateAwaitingModeChoice }
 
@@ -51,7 +67,7 @@ func diaryResumeState(u state.UserData) state.StateKind {
 	return state.StateAwaitingStageChoice
 }
 
-func (ModeChoicePhase) Setup(ctx Context) Outcome {
+func (p *ModeChoicePhase) Setup(ctx Context) Outcome {
 	key := "phase.mode.prompt"
 	var args map[string]any
 	if ctx.User.CurrentProduct != "" {
@@ -74,13 +90,19 @@ func (ModeChoicePhase) Setup(ctx Context) Outcome {
 	if anyEatProgress(ctx.User) {
 		kb = append(kb, []string{ctx.Trans.T("button.mode.resume_eating", ctx.Locale, nil)})
 	}
+	if s := p.puSession(ctx); s != nil {
+		kb = append(kb, []string{puResumeLabel(p.pu, s)})
+	}
 	kb = append(kb,
 		[]string{ctx.Trans.T("button.mode.fodmap", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.screening", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.mood", ctx.Locale, nil)},
 		[]string{ctx.Trans.T("button.mode.eating", ctx.Locale, nil)},
-		[]string{ctx.Trans.T("button.mode.report", ctx.Locale, nil)},
 	)
+	if p.pu != nil {
+		kb = append(kb, []string{p.pu.UI.ModeButton})
+	}
+	kb = append(kb, []string{ctx.Trans.T("button.mode.report", ctx.Locale, nil)})
 	return Outcome{
 		ReplyKey:  key,
 		ReplyArgs: args,
@@ -88,8 +110,29 @@ func (ModeChoicePhase) Setup(ctx Context) Outcome {
 	}
 }
 
-func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
+// puSession is the open pushup session the resume row stands for, or nil
+// (no bundle wired, no session, or a session past its TTL).
+func (p *ModeChoicePhase) puSession(ctx Context) *state.PushupSession {
+	if p.pu == nil {
+		return nil
+	}
+	return puWorkoutSession(p.pu, ctx.User, ctx.Now())
+}
+
+func (p *ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 	in := normText(input)
+	if p.pu != nil {
+		if s := p.puSession(ctx); s != nil && labelIs(in, puResumeLabel(p.pu, s)) {
+			// Straight back into the open session: the exact set, or the
+			// rest when its timer is still running.
+			return Outcome{NextState: puResumeTarget(p.pu, ctx.User, ctx.Now())}
+		}
+		if labelIs(in, p.pu.UI.ModeButton) {
+			// The pushup track: consent → safety gate → goal → variation →
+			// first test for a fresh user, the track menu afterwards.
+			return Outcome{NextState: puEntryState(p.pu, ctx.User, ctx.Now())}
+		}
+	}
 	switch {
 	case ctx.User.CurrentProduct != "" && labelIs(in, ctx.Trans.T("button.mode.resume_fodmap",
 		ctx.Locale, map[string]any{"trial": trialLabel(ctx)})):
@@ -121,7 +164,7 @@ func (ModeChoicePhase) Collect(ctx Context, input string) Outcome {
 		// Render the /report breakdown and stay on the landing.
 		return Outcome{
 			ReplyKey:  "scr.text",
-			ReplyArgs: map[string]any{"text": reportText(ctx.Trans, ctx.Locale, ctx.User)},
+			ReplyArgs: map[string]any{"text": reportText(ctx.Trans, ctx.Locale, ctx.User, p.pu)},
 		}
 	case labelIs(in, ctx.Trans.T("button.mode.fodmap", ctx.Locale, nil)):
 		// Exactly the legacy /start flow: interrupt the active trial,
