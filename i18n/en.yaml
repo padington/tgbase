@@ -46,12 +46,14 @@ cmd.menu.desc: "main menu"
 cmd.adhd.desc: "ADHD self-check"
 cmd.mood.desc: "mood & anxiety self-check"
 cmd.food.desc: "food-relationship self-check"
+cmd.pushups.desc: "push-ups: training built on your own max"
 cmd.report.desc: "progress report"
 cmd.about.desc: "what this bot can do"
 cmd.abandon.desc: "abandon the current trial or test"
 cmd.adhd_delete.desc: "delete ADHD self-check data"
 cmd.mood_delete.desc: "delete mood self-check data"
 cmd.food_delete.desc: "delete food self-check data"
+cmd.pushups_delete.desc: "delete push-up track data"
 
 button.menu.home: "🏠 Menu"
 button.yes: "yes"
@@ -69,7 +71,9 @@ product.amount_template.spoons: "{value} tbsp"
 
 # Home landing on /start and /menu. The screenings themselves are ru-only in
 # v1: every other scr.* key falls back per-key to the default (ru) bundle.
-phase.mode.prompt: "Hi! I can run your FODMAP diary and the ADHD / mood & anxiety / food-relationship self-checks.\nWhat shall we do?"
+# Same for the pushup track — its landing button and resume row come from
+# screening/pushups_ru.yaml, not from here.
+phase.mode.prompt: "Hi! I can run your FODMAP diary, the ADHD / mood & anxiety / food-relationship self-checks, and a push-up training track.\nWhat shall we do?"
 phase.mode.prompt_active_trial: "Hi! A trial is in progress: {trial}.\n\"▶️ Back to the diary\" resumes it; \"🥦 FODMAP diary\" restarts the day — the trial will be marked interrupted.\n\nWhat shall we do?"
 phase.mode.invalid: "Please tap one of the buttons below."
 button.mode.fodmap: "🥦 FODMAP diary"

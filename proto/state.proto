@@ -50,6 +50,21 @@ enum StateKind {
   STATE_EAT_NIAS_QUESTION = 39;
   STATE_EAT_REPORT = 40;
   STATE_EAT_DELETE_CONFIRM = 41;
+  // Pushup track (pu_*). STATE_PU_REST is the first state the reminder loop
+  // scans for a within-session ping; the rest are ordinary input states.
+  STATE_PU_CONSENT = 42;
+  STATE_PU_GATE = 43;
+  STATE_PU_GOAL = 44;
+  STATE_PU_VARIATION = 45;
+  STATE_PU_TEST = 46;
+  STATE_PU_MENU = 47;
+  STATE_PU_SET = 48;
+  STATE_PU_REST = 49;
+  STATE_PU_EFFORT = 50;
+  STATE_PU_WEEK_FORK = 51;
+  STATE_PU_RED_CARD = 52;
+  STATE_PU_PROGRESS = 53;
+  STATE_PU_DELETE_CONFIRM = 54;
 }
 
 enum DefecationKind {
@@ -185,6 +200,82 @@ message NiasResult {
   bool fear_positive = 10;
 }
 
+// PushupProgram mirrors state.PushupProgram — the PERSISTENT state of the
+// pushup track (absent = the track was never started). `base` is the single
+// variable the generator reads: every rep count the user sees is derived
+// from it by internal/screening, so no table of numbers is persisted here.
+// The cosmetic level (1 + base/step) is derived on display, never stored.
+message PushupProgram {
+  string variation = 1;              // ladder rung id (wall … feet_up)
+  string goal = 2;                   // reps | strength — branches the plateau logic for life
+  int32 base = 3;                    // B, the last max-test result; >= min_base once tested
+  int32 week_idx = 4;                // completed weeks
+  int32 session_in_week = 5;         // 0..sessions_per_week-1, also the generator's day index
+  repeated string week_outcomes = 6; // over|plan|short of the CURRENT week, <= sessions_per_week
+  int32 repeat_count = 7;            // consecutive repeated weeks (fork at repeat_fork_after)
+  double effort_adj = 8;             // accumulated self-report factor, clamped by the content
+  int32 rest_bonus_sec = 9;          // the one-off "+30 s to everything"
+  int32 sessions_done = 10;
+  int32 sessions_since_test = 11;    // retest is due at retest_every_sessions
+  int32 total_reps = 12;             // lifetime volume (a never-decreasing metric)
+  google.protobuf.Timestamp last_session_at = 13;
+  google.protobuf.Timestamp next_due_at = 14;  // data-driven scan key of the "time to train" ping
+  bool due_ping_sent = 15;           // at most one due ping per due date
+  int32 streak_weeks = 16;
+  google.protobuf.Timestamp freeze_used_at = 17;
+  google.protobuf.Timestamp started_at = 18;
+  int32 gate_idx = 19;               // safety-gate questions answered during setup
+  int32 start_step_down = 20;        // rungs the gate asked to start below the picked one
+  bool deload = 21;                  // next session runs reduced (dropped retest / long pause)
+  bool retest_pending = 22;          // a retest is owed before the next ordinary session
+}
+
+// PushupSession mirrors state.PushupSession — the TRANSIENT unfinished
+// session (absent when none). `targets` is variable-length (4..7) because
+// the set count grows with the base, and its LAST element is the floor of
+// the open set, which is why there are no fixed per-set fields.
+message PushupSession {
+  string kind = 1;                   // workout | test | retest
+  int32 day_idx = 2;                 // 0..sessions_per_week-1
+  repeated int32 targets = 3;        // fixed sets + the open set's floor (last)
+  int32 open_floor = 4;              // == last element of targets, kept for readability
+  repeated int32 actual = 5;         // append-only, index-aligned with targets
+  int32 idx = 6;                     // cursor: the set being performed
+  int32 rest_sec = 7;                // rest planned between sets of THIS session
+  google.protobuf.Timestamp rest_until = 8;  // scan key of the rest-over ping
+  google.protobuf.Timestamp started_at = 9;  // session TTL is measured from here
+  StateKind resume_state = 10;       // recorded escape position (pu_set | pu_rest)
+}
+
+// PushupTest mirrors state.PushupTest — the last COMPLETED max test. Kept
+// apart from the program exactly like ScreeningResult is kept apart from
+// ScreeningProgress: the test is a reproducible measurement, the program is
+// the mutable load built on top of it.
+message PushupTest {
+  google.protobuf.Timestamp taken_at = 1;
+  string variation = 2;              // the rung the test was taken on
+  int32 reps = 3;
+  bool capped = 4;                   // hit the test ceiling → offer a harder rung
+  string source = 5;                 // initial | retest
+}
+
+// PushupSessionLog mirrors state.PushupSessionLog — one finished session in
+// the history ring. Numbers only, never free text; the ring is capped
+// (history_cap) because this is the only track that keeps a history rather
+// than just the last result.
+message PushupSessionLog {
+  google.protobuf.Timestamp date = 1;
+  int32 day_idx = 2;
+  repeated int32 sets = 3;           // what was actually done, per set
+  int32 planned = 4;                 // planned volume (fixed sets + open floor)
+  int32 done = 5;                    // actual volume
+  int32 open_target = 6;
+  int32 open_actual = 7;
+  string outcome = 8;                // over | plan | short
+  string effort = 9;                 // hard | ok | easy
+  int32 base = 10;                   // the base this session was generated from
+}
+
 message UserData {
   StateKind state = 1;
   DefecationKind defecation_state = 2;
@@ -220,6 +311,15 @@ message UserData {
   BesResult bes_result = 27;
   EatingProgress nias = 28;
   NiasResult nias_result = 29;
+  // Pushup track: one consent for the whole track (wiped by /pushups_delete),
+  // the persistent program, the transient session, the last max test and the
+  // capped history ring. This is the first track that persists a program and
+  // a history instead of a single last result.
+  google.protobuf.Timestamp pu_consent_at = 30;
+  PushupProgram pushups = 31;
+  PushupSession pu_session = 32;
+  PushupTest pu_test = 33;
+  repeated PushupSessionLog pu_history = 34;
 }
 
 message UserMap {

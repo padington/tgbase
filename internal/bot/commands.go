@@ -14,13 +14,14 @@ type commandRegistrar interface {
 	Request(c tgbotapi.Chattable) (*tgbotapi.APIResponse, error)
 }
 
-// modes says which optional self-check tracks this binary actually wired.
-// The menu is built from it so the client hint can never advertise a command
-// the router does not handle.
+// modes says which optional tracks this binary actually wired. The menu is
+// built from it so the client hint can never advertise a command the router
+// does not handle.
 type modes struct {
 	screening bool // ADHD track: /adhd, /adhd_delete
 	mood      bool // mood module: /mood, /mood_delete
 	eating    bool // eating track: /food, /food_delete
+	pushups   bool // pushup track: /pushups, /pushups_delete
 }
 
 // menuCommands returns the client command menu in usage-frequency order.
@@ -37,12 +38,14 @@ func menuCommands(trans i18n.Translator, locale i18n.Locale, m modes) []tgbotapi
 		{"adhd", m.screening},
 		{"mood", m.mood},
 		{"food", m.eating},
+		{"pushups", m.pushups},
 		{"report", true},
 		{"about", true},
 		{"abandon", true},
 		{"adhd_delete", m.screening},
 		{"mood_delete", m.mood},
 		{"food_delete", m.eating},
+		{"pushups_delete", m.pushups},
 	}
 	var out []tgbotapi.BotCommand
 	for _, e := range entries {

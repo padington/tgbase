@@ -68,6 +68,24 @@ const (
 	StateEatNiasQuestion  StateKind = "eat_nias_question"
 	StateEatReport        StateKind = "eat_report"
 	StateEatDeleteConfirm StateKind = "eat_delete_confirm"
+
+	// Pushup-track states (pu_*). Unlike the self-checks, this track IS
+	// scanned by the reminder loop: StatePuRest for the within-session rest
+	// timer, plus a data-driven due scan that is not tied to any state (see
+	// AllPushupResting / AllPushupDue).
+	StatePuConsent       StateKind = "pu_consent"
+	StatePuGate          StateKind = "pu_gate"
+	StatePuGoal          StateKind = "pu_goal"
+	StatePuVariation     StateKind = "pu_variation"
+	StatePuTest          StateKind = "pu_test"
+	StatePuMenu          StateKind = "pu_menu"
+	StatePuSet           StateKind = "pu_set"
+	StatePuRest          StateKind = "pu_rest"
+	StatePuEffort        StateKind = "pu_effort"
+	StatePuWeekFork      StateKind = "pu_week_fork"
+	StatePuRedCard       StateKind = "pu_red_card"
+	StatePuProgress      StateKind = "pu_progress"
+	StatePuDeleteConfirm StateKind = "pu_delete_confirm"
 )
 
 // DefecationKind captures the user's reply to the defecation question.
@@ -337,6 +355,19 @@ type UserData struct {
 	BesResult    *BesResult      `json:"bes_result,omitempty"`
 	Nias         *EatingProgress `json:"nias,omitempty"`
 	NiasResult   *NiasResult     `json:"nias_result,omitempty"`
+
+	// Pushup track. PuConsentAt is the single track-wide consent (nil = not
+	// given), Pushups is the persistent program (nil = track never started),
+	// PuSession is the transient unfinished session, PuTest is the last
+	// completed max test and PuHistory is the capped ring of finished
+	// sessions. /pushups_delete wipes all five. Unlike the self-checks this
+	// track persists a program and a history, not just a last result — see
+	// pushups.go for why each piece is shaped the way it is.
+	PuConsentAt *time.Time         `json:"pu_consent_at,omitempty"`
+	Pushups     *PushupProgram     `json:"pushups,omitempty"`
+	PuSession   *PushupSession     `json:"pu_session,omitempty"`
+	PuTest      *PushupTest        `json:"pu_test,omitempty"`
+	PuHistory   []PushupSessionLog `json:"pu_history,omitempty"`
 
 	ChatID       int64     `json:"chat_id,omitempty"`
 	EnteredAt    time.Time `json:"entered_at,omitempty"`

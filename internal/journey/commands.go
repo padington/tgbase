@@ -34,12 +34,16 @@ func (r *Runner) HandleReport(s router.Sender, msg *tgbotapi.Message) {
 		return
 	}
 	user := r.store.Get(msg.From.ID)
-	send(s, msg.Chat.ID, reportText(r.trans, r.localeForUser(user), user))
+	send(s, msg.Chat.ID, reportText(r.trans, r.localeForUser(user), user, r.pushupContent()))
 }
 
 // reportText assembles the full /report breakdown. A free function so the
 // landing's report button can render the same text through a phase Outcome.
-func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData) string {
+// The pushup bundle is optional (nil when the track is not wired) — its one
+// line is the only part of the report that is content-driven rather than
+// i18n-driven, because the whole track keeps its texts in one file.
+func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData,
+	pu *screening.PushupContent) string {
 	var extraLines []string
 	if line := screeningReportLine(trans, locale, user); line != "" {
 		extraLines = append(extraLines, line)
@@ -54,6 +58,9 @@ func reportText(trans i18n.Translator, locale i18n.Locale, user state.UserData) 
 		extraLines = append(extraLines, line)
 	}
 	extraLines = append(extraLines, eatingReportLines(trans, locale, user)...)
+	if line := pushupReportLine(pu, user); line != "" {
+		extraLines = append(extraLines, line)
+	}
 
 	if len(user.Products) == 0 {
 		if len(extraLines) == 0 {
@@ -225,6 +232,15 @@ func (r *Runner) eatingContent() *screening.EatingContent {
 	return nil
 }
 
+// pushupContent fetches the pushup bundle from the registered consent phase;
+// nil when the track is not wired. Same pattern as the three above.
+func (r *Runner) pushupContent() *screening.PushupContent {
+	if p, ok := r.phases[state.StatePuConsent].(*PuConsentPhase); ok {
+		return p.c
+	}
+	return nil
+}
+
 // enterScreeningMode is the shared direct-entry routine of the screening
 // commands (/adhd, /mood, /food). Mid-mode it re-fires the current phase's Setup
 // (redraws the question and keyboard); from a FODMAP state it records the
@@ -284,6 +300,20 @@ func (r *Runner) HandleFood(s router.Sender, msg *tgbotapi.Message) {
 	r.enterScreeningMode(msg, eatEntryState, isEatingState)
 }
 
+// HandlePushups is the direct entry into the pushup track: the consent gate
+// for fresh users, then whatever the program says is next (safety gate →
+// goal → variation → first test), and the track menu once it runs.
+func (r *Runner) HandlePushups(s router.Sender, msg *tgbotapi.Message) {
+	c := r.pushupContent()
+	if c == nil {
+		return // track not wired
+	}
+	now := r.now()
+	r.enterScreeningMode(msg,
+		func(u state.UserData) state.StateKind { return puEntryState(c, u, now) },
+		isPushupState)
+}
+
 // enterDeleteConfirm is the shared delete-command routine (/adhd_delete,
 // /mood_delete, /food_delete): with nothing stored it answers immediately and does not
 // change state, otherwise it records the way back — the interrupted FODMAP
@@ -331,6 +361,12 @@ func (r *Runner) enterDeleteConfirm(s router.Sender, msg *tgbotapi.Message,
 		ec := eatRunFor(user, user.State).Clone()
 		ec.ResumeState = user.State
 		setEatRun(&user, user.State, ec)
+	case isPushupState(user.State):
+		// The pushup track needs no second marker: its session already
+		// carries the resume position for the landing, so the way back from
+		// the dialog is recorded exactly like a FODMAP detour. Confirming
+		// the wipe is what makes it unusable, and that case lands home.
+		user.ReturnState = user.State
 	}
 	user.ChatID = msg.Chat.ID
 	user.State = confirm
@@ -387,6 +423,19 @@ func (r *Runner) HandleFoodDelete(s router.Sender, msg *tgbotapi.Message) {
 		c.Module.UI.DeleteNothing)
 }
 
+// HandlePushupsDelete starts the delete-confirmation flow for the whole
+// pushup track (program, session, test, history and the track consent).
+func (r *Runner) HandlePushupsDelete(s router.Sender, msg *tgbotapi.Message) {
+	if msg.From == nil {
+		return
+	}
+	c := r.pushupContent()
+	if c == nil {
+		return // track not wired
+	}
+	r.enterDeleteConfirm(s, msg, state.StatePuDeleteConfirm, hasPuData, c.UI.DeleteNothing)
+}
+
 // HandleAbandon aborts the current activity. Mid-screening it wipes the
 // transient raw answers (the previous completed ScreeningResult is kept) and
 // lands the user on the home landing — a recorded FODMAP detour stays
@@ -400,13 +449,25 @@ func (r *Runner) HandleAbandon(s router.Sender, msg *tgbotapi.Message) {
 	user := r.store.Get(msg.From.ID)
 	locale := r.localeForUser(user)
 
-	if isScreeningState(user.State) || isMoodState(user.State) || isEatingState(user.State) {
+	if isScreeningState(user.State) || isMoodState(user.State) || isEatingState(user.State) ||
+		isPushupState(user.State) {
 		// Abandon the active self-check: wipe the transient raw answers
 		// (the previous completed result is kept) and land home. The
 		// FODMAP detour in ReturnState is kept for the landing's diary
 		// button (see testExitState).
 		var confirmText string
-		if isEatingState(user.State) {
+		if isPushupState(user.State) {
+			// The pushup track drops the SESSION, never the program: the
+			// base, the history and the week stand — only today's unfinished
+			// sets are thrown away.
+			user.PuSession = nil
+			if isPushupState(user.ReturnState) {
+				user.ReturnState = ""
+			}
+			if c := r.pushupContent(); c != nil {
+				confirmText = c.UI.AbandonConfirmed
+			}
+		} else if isEatingState(user.State) {
 			// Only the run the current state belongs to is wiped — a paused
 			// run of another instrument stays resumable.
 			switch user.State {

@@ -2,6 +2,7 @@ package journey
 
 import (
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +108,23 @@ func (r *Runner) routeToLanding(userID, chatID int64, langCode string) {
 		// here. A leftover marker would make the next /food_delete —
 		// opened from the landing — close back INTO the paused run.
 		clearEatResumeStates(&user)
+	case isPushupState(cur):
+		// Escape mid-session: the landing must offer «Продолжить
+		// тренировку: подход N/M» and land back on the exact set or rest.
+		// Only positions inside a running session are recorded; the setup
+		// chain, the menu and the confirmations are re-entered through the
+		// menu, which derives its position from the program.
+		if user.PuSession != nil && resumablePuState(cur) {
+			ps := user.PuSession.Clone()
+			ps.ResumeState = cur
+			user.PuSession = ps
+		}
+		// A pushup state recorded as the delete dialog's way back is stale
+		// the moment the user escapes to the landing — dropping it here is
+		// the same hygiene the eating track applies to its marker.
+		if isPushupState(user.ReturnState) {
+			user.ReturnState = ""
+		}
 	case cur != state.StateAwaitingModeChoice && isFodmapJourneyState(cur):
 		// Remember where to return after a detour. A repeated escape from
 		// the landing itself is idempotent — ReturnState is kept.
@@ -213,10 +231,15 @@ func (r *Runner) IsJourneyState(userID int64) bool {
 
 // Remind walks every user the runner cares about and asks each phase
 // whether to nudge them. Called by the reminder worker on every tick.
+//
+// Three state-scoped scans plus one data-driven one: the pushup track's
+// "time to train" ping is not tied to the state it would interrupt, so it
+// has its own rules (see remindPushupsDue).
 func (r *Runner) Remind() {
 	for _, kind := range []state.StateKind{
 		state.StateAwaitingDefecation,
 		state.StateAwaitingStageCheckin,
+		state.StatePuRest,
 	} {
 		phase, ok := r.phases[kind]
 		if !ok {
@@ -228,11 +251,65 @@ func (r *Runner) Remind() {
 			users = r.store.AllAwaitingDefecation()
 		case state.StateAwaitingStageCheckin:
 			users = r.store.AllAwaitingCheckin()
+		case state.StatePuRest:
+			users = r.store.AllPushupResting()
 		}
 		for userID, user := range users {
 			ctx := r.contextFor(userID, user)
 			r.applyOutcome(ctx, phase.Remind(ctx), user.ChatID)
 		}
+	}
+	r.remindPushupsDue()
+}
+
+// remindPushupsDue sends the pushup track's "time to train" ping. It is the
+// first reminder in the bot that belongs to a PROGRAM rather than to a
+// state, so it is fenced in three ways, all enforced by the store's own
+// filter (state.Store.AllPushupDue): only a user sitting idle, on the
+// landing or in the track's menu is reachable, never one mid-check-in,
+// mid-self-check or mid-set; never while a session is still resumable (the
+// landing offers that one instead); and at most once per due date.
+//
+// Exactly two messages can be sent per due cycle: the ping at NextDueAt,
+// and — if the session still has not happened — one final "still waiting"
+// message puOverdueAfter later. Then the track goes quiet until a session
+// moves the date.
+func (r *Runner) remindPushupsDue() {
+	c := r.pushupContent()
+	if c == nil {
+		return
+	}
+	now := r.now()
+	for userID, user := range r.store.AllPushupDue(now) {
+		p := user.Pushups
+		plan := puPlan(c, p)
+		args := map[string]string{
+			"sets":    strconv.Itoa(plan.SetCount()),
+			"minutes": strconv.Itoa(c.EstimateMinutes(plan)),
+		}
+		// The rescheduling below is the only thing that can push NextDueAt
+		// past the session's own due date — which makes it the marker of
+		// "this is the second and last message of the cycle".
+		firstDue := p.LastSessionAt.Add(time.Duration(c.Params.AdvisedHoursBetween) * time.Hour)
+		overdue := !p.LastSessionAt.IsZero() && p.NextDueAt.After(firstDue.Add(time.Minute))
+		tpl, final := c.UI.DuePing, false
+		if overdue {
+			tpl, final = c.UI.OverduePing, true
+		}
+		oc := scrText(renderContent(tpl, args))
+		oc.Mutate = func(u *state.UserData) {
+			mutatePuProgram(u, func(pr *state.PushupProgram) {
+				if final {
+					pr.DuePingSent = true
+					return
+				}
+				// Not sent yet, but not due again either: the next (and
+				// last) message of this cycle waits out puOverdueAfter.
+				pr.NextDueAt = pr.NextDueAt.Add(puOverdueAfter)
+			})
+		}
+		ctx := r.contextFor(userID, user)
+		r.applyOutcome(ctx, oc, user.ChatID)
 	}
 }
 

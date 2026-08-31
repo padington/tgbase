@@ -36,10 +36,10 @@ type Config struct {
 	SettingsSeedPath   string
 	I18nDir            string
 
-	// ScreeningDir holds the read-only self-check content YAMLs — ADHD,
-	// mood and eating track (reloaded on every boot, never backend-seeded).
-	// Empty disables every self-check track: /start keeps its legacy
-	// behavior and the /adhd, /mood and /food commands are not registered.
+	// ScreeningDir holds the read-only track content YAMLs — ADHD, mood,
+	// eating and pushups (reloaded on every boot, never backend-seeded).
+	// Empty disables every track: /start keeps its legacy behavior and the
+	// /adhd, /mood, /food and /pushups commands are not registered.
 	ScreeningDir string
 
 	// DataPath is the legacy single-file persistence path. Kept so main.go
@@ -91,6 +91,7 @@ func New(cfg Config) (*Bot, error) {
 	var scrContent *screening.Content
 	var moodContent *screening.MoodContent
 	var eatingContent *screening.EatingContent
+	var pushupContent *screening.PushupContent
 	if cfg.ScreeningDir != "" {
 		scrContent, err = screening.Load(cfg.ScreeningDir)
 		if err != nil {
@@ -110,10 +111,19 @@ func New(cfg Config) (*Bot, error) {
 			// pinned by the validator.
 			return nil, fmt.Errorf("load eating content from %s: %w", cfg.ScreeningDir, err)
 		}
+		pushupContent, err = screening.LoadPushups(cfg.ScreeningDir)
+		if err != nil {
+			// Fail-fast here is not cosmetic: the validator is what keeps
+			// the generator's parameters inside their safe ranges (volume
+			// ceilings, the test cap, rest bounds) and the texts free of
+			// body figures and source branding. Serving a track whose
+			// numbers were not checked is worse than not serving it.
+			return nil, fmt.Errorf("load pushup content from %s: %w", cfg.ScreeningDir, err)
+		}
 	}
 
 	runner := journey.New(stateStore, api, catalog, settingsStore, trans)
-	for _, p := range phasesFor(scrContent, moodContent, eatingContent) {
+	for _, p := range phasesFor(scrContent, moodContent, eatingContent, pushupContent) {
 		runner.Register(p)
 	}
 
@@ -148,6 +158,10 @@ func New(cfg Config) (*Bot, error) {
 		r.HandleCommand("food", runner.HandleFood)
 		r.HandleCommand("food_delete", runner.HandleFoodDelete)
 	}
+	if pushupContent != nil {
+		r.HandleCommand("pushups", runner.HandlePushups)
+		r.HandleCommand("pushups_delete", runner.HandlePushupsDelete)
+	}
 
 	r.HandleText(func(msg *tgbotapi.Message) bool {
 		if msg.From == nil {
@@ -163,6 +177,7 @@ func New(cfg Config) (*Bot, error) {
 		screening: scrContent != nil,
 		mood:      moodContent != nil,
 		eating:    eatingContent != nil,
+		pushups:   pushupContent != nil,
 	})
 
 	return &Bot{
