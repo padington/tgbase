@@ -9,6 +9,7 @@ package screening
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -156,28 +157,170 @@ func TestCanonical_PushupProvenanceHeader(t *testing.T) {
 	}
 }
 
-// pushupFigureNeedles catch a number glued to a body/energy unit. The track
-// generates load from ONE number — the test result — and must never ask for
-// or print weight, height or calories: the bot also runs an eating-habits
-// screening track pinned to exactly that property, and a neighbouring track
-// may not break it.
-var pushupFigureNeedles = regexp.MustCompile(`(?i)\d+\s*(кг|килограмм|ккал|калори|грамм|см\b|сантиметр)`)
+// pushupBodyFigureRules are the track's hardest canary: the bot also runs an
+// eating-habits screening pinned to "no weight, height, BMI or calorie figure
+// anywhere", and a neighbouring track may not break that property. The rules
+// are written as patterns rather than as a list of phrases because a phrase
+// list only catches the phrasings someone thought of — "твой вес" was caught
+// while «Сколько ты весишь?» and «свой вес в килограммах» walked straight
+// through.
+//
+// Cyrillic note: Go's \b is an ASCII word boundary and never fires between
+// two Cyrillic letters, so word edges are spelled out as character classes.
+var pushupBodyFigureRules = []struct {
+	name string
+	re   *regexp.Regexp
+}{
+	{"a figure in body or energy units",
+		regexp.MustCompile(`(?i)\d+\s*(кг|килограмм|ккал|калори|грамм|см([^а-яё]|$)|сантиметр)`)},
+	{"the weight noun",
+		regexp.MustCompile(`(?i)(^|[^а-яёa-z])вес(а|у|ом|е|ы|ов|ам|ами|ах)?([^а-яёa-z]|$)`)},
+	{"the verb «весить» / «взвешиваться»",
+		regexp.MustCompile(`(?i)(^|[^а-яёa-z])(взвес|весиш|весит|весят|весим|весите|весить|весила|весил)`)},
+	{"body mass",
+		regexp.MustCompile(`(?i)(масс[аыуой][^.,;!?]{0,12}тела|тела[^.,;!?]{0,8}масс|в килограмм)`)},
+	{"BMI",
+		regexp.MustCompile(`(?i)((^|[^а-яёa-z])(имт|bmi)([^а-яёa-z]|$)|индекс[а-яё]*\s+масс)`)},
+	// Height only in the body sense — the track legitimately talks about
+	// growth ("Рост происходит между тренировками").
+	{"body height",
+		regexp.MustCompile(`(?i)((тво[йя]|ваш|свой|у теб[яе]|при)[^.,;!?]{0,12}рост|рост[^.,;!?]{0,12}(в см|сантиметр|метр))`)},
+}
+
+// pushupBodyFigure names the rule a text trips, or "" when it is clean.
+func pushupBodyFigure(s string) string {
+	for _, rule := range pushupBodyFigureRules {
+		if rule.re.MatchString(s) {
+			return rule.name
+		}
+	}
+	return ""
+}
 
 func TestCanonical_PushupTextsHaveNoBodyFigures(t *testing.T) {
 	c := loadCanonicalPushups(t)
-
-	forbidden := []string{
-		"имт", "bmi", "индекс массы тела", "массы тела", "твой вес", "ваш вес",
-		"вес тела", "взвес", "твой рост", "ваш рост", "калорий",
-	}
 	for where, s := range c.userTexts() {
-		if m := pushupFigureNeedles.FindString(s); m != "" {
-			t.Errorf("%s carries a body/energy figure (%q):\n%s", where, m, s)
+		if rule := pushupBodyFigure(s); rule != "" {
+			t.Errorf("%s asks about or names a body figure (%s):\n%s", where, rule, s)
 		}
-		low := strings.ToLower(s)
-		for _, needle := range forbidden {
-			if strings.Contains(low, needle) {
-				t.Errorf("%s asks about or names a body figure (%q):\n%s", where, needle, s)
+	}
+}
+
+// TestCanonical_PushupFigureGuardBites tests the canary itself. A guard that
+// silently stops matching is worse than no guard, so the natural ways of
+// asking for a body figure are pinned as must-catch, and the track's own
+// wording — which talks about GROWTH and about metabolic illness — is pinned
+// as must-pass.
+func TestCanonical_PushupFigureGuardBites(t *testing.T) {
+	for _, s := range []string{
+		"Отжимания. Сколько ты весишь?",
+		"Отжимания. Напиши свой вес в килограммах",
+		"Твой вес?",
+		"Ваш вес сегодня",
+		"Укажи вес тела",
+		"Сколько ты весил в начале?",
+		"Взвесься перед тестом",
+		"Укажи массу тела",
+		"Масса тела нужна для расчёта",
+		"Это примерно 70 кг нагрузки",
+		"За тренировку сожжёшь 200 ккал",
+		"Посчитаю ИМТ",
+		"Индекс массы тела в норме?",
+		"Какой у тебя рост?",
+		"Твой рост в сантиметрах",
+		"Рост в см?",
+		"Обхват груди 100 см",
+	} {
+		if pushupBodyFigure(s) == "" {
+			t.Errorf("the body-figure guard misses %q", s)
+		}
+	}
+
+	for _, s := range []string{
+		"Сегодня отдых. Рост происходит между тренировками.",
+		"Есть болезнь сердца, обмена веществ или почек — или при нагрузке бывает боль в груди?",
+		"Подход 2/5 — 8 повторов. Сколько получилось?",
+		"Всё равно тренироваться",
+		"Вверх — до полного выпрямления рук.",
+		"Бери тот, где ровной техникой делаешь 5–15 повторов.",
+		"Готово: 36 повторов, открытый подход 12 — на 3 больше цели.",
+		"Стоя, руки в стену.",
+	} {
+		if rule := pushupBodyFigure(s); rule != "" {
+			t.Errorf("the body-figure guard false-positives on %q (%s)", s, rule)
+		}
+	}
+}
+
+// pushupUserTextExceptions are the bundle's machine-readable strings: ids and
+// the yes-actions of the gate. Everything else in the file is shown to a user
+// and therefore has to be walked by the guards.
+var pushupUserTextExceptions = map[string]bool{
+	"Meta.Module":            true,
+	"Meta.Language":          true,
+	"Variations.DefaultID":   true,
+	"Gate.Questions[].ID":    true,
+	"Gate.Questions[].OnYes": true,
+	"Variations.Ladder[].ID": true,
+}
+
+// collectPushupStrings walks the bundle and returns every string in it,
+// keyed by its structural path (slice indices collapsed to "[]").
+func collectPushupStrings(v reflect.Value, path string, out map[string][]string) {
+	switch v.Kind() {
+	case reflect.String:
+		out[path] = append(out[path], v.String())
+	case reflect.Pointer:
+		if !v.IsNil() {
+			collectPushupStrings(v.Elem(), path, out)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			collectPushupStrings(v.Index(i), path+"[]", out)
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			if !t.Field(i).IsExported() || t.Field(i).Name == "Params" {
+				continue
+			}
+			name := t.Field(i).Name
+			if path != "" {
+				name = path + "." + name
+			}
+			collectPushupStrings(v.Field(i), name, out)
+		}
+	}
+}
+
+// TestCanonical_PushupUserTextsCoverTheBundle closes the hole under every
+// canary above: userTexts() is written out by hand, so a text added to the
+// yaml and to the struct but forgotten there would be invisible to the
+// figure, branding and house-style guards — and would fail nothing.
+func TestCanonical_PushupUserTextsCoverTheBundle(t *testing.T) {
+	c := loadCanonicalPushups(t)
+
+	covered := map[string]bool{}
+	for _, s := range c.userTexts() {
+		covered[s] = true
+	}
+
+	found := map[string][]string{}
+	collectPushupStrings(reflect.ValueOf(*c), "", found)
+	if len(found) == 0 {
+		t.Fatal("the bundle walk found no strings at all")
+	}
+	for path, values := range found {
+		if pushupUserTextExceptions[path] {
+			continue
+		}
+		for _, s := range values {
+			if strings.TrimSpace(s) == "" {
+				t.Errorf("%s is empty — Validate should have refused the bundle", path)
+				continue
+			}
+			if !covered[s] {
+				t.Errorf("%s is not listed in userTexts(), so no canary sees it:\n%s", path, s)
 			}
 		}
 	}
@@ -201,18 +344,68 @@ func TestCanonical_PushupContentHasNoSourceBranding(t *testing.T) {
 		t.Errorf("%s contains forbidden instrument branding", pushupsFile)
 	}
 
-	// Promises borrowed from that program: a round number of reps, or a
-	// deadline in weeks. Neither may appear in a user-visible text.
-	promises := []string{
-		"100 отжим", "сто отжим", "100 подряд", "100 push",
-		"за 6 недель", "за шесть недель", "за 8 недель", "за месяц сможешь",
-	}
 	for where, s := range c.userTexts() {
-		low := strings.ToLower(s)
-		for _, needle := range promises {
-			if strings.Contains(low, needle) {
-				t.Errorf("%s promises a borrowed result (%q):\n%s", where, needle, s)
-			}
+		if rule := pushupPromise(s); rule != "" {
+			t.Errorf("%s promises a borrowed result (%s):\n%s", where, rule, s)
+		}
+	}
+}
+
+// pushupPromiseRules catch the two halves of the promise this track refuses
+// to make: a round rep count ("сто повторов", "100 подряд") and a deadline
+// ("за 6 недель", "за три месяца"). Patterns again, not a phrase list —
+// «100 повторов за три месяца» used to pass a list built around "100 отжим".
+var pushupPromiseRules = []struct {
+	name string
+	re   *regexp.Regexp
+}{
+	{"a round rep count",
+		regexp.MustCompile(`(?i)(^|[^а-яёa-z0-9])(\d{3,}|сто|сотн[а-яё]*)\s*[-—]?\s*(отжим|повтор|раз|подряд|push)`)},
+	{"a deadline",
+		regexp.MustCompile(`(?i)(^|[^а-яёa-z])за\s+(\d+|одн[уи]|дв[еа]|три|четыре|пять|шесть|семь|восемь|девять|десять|пару|несколько)?\s*(недел|месяц)`)},
+}
+
+// pushupPromise names the rule a text trips, or "" when it is clean.
+func pushupPromise(s string) string {
+	for _, rule := range pushupPromiseRules {
+		if rule.re.MatchString(s) {
+			return rule.name
+		}
+	}
+	return ""
+}
+
+// TestCanonical_PushupPromiseGuardBites tests that guard the same way: the
+// promise the source program is famous for, in the shapes it is usually
+// written in, versus the track's own honest wording.
+func TestCanonical_PushupPromiseGuardBites(t *testing.T) {
+	for _, s := range []string{
+		"100 отжиманий за 6 недель",
+		"Сто отжиманий подряд",
+		"100 повторов за три месяца",
+		"100 подряд — цель трека",
+		"Дойдёшь до 100 повторов",
+		"Сотня отжиманий за месяц",
+		"За шесть недель удвоишь максимум",
+		"За 8 недель дойдём до цели",
+		"Программа за 2 месяца",
+	} {
+		if pushupPromise(s) == "" {
+			t.Errorf("the promise guard misses %q", s)
+		}
+	}
+
+	for _, s := range []string{
+		"Цель — удвоить свой сегодняшний максимум.",
+		"Три тренировки в неделю, примерно по 12 минут.",
+		"Раз в месяц сверяемся. Сегодня тест на максимум.",
+		"Он же засчитается за третью тренировку недели.",
+		"Бери тот, где ровной техникой делаешь 5–15 повторов.",
+		"Готово: 36 повторов, открытый подход 12.",
+		"Пришли число повторов, например 12.",
+	} {
+		if rule := pushupPromise(s); rule != "" {
+			t.Errorf("the promise guard false-positives on %q (%s)", s, rule)
 		}
 	}
 }

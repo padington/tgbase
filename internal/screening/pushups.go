@@ -366,9 +366,13 @@ func (p PushupPlan) PlannedTotal() int {
 //	F = max(W + open_gap, round(open_share × B × k))
 //
 // The fixed sets are W plus the offsets of set_offsets[n]; the open set's
-// floor is F. Finally the volume ceiling drops sets until the planned total
-// fits (or the plan is down to the smallest set count) — that ceiling is a
-// safety limit and is never shown to the user.
+// floor is F.
+//
+// The SHAPE of the session — how many sets it has — comes from the volume
+// ceiling (see cappedOffsets) and depends on the base alone; k then scales
+// the numbers inside that shape. That order matters: the ceiling is a safety
+// limit the user never sees, and a limit that removed whole sets from the
+// heavy day only would make the heavy day the lightest one of the week.
 func (c *PushupContent) Plan(in PlanInput) PushupPlan {
 	p := &c.Params
 
@@ -389,31 +393,8 @@ func (c *PushupContent) Plan(in PlanInput) PushupPlan {
 		k *= p.DeloadFactor
 	}
 
-	small := base <= p.SmallBaseMax
-	minSet := p.MinSetReps
-	openShare := p.OpenShare
-	gap := p.OpenGap
-	if small {
-		minSet = p.SmallBaseMinSetReps
-		openShare = p.SmallBaseOpenShare
-		gap = p.SmallBaseOpenGap
-	}
-
-	work := puMaxInt(minSet, puRound(p.WorkShare*float64(base)*k))
-	open := puMaxInt(work+gap, puRound(openShare*float64(base)*k))
-
-	offsets := p.SetOffsets[c.setCount(base)]
-	targets := make([]int, 0, len(offsets)+1)
-	for _, off := range offsets {
-		targets = append(targets, puMaxInt(minSet, work+off))
-	}
-	targets = append(targets, open)
-
-	capReps := puRound(p.VolumeCap * float64(base))
-	if in.SessionsDone < p.EarlySessions {
-		capReps = puRound(p.VolumeCapEarly * float64(base))
-	}
-	targets = c.applyVolumeCap(targets, capReps)
+	capReps := c.volumeCap(base, in.SessionsDone)
+	targets, work := c.buildSets(base, k, c.cappedOffsets(base, capReps))
 
 	return PushupPlan{
 		Targets: targets,
@@ -421,6 +402,86 @@ func (c *PushupContent) Plan(in PlanInput) PushupPlan {
 		Work:    work,
 		Cap:     capReps,
 	}
+}
+
+// buildSets renders the numbers of one session at intensity k: the fixed sets
+// (the working number W plus each offset, never below the floor) and, last,
+// the floor of the open set.
+func (c *PushupContent) buildSets(base int, k float64, offsets []int) ([]int, int) {
+	p := &c.Params
+
+	minSet, openShare, gap := p.MinSetReps, p.OpenShare, p.OpenGap
+	if base <= p.SmallBaseMax {
+		minSet, openShare, gap = p.SmallBaseMinSetReps, p.SmallBaseOpenShare, p.SmallBaseOpenGap
+	}
+
+	work := puMaxInt(minSet, puRound(p.WorkShare*float64(base)*k))
+	open := puMaxInt(work+gap, puRound(openShare*float64(base)*k))
+
+	targets := make([]int, 0, len(offsets)+1)
+	for _, off := range offsets {
+		targets = append(targets, puMaxInt(minSet, work+off))
+	}
+	return append(targets, open), work
+}
+
+// volumeCap is the ceiling of one session — volume_cap(_early) × B, in reps.
+// The early regime (the first early_sessions sessions) is the tighter one:
+// that is the ramp-in an untrained person needs, and the documented overload
+// risk of this exercise is exactly a big session done by someone detrained.
+func (c *PushupContent) volumeCap(base, sessionsDone int) int {
+	share := c.Params.VolumeCap
+	if sessionsDone < c.Params.EarlySessions {
+		share = c.Params.VolumeCapEarly
+	}
+	return puRound(share * float64(base))
+}
+
+// cappedOffsets is the session's shape: the set template the base earns,
+// minus the sets the volume ceiling cannot afford. It drops the
+// second-to-last FIXED set while the plan is over the ceiling, down to the
+// smallest set count — dropping from the tail of the fixed block removes the
+// lightest work first and always keeps the open set, the session's progress
+// sensor.
+//
+// The decision is taken on the NEUTRAL session (k = 1) and therefore depends
+// on the base and the ceiling alone. This is deliberate. Measuring the day's
+// own plan against a ceiling that does not move with it inverts the week: at
+// base 25 in the first six sessions, the fixed ceiling used to cut two sets
+// off the hard day and none off the easy one, so the week ran 56 / 63 / 52
+// reps — the "hard" day the lightest of the three. The self-report had the
+// same cliff under it: "легко" raised k, the plan crossed the ceiling, a set
+// was dropped and the NEXT session came out lighter, while the text promised
+// it would be denser. With the shape fixed per base, k only scales numbers,
+// so heavier input always means a heavier session.
+//
+// The ceiling thus bounds an average-intensity session at volume_cap × B;
+// the hard day of a maximal self-report is heavier by its own factor
+// (day_factors[last] × effort_adj.max ≈ 1.32 of it), which is the shape of a
+// week rather than an escape from the limit.
+//
+// A plan may still exceed the ceiling once it is down to the minimum set
+// count: at that point the load is already the base's own honest minimum and
+// cutting further would leave nothing to train.
+func (c *PushupContent) cappedOffsets(base, capReps int) []int {
+	offsets := c.Params.SetOffsets[c.setCount(base)]
+	minOffsets := c.Params.SetCounts[0] - 1 // the open set is not an offset
+	for len(offsets) > minOffsets {
+		neutral, _ := c.buildSets(base, 1, offsets)
+		total := 0
+		for _, n := range neutral {
+			total += n
+		}
+		if total <= capReps {
+			break
+		}
+		drop := len(offsets) - 2 // the second-to-last fixed set
+		trimmed := make([]int, 0, len(offsets)-1)
+		trimmed = append(trimmed, offsets[:drop]...)
+		trimmed = append(trimmed, offsets[drop+1:]...)
+		offsets = trimmed
+	}
+	return offsets
 }
 
 // setCount picks the number of sets for a base from the thresholds.
@@ -433,34 +494,6 @@ func (c *PushupContent) setCount(base int) int {
 		}
 	}
 	return n
-}
-
-// applyVolumeCap drops the second-to-last FIXED set while the planned total
-// exceeds the ceiling, down to the smallest set count. Dropping from the
-// tail of the fixed block removes the lightest work first and always keeps
-// the open set — the session's progress sensor.
-//
-// The plan may still exceed the ceiling once it is down to the minimum set
-// count: at that point the load is already the base's own honest minimum and
-// cutting further would leave nothing to train.
-func (c *PushupContent) applyVolumeCap(targets []int, capReps int) []int {
-	minSets := c.Params.SetCounts[0]
-	out := targets
-	for len(out) > minSets {
-		total := 0
-		for _, n := range out {
-			total += n
-		}
-		if total <= capReps {
-			break
-		}
-		drop := len(out) - 3 // the second-to-last fixed set
-		trimmed := make([]int, 0, len(out)-1)
-		trimmed = append(trimmed, out[:drop]...)
-		trimmed = append(trimmed, out[drop+1:]...)
-		out = trimmed
-	}
-	return out
 }
 
 // RestSeconds is the rest between sets for a day. Goal "more reps" with a

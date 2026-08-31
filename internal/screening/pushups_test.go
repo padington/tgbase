@@ -119,14 +119,33 @@ func TestPushupPlan_ShapeHoldsForEveryBase(t *testing.T) {
 	})
 }
 
-// TestPushupPlan_VolumeCeiling is the overload guard: the planned volume
-// never exceeds the ceiling of its regime — 2.5 × base for the first
-// sessions, 3.5 × base afterwards. The one exception is a plan already down
-// to the smallest set count, where there is nothing left to cut; that only
+// neutralDay is the day whose factor is 1.0 — the session the volume ceiling
+// is measured on (no day bonus, no self-report, no deload).
+func neutralDay(t *testing.T, c *PushupContent) int {
+	t.Helper()
+	for i, f := range c.Params.DayFactors {
+		if f == 1 {
+			return i
+		}
+	}
+	t.Fatalf("no day with factor 1.0 in %v", c.Params.DayFactors)
+	return 0
+}
+
+// TestPushupPlan_VolumeCeiling is the overload guard: the ceiling of a regime
+// is 2.5 × base for the first sessions and 3.5 × base afterwards, and it is
+// what a NEUTRAL session (day factor 1.0, no self-report, no deload) is held
+// to. The ceiling shapes the session — it decides how many sets fit — and the
+// intensity of a day then scales the numbers inside that shape, so the hard
+// day of a maximal self-report may stand above the ceiling by its own factor
+// (1.15 × 1.15) and no further. The one exception is a plan already down to
+// the smallest set count, where there is nothing left to cut; that only
 // happens on a small base, where the absolute numbers are tiny anyway.
 func TestPushupPlan_VolumeCeiling(t *testing.T) {
 	c := loadPushups(t)
 	p := &c.Params
+	neutral := neutralDay(t, c)
+	maxK := p.DayFactors[len(p.DayFactors)-1] * p.EffortAdj.Max
 
 	planGrid(t, c, func(in PlanInput, plan PushupPlan) {
 		wantCap := puRound(p.VolumeCap * float64(in.Base))
@@ -137,16 +156,36 @@ func TestPushupPlan_VolumeCeiling(t *testing.T) {
 			t.Fatalf("base %d after %d sessions: ceiling %d, want %d",
 				in.Base, in.SessionsDone, plan.Cap, wantCap)
 		}
-		if plan.PlannedTotal() <= plan.Cap {
-			return
+
+		atFloor := plan.SetCount() == p.SetCounts[0] && in.Base <= p.SmallBaseMax
+
+		// The session the ceiling is written about.
+		neutralPlan := c.Plan(PlanInput{
+			Base: in.Base, DayIdx: neutral, EffortAdj: 1,
+			Goal: in.Goal, SessionsDone: in.SessionsDone,
+		})
+		if neutralPlan.PlannedTotal() > plan.Cap && !atFloor {
+			t.Fatalf("base %d: a neutral session is %d reps, over the ceiling %d, with %d sets still to cut",
+				in.Base, neutralPlan.PlannedTotal(), plan.Cap, neutralPlan.SetCount())
 		}
-		if plan.SetCount() != p.SetCounts[0] {
-			t.Fatalf("base %d: %d reps over the ceiling %d with %d sets still to cut",
-				in.Base, plan.PlannedTotal(), plan.Cap, plan.SetCount())
+		// And every other session is that same neutral session scaled by its
+		// own intensity — never a shape of its own. One rep per set of slack:
+		// each set is rounded separately.
+		k := p.DayFactors[in.DayIdx] * in.EffortAdj
+		if in.Deload {
+			k *= p.DeloadFactor
 		}
-		if in.Base > p.SmallBaseMax {
-			t.Fatalf("base %d: ceiling %d broken (%d reps) outside the small-base corner",
-				in.Base, plan.Cap, plan.PlannedTotal())
+		bound := puRound(float64(neutralPlan.PlannedTotal())*k) + plan.SetCount()
+		if plan.PlannedTotal() > bound {
+			t.Fatalf("base %d (day %d, effort %.2f, deload %v): %d reps, above the %d a %.4f× scaling of the neutral %d allows",
+				in.Base, in.DayIdx, in.EffortAdj, in.Deload,
+				plan.PlannedTotal(), bound, k, neutralPlan.PlannedTotal())
+		}
+		// The hardest session the generator can ever produce for this base
+		// stays inside the ceiling's own intensity band.
+		if hardest := puRound(float64(plan.Cap)*maxK) + plan.SetCount(); plan.PlannedTotal() > hardest && !atFloor {
+			t.Fatalf("base %d (day %d, effort %.2f): %d reps, above the ceiling %d even with the %.4f× intensity band",
+				in.Base, in.DayIdx, in.EffortAdj, plan.PlannedTotal(), plan.Cap, maxK)
 		}
 	})
 
@@ -157,6 +196,86 @@ func TestPushupPlan_VolumeCeiling(t *testing.T) {
 		if early.PlannedTotal() > later.PlannedTotal() {
 			t.Errorf("base %d: early session (%d reps) heavier than a later one (%d reps)",
 				base, early.PlannedTotal(), later.PlannedTotal())
+		}
+	}
+}
+
+// TestPushupPlan_ShapeIsFixedPerBase pins the property that keeps a week
+// ordered: the number of sets follows from the base and the ceiling regime
+// ALONE. The day of the week, the self-report and a deload scale the numbers
+// inside that shape; none of them may remove a set.
+//
+// Regression: a ceiling measured against the day's own plan used to cut two
+// sets off the hard day at base 25 and none off the easy one, so the week ran
+// 56 / 63 / 52 reps — the heavy day the lightest of the three.
+func TestPushupPlan_ShapeIsFixedPerBase(t *testing.T) {
+	c := loadPushups(t)
+
+	for _, sessions := range []int{0, 5, 6, 40} {
+		for base := 3; base <= 100; base++ {
+			want := c.Plan(PlanInput{Base: base, EffortAdj: 1, SessionsDone: sessions,
+				DayIdx: neutralDay(t, c)}).SetCount()
+			for day := 0; day < len(c.Params.DayFactors); day++ {
+				for _, effort := range []float64{0.85, 0.9, 1.0, 1.05, 1.1, 1.15} {
+					for _, deload := range []bool{false, true} {
+						plan := c.Plan(PlanInput{Base: base, DayIdx: day, EffortAdj: effort,
+							SessionsDone: sessions, Deload: deload})
+						if plan.SetCount() != want {
+							t.Fatalf("base %d after %d sessions: day %d, effort %.2f, deload %v gives %d sets, want %d (%v)",
+								base, sessions, day, effort, deload, plan.SetCount(), want, plan.Targets)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// TestPushupPlan_HeavierInputHeavierSession: more intensity is always more
+// work. The three days of a week ascend, and the self-report moves the next
+// session in the direction its answer promises — for EVERY base and in BOTH
+// ceiling regimes, including the first six sessions where the tighter ceiling
+// used to invert both.
+func TestPushupPlan_HeavierInputHeavierSession(t *testing.T) {
+	c := loadPushups(t)
+
+	for _, sessions := range []int{0, 5, 6, 40} {
+		for base := 3; base <= 100; base++ {
+			for _, effort := range []float64{0.85, 1.0, 1.15} {
+				prev := 0
+				for day := 0; day < len(c.Params.DayFactors); day++ {
+					plan := c.Plan(PlanInput{Base: base, DayIdx: day, EffortAdj: effort,
+						SessionsDone: sessions})
+					if total := plan.PlannedTotal(); total < prev {
+						t.Fatalf("base %d after %d sessions (effort %.2f): day %d is %d reps, below day %d's %d",
+							base, sessions, effort, day, total, day-1, prev)
+					} else {
+						prev = total
+					}
+				}
+			}
+
+			for day := 0; day < len(c.Params.DayFactors); day++ {
+				prev := 0
+				for _, effort := range []float64{0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15} {
+					plan := c.Plan(PlanInput{Base: base, DayIdx: day, EffortAdj: effort,
+						SessionsDone: sessions})
+					if total := plan.PlannedTotal(); total < prev {
+						t.Fatalf("base %d after %d sessions (day %d): effort %.2f gives %d reps, below the previous %d — the self-report works backwards",
+							base, sessions, day, effort, total, prev)
+					} else {
+						prev = total
+					}
+				}
+				// A deload week is never heavier than the same week without one.
+				in := PlanInput{Base: base, DayIdx: day, EffortAdj: 1, SessionsDone: sessions}
+				withDeload := in
+				withDeload.Deload = true
+				if c.Plan(withDeload).PlannedTotal() > c.Plan(in).PlannedTotal() {
+					t.Fatalf("base %d after %d sessions (day %d): the deload session is the heavier one",
+						base, sessions, day)
+				}
+			}
 		}
 	}
 }

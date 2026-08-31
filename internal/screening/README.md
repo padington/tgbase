@@ -275,10 +275,24 @@ func (c *PushupContent) OfferedVariations() []PushupVariation
   (there the whole session is ~10 reps). The test result itself is capped at
   `test_cap`: a bigger number is answered with a harder variation, never with
   a longer set.
-- **Pushups: a bigger base never means smaller numbers.** The working number
-  and the open set's floor are monotone in the base, and so is the planned
-  volume whenever the set count stays put. Volume may step *down* when the
-  set count changes — that is the ceiling trading sets for size.
+- **Pushups: the ceiling shapes the session, the intensity scales it.** The
+  drop decision is taken on the *neutral* session (`k = 1`), so the set count
+  is a function of the base and the regime alone; the day factor, the effort
+  adjustment and a deload then scale the numbers inside that shape
+  (`TestPushupPlan_ShapeIsFixedPerBase`). Measuring each day against a fixed
+  ceiling instead used to cut sets off the heavy day only — base 25 in its
+  first week ran 56 / 63 / **52** reps — and made the session after «легко»
+  *lighter* than the one after «нормально». The ceiling therefore bounds an
+  average-intensity session; the hard day at maximal self-report stands above
+  it by its own factor (`day_factors[-1] × effort_adj.max ≈ 1.32`), which is
+  the shape of a week, not an escape from the limit.
+- **Pushups: heavier input, heavier session.** The working number and the
+  open set's floor are monotone in the base, so is the planned volume at a
+  fixed set count, and — for every base and both regimes — the three days of
+  a week ascend and the self-report moves the next session in the direction
+  its answer promises (`TestPushupPlan_HeavierInputHeavierSession`). Volume
+  may step *down* across a set-count threshold: that is the ceiling trading
+  sets for size.
 - **Pushups: progression follows the result, not the calendar.** Two or more
   "over" and no "short" raise the base by ≥ `strong_min`; a clean week raises
   it by ≥ `steady_min`; exactly one "short" holds it and does **not** repeat
@@ -290,6 +304,18 @@ func (c *PushupContent) OfferedVariations() []PushupVariation
   to the neighbour: `TestCanonical_PushupTextsHaveNoBodyFigures`. The ladder
   of variations is described in words ("easier"/"harder"); the body-mass
   reasoning behind its order stays in the yaml comments.
+  Both this canary and the "no borrowed promise" one match **patterns**, not
+  phrase lists (a list catches only the phrasings someone thought of:
+  «Сколько ты весишь?» and «100 повторов за три месяца» used to walk
+  through), and each has a guard-of-the-guard test pinning what it must catch
+  and what it must not — `TestCanonical_PushupFigureGuardBites`,
+  `TestCanonical_PushupPromiseGuardBites`. Note Go's `\b` is an ASCII word
+  boundary and never fires between two Cyrillic letters, so the patterns
+  spell word edges out as character classes.
+  `userTexts()` is enumerated by hand, so
+  `TestCanonical_PushupUserTextsCoverTheBundle` reflects over the whole
+  bundle and fails when a text is added to the yaml but not to that map —
+  otherwise it would be invisible to every canary above.
 
 ## Dependencies
 
