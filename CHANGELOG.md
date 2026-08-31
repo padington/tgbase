@@ -33,18 +33,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     base, holds it, or repeats the week with a slightly lower one. **A
     partially completed session still counts** — «short» is a first-class
     outcome, not a failure — and **a repeated week is always announced with
-    its base delta**, because a base that moves silently reads as a bug.
-    Three repeats in a row open a two-button fork: an easier rung with an
-    immediate retest, or +30 s of rest. Continuous base ⇒ no gaps in
+    its base delta**, because a base that moves silently reads as a bug. That
+    holds on both paths that can close a week: a session finished by hand and
+    one closed by its 24-hour TTL. Three repeats in a row open a two-button
+    fork — an easier rung with an immediate retest, or +30 s of rest — from
+    either path. Continuous base ⇒ no gaps in
     coverage; there are no discrete "columns" to fall between.
   - **Safety in code, not in prose.** A three-question entry gate
     (ACSM/PAR-Q+-shaped): "yes" to the cardio/metabolic/renal question stops
     the track and wipes the half-built program *and* the consent; joint pain
     starts two rungs easier; pregnancy adds a doctor line and the easiest
     rung. Then: a volume ceiling the planner applies silently (2.5 × B for
-    the first six sessions, 3.5 × B after), a cap on the test, a hard 24-hour
-    block between sessions that «Всё равно тренироваться» cannot buy through
-    (that button only overrides the softer 24–48 h warning), and a red-flag
+    the first six sessions, 3.5 × B after — measured on a session of average
+    intensity, which is what decides how many sets fit; the day of the week
+    and the self-report then scale the numbers inside that shape, so the
+    ceiling can never make the hard day the lightest one of the week), a cap
+    on the test, a hard 24-hour block between sessions that «Всё равно
+    тренироваться» cannot buy through (that button only overrides the softer
+    24–48 h warning) and that the «Перетест» button passes as well — a max
+    test is a full session — and a red-flag
     check-in before the first session of every week that pauses the track on
     **facts** (cola-coloured urine, pain growing after 48 h, arms that will
     not straighten, lopsided swelling), not on a score.

@@ -359,7 +359,9 @@ There is no per-second countdown — the Bot API allows about one message per
 second per chat — and **resting longer is never a miss**: the track pings, it
 does not punish. A session that outlives `session_ttl_hours` is closed as a
 PARTIAL one on the next entry, recorded by what was actually done, so the
-automaton is never left parked.
+automaton is never left parked — and since that session can be the week's
+third, an expiry closes a week exactly like a finished session does: verdict
+out loud, fork on the third repeat in a row.
 
 Safety lives in code rather than in prose: the entry gate stops the track
 outright on the cardio/metabolic/renal question (and wipes the half-built
@@ -368,7 +370,12 @@ the first session of every week and pauses the track on facts rather than on
 a score, the max test is capped, the planner applies a volume ceiling
 silently, and less than 24 h since the last session is a hard block that
 «Всё равно тренироваться» cannot buy through (that button only overrides the
-softer 24–48 h warning).
+softer 24–48 h warning). The block belongs to the program, not to one button:
+«Перетест» passes the same gate, because a max test is a full session — it
+moves the base, counts as the day's work and closes the week. The ceiling is
+measured on a session of average intensity and decides how many sets fit; the
+day of the week and the self-report scale the numbers inside that shape, so a
+heavier day is never quietly demoted below a lighter one.
 
 Sessions are classified `over` / `plan` / `short`, and «short» is a first
 class outcome: it counts, it moves the week forward, only the weekly rule
@@ -394,13 +401,15 @@ stateDiagram-v2
     pu_variation --> pu_test: pick a rung (4 offered; the goal's one-line consequence rides along)
     pu_test --> pu_test: result ≤ too_low_reps → one rung down, immediate retest
     pu_test --> pu_menu: number → Base := result (capped at test_cap), PuTest stored
-    pu_menu --> pu_menu: «Начать тренировку» under 24 h after the last session → hard block «Сегодня отдых»
+    pu_menu --> pu_menu: «Начать тренировку» | «Перетест» under 24 h after the last session → hard block «Сегодня отдых»
     pu_menu --> pu_menu: 24–48 h → warning + «Всё равно тренироваться» (overrides the warning only)
-    pu_menu --> pu_test: retest due (every 12 sessions, or a pause ≥ 10 days) or «Перетест»
+    pu_menu --> pu_test: retest due (every 12 sessions, or a pause ≥ 10 days) or «Перетест» (past the 24 h block)
     pu_menu --> pu_red_card: first session of a week (never before the very first)
     pu_menu --> pu_set: session begins — targets and rest frozen into PuSession
     pu_menu --> pu_progress: «📈 Прогресс»
+    pu_menu --> pu_week_fork: a session past its TTL closed the week AND it was the third repeat in a row
     pu_progress --> pu_menu: any input (or «Начать тренировку» straight into the session)
+    pu_progress --> pu_progress: 24–48 h warning shown here → «Всё равно тренироваться» starts the session
     pu_red_card --> [*]: «Да, что-то есть» → track paused (session dropped, NextDueAt cleared, program kept)
     pu_red_card --> pu_set: «Ничего такого» (the joint-pain answer steps one rung down first)
     pu_set --> pu_rest: number → set recorded, rest starts
