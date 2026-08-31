@@ -999,6 +999,45 @@ func TestPushups_RetestCountsAsTheWeeksSession(t *testing.T) {
 	}
 }
 
+// TestPushups_RetestCannotBuyThroughTheRecoveryBlock: «Перетест» is a full
+// session — it moves the base, counts as the day's work, closes the week and
+// writes history — so it goes through the same hard 24 h block as a workout.
+// It used to walk straight past it, which also let a tap a minute inflate the
+// week counter and the streak.
+func TestPushups_RetestCannotBuyThroughTheRecoveryBlock(t *testing.T) {
+	runner, st, sender, c := setupPushups(t)
+	puStart(t, runner, st, sender, 1, c, 20)
+	puTrainSession(t, runner, st, sender, 1, c, 0, c.Session.EffortOKButton)
+	before := *puProgram(t, st, 1)
+
+	// Two hours after a session: the same rest-day line the train button gets.
+	puRewind(st, 1, 2*time.Hour)
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	say(runner, sender, 1, c.UI.RetestButton)
+
+	if got := sender.lastText(); got != c.Session.RestDay {
+		t.Errorf("expected the rest-day line, got %q", got)
+	}
+	if got := st.Get(1).State; got != state.StatePuMenu {
+		t.Errorf("a blocked retest must leave the user on the menu, got %q", got)
+	}
+	if s := st.Get(1).PuSession; s != nil {
+		t.Fatalf("no test session may open inside the recovery window: %+v", s)
+	}
+	after := puProgram(t, st, 1)
+	if after.SessionsDone != before.SessionsDone || after.WeekIdx != before.WeekIdx ||
+		after.StreakWeeks != before.StreakWeeks || after.TotalReps != before.TotalReps {
+		t.Errorf("a blocked retest changed the program: %+v → %+v", before, *after)
+	}
+
+	// Past the window the button works again.
+	puRewind(st, 1, 48*time.Hour)
+	say(runner, sender, 1, c.UI.RetestButton)
+	if got := st.Get(1).State; got != state.StatePuTest {
+		t.Fatalf("outside the recovery window the retest must open, got %q", got)
+	}
+}
+
 func TestPushups_RetestBecomesDueAfterTheCycle(t *testing.T) {
 	runner, st, sender, c := setupPushups(t)
 	puStart(t, runner, st, sender, 1, c, 20)
@@ -1049,6 +1088,105 @@ func TestPushups_StaleSessionClosesAsPartial(t *testing.T) {
 	}
 	if after.Pushups.SessionsDone != 1 {
 		t.Error("a partial session still counts as done")
+	}
+}
+
+// puStaleSession makes the user's open session outlive its TTL and parks the
+// user on the track menu, which is where housekeeping runs.
+func puStaleSession(st *state.Store, id int64, c *screening.PushupContent) {
+	u := st.Get(id)
+	s := u.PuSession.Clone()
+	s.StartedAt = time.Now().Add(-time.Duration(c.Params.SessionTTLHours+1) * time.Hour)
+	u.PuSession = s
+	u.State = state.StatePuMenu
+	st.Set(id, u)
+}
+
+// TestPushups_StaleSessionThatClosesTheWeekAnnouncesIt: a session dying of
+// old age can be the week's third one, so the expiry is the second place the
+// week can close — and the verdict is spoken out loud there too. It used to
+// close in silence: the base moved down and the only line on screen was
+// "прошлая тренировка осталась незаконченной".
+func TestPushups_StaleSessionThatClosesTheWeekAnnouncesIt(t *testing.T) {
+	runner, st, sender, c := setupPushups(t)
+	puStart(t, runner, st, sender, 1, c, 20)
+
+	// Two short sessions, then a third left open until it goes stale.
+	puTrainSession(t, runner, st, sender, 1, c, -1, c.Session.EffortHardButton)
+	puTrainSession(t, runner, st, sender, 1, c, -1, c.Session.EffortHardButton)
+	base := puProgram(t, st, 1).Base
+
+	puRewind(st, 1, 50*time.Hour)
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	say(runner, sender, 1, c.UI.TrainButton)
+	if st.Get(1).State == state.StatePuRedCard {
+		say(runner, sender, 1, c.RedCard.NoButton)
+	}
+	say(runner, sender, 1, strconv.Itoa(st.Get(1).PuSession.Targets[0]))
+	puStaleSession(st, 1, c)
+
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	text := sender.lastText()
+	if !strings.Contains(text, c.Session.Expired) {
+		t.Errorf("the expired session must still be announced, got %q", text)
+	}
+	if !strings.Contains(text, "Повторяем неделю") {
+		t.Errorf("a week closed by an expiry must announce its verdict too, got %q", text)
+	}
+	p := puProgram(t, st, 1)
+	if p.Base >= base {
+		t.Errorf("the repeated week lowered nothing: %d → %d", base, p.Base)
+	}
+	for _, n := range []int{base, p.Base} {
+		if !strings.Contains(text, strconv.Itoa(n)) {
+			t.Errorf("the announcement must carry both bases (%d → %d), got %q", base, p.Base, text)
+		}
+	}
+	if p.RepeatCount != 1 || p.SessionInWeek != 0 || len(p.WeekOutcomes) != 0 {
+		t.Errorf("week bookkeeping after an expiry: %+v", *p)
+	}
+}
+
+// TestPushups_StaleSessionOnTheThirdRepeatOffersTheFork: the same path owes
+// the user the fork. Three repeated weeks in a row is the program admitting
+// it does not fit; arriving there through an expiry is no reason to hand out
+// a fourth identical week instead.
+func TestPushups_StaleSessionOnTheThirdRepeatOffersTheFork(t *testing.T) {
+	runner, st, sender, c := setupPushups(t)
+	puStart(t, runner, st, sender, 1, c, 20)
+
+	// Two repeated weeks already behind, two short sessions into the third.
+	u := st.Get(1)
+	p := u.Pushups.Clone()
+	p.RepeatCount = c.Params.Progression.RepeatForkAfter - 1
+	p.WeekOutcomes = []string{screening.PushupOutcomeShort, screening.PushupOutcomeShort}
+	p.SessionInWeek = c.Params.SessionsPerWeek - 1
+	p.SessionsDone = 2
+	u.Pushups = p
+	st.Set(1, u)
+
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	say(runner, sender, 1, c.UI.TrainButton)
+	if st.Get(1).State == state.StatePuRedCard {
+		say(runner, sender, 1, c.RedCard.NoButton)
+	}
+	say(runner, sender, 1, strconv.Itoa(st.Get(1).PuSession.Targets[0]))
+	puStaleSession(st, 1, c)
+
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	if got := st.Get(1).State; got != state.StatePuWeekFork {
+		t.Fatalf("expected the fork after the third repeat, got %q", got)
+	}
+	if !keyboardHas(lastKeyboard(sender), c.Week.ForkEasierButton) ||
+		!keyboardHas(lastKeyboard(sender), c.Week.ForkRestButton) {
+		t.Errorf("the fork must offer both levers, buttons: %v", lastKeyboard(sender))
+	}
+	if closing := nthLastText(sender, 1); !strings.Contains(closing, "Повторяем неделю") {
+		t.Errorf("the repeat that led to the fork must be announced, got %q", closing)
+	}
+	say(runner, sender, 1, c.Week.ForkRestButton)
+	if got := puProgram(t, st, 1).RepeatCount; got != 0 {
+		t.Errorf("the fork must clear the repeat counter, got %d", got)
 	}
 }
 
@@ -1229,6 +1367,48 @@ func TestPushups_ProgressScreenAndReportLine(t *testing.T) {
 	}
 	if !strings.Contains(line, strconv.Itoa(st.Get(1).Pushups.TotalReps)) {
 		t.Errorf("/report must carry the lifetime volume: %q", line)
+	}
+}
+
+// TestPushups_ProgressScreenHonoursTheOverrideItOffers: the progress screen
+// has a train button, so the soft "less than 48 h" warning can be rendered
+// while the user stands on it — and puTrain answers that warning without
+// moving the state. The override button therefore has to be handled here as
+// well; it used to fall into the read-only default and drop the user back on
+// the menu with no session started.
+func TestPushups_ProgressScreenHonoursTheOverrideItOffers(t *testing.T) {
+	runner, st, sender, c := setupPushups(t)
+	puStart(t, runner, st, sender, 1, c, 20)
+	puTrainSession(t, runner, st, sender, 1, c, 0, c.Session.EffortOKButton)
+
+	// Thirty hours later: inside the advised window, outside the hard block.
+	puRewind(st, 1, 30*time.Hour)
+	runner.HandlePushups(sender, newMsg(1, "/pushups"))
+	say(runner, sender, 1, c.UI.ProgressButton)
+	if got := st.Get(1).State; got != state.StatePuProgress {
+		t.Fatalf("expected the progress screen, got %q", got)
+	}
+
+	say(runner, sender, 1, c.UI.TrainButton)
+	if got := sender.lastText(); !strings.Contains(got, "прошло") {
+		t.Errorf("expected the soft warning on the progress screen, got %q", got)
+	}
+	if !keyboardHas(lastKeyboard(sender), c.Session.TrainAnywayButton) {
+		t.Fatalf("the warning must offer the override, buttons: %v", lastKeyboard(sender))
+	}
+	if got := st.Get(1).State; got != state.StatePuProgress {
+		t.Fatalf("the warning must not move the user off the screen, got %q", got)
+	}
+
+	say(runner, sender, 1, c.Session.TrainAnywayButton)
+	if st.Get(1).State == state.StatePuRedCard {
+		say(runner, sender, 1, c.RedCard.NoButton)
+	}
+	if got := st.Get(1).State; got != state.StatePuSet {
+		t.Fatalf("the override must start the session, got %q", got)
+	}
+	if st.Get(1).PuSession == nil {
+		t.Error("the override started no session")
 	}
 }
 

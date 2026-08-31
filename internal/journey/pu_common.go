@@ -454,10 +454,9 @@ func puTrain(ctx Context, c *screening.PushupContent, force bool) Outcome {
 
 	if !p.LastSessionAt.IsZero() {
 		since := now.Sub(p.LastSessionAt)
-		minGap := time.Duration(c.Params.MinHoursBetween) * time.Hour
 		advised := time.Duration(c.Params.AdvisedHoursBetween) * time.Hour
 		switch {
-		case since < minGap:
+		case puWithinRecovery(c, p, now):
 			// Hard block — the one rule force cannot buy through.
 			return scrText(c.Session.RestDay)
 		case since < advised && !force:
@@ -478,6 +477,42 @@ func puTrain(ctx Context, c *screening.PushupContent, force bool) Outcome {
 		return Outcome{NextState: state.StatePuRedCard}
 	}
 	return puBeginWorkout(c, p, now)
+}
+
+// puWithinRecovery is the hard block: less than min_hours_between since the
+// last session. It is a property of the PROGRAM, not of a button — every way
+// of starting a session asks it, and nothing overrides it.
+func puWithinRecovery(c *screening.PushupContent, p *state.PushupProgram, now time.Time) bool {
+	if p.LastSessionAt.IsZero() {
+		return false
+	}
+	return now.Sub(p.LastSessionAt) < time.Duration(c.Params.MinHoursBetween)*time.Hour
+}
+
+// puRetest decides what the menu's «Перетест» tap does. A max test IS a
+// session of the week — it moves the base, counts as the day's work, closes
+// the week and writes history — so it goes through the same hard recovery
+// block as a workout. Without it the button was a way around the one rule
+// the track sells as non-negotiable, and each tap also inflated the week
+// counter and the streak.
+//
+// The SOFT 24–48 h warning is deliberately not re-asked here: reaching for
+// «Перетест» on the menu is already the deliberate act that warning asks
+// for, and its override button starts a workout, not a test.
+func puRetest(ctx Context, c *screening.PushupContent) Outcome {
+	u, now := ctx.User, ctx.Now()
+	p := u.Pushups
+	if p == nil {
+		return Outcome{NextState: state.StatePuConsent}
+	}
+	if s := puWorkoutSession(c, u, now); s != nil {
+		// An open session is resumed, never replaced by a test.
+		return Outcome{NextState: puResumeTarget(c, u, now)}
+	}
+	if puWithinRecovery(c, p, now) {
+		return scrText(c.Session.RestDay)
+	}
+	return Outcome{NextState: state.StatePuTest}
 }
 
 // puRecordReps writes one performed set and moves the session on: into the
@@ -637,27 +672,45 @@ func puCloseWeek(c *screening.PushupContent, p *state.PushupProgram) string {
 	}
 }
 
+// puExpired is what closing a stale session did: the line(s) to show and
+// whether the week it closed was the third repeated one in a row.
+type puExpired struct {
+	Text string // "" when there was nothing to expire
+	Fork bool   // the closed week hit repeat_fork_after
+}
+
 // puExpireSession closes an unfinished session that outlived the TTL: it is
 // recorded by what was actually done (a partial session is a real session)
-// and the automaton is freed. Returns the line to show, or "" when there was
-// nothing to expire.
-func puExpireSession(c *screening.PushupContent, u *state.UserData, now time.Time) string {
+// and the automaton is freed.
+//
+// A session dying of old age can be the week's third one, so this is a
+// second place the week can close — and the week's verdict is ALWAYS spoken
+// out loud, on this path exactly as on the finished-session one. A base that
+// drops in silence reads as a bug (it is the documented reason people call a
+// program broken), and a third repeat in a row owes the user the fork
+// instead of a fourth identical week.
+func puExpireSession(c *screening.PushupContent, u *state.UserData, now time.Time) puExpired {
 	s := u.PuSession
 	if s == nil || !s.Stale(now, puSessionTTL(c)) {
-		return ""
+		return puExpired{}
 	}
 	if s.Kind != state.PushupSessionWorkout || u.Pushups == nil || len(s.Actual) == 0 {
 		// A dropped max test (or a session with no set recorded) leaves no
 		// trace: there is nothing to count.
 		u.PuSession = nil
-		return c.Session.Expired
+		return puExpired{Text: c.Session.Expired}
 	}
 	log := puSessionLog(c, u.Pushups, s, "", s.StartedAt)
 	puCloseSession(c, u, log, s.StartedAt)
+
+	out := puExpired{Text: c.Session.Expired}
 	if puWeekDue(c, u.Pushups) {
-		mutatePuProgram(u, func(p *state.PushupProgram) { puCloseWeek(c, p) })
+		var closing string
+		mutatePuProgram(u, func(p *state.PushupProgram) { closing = puCloseWeek(c, p) })
+		out.Text += "\n" + closing
+		out.Fork = u.Pushups.RepeatCount >= c.Params.Progression.RepeatForkAfter
 	}
-	return c.Session.Expired
+	return out
 }
 
 // puWipeTrack clears every persisted trace of the pushup track.

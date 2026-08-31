@@ -38,6 +38,7 @@ func (p *PuMenuPhase) Setup(ctx Context) Outcome {
 	// with the same clock is deterministic.
 	sim := ctx.User
 	expired := puExpireSession(p.c, &sim, now)
+	applyExpiry := func(u *state.UserData) { puExpireSession(p.c, u, now) }
 
 	prog := sim.Pushups
 	if prog == nil || prog.Base <= 0 {
@@ -45,8 +46,17 @@ func (p *PuMenuPhase) Setup(ctx Context) Outcome {
 	}
 
 	var lines []string
-	if expired != "" {
-		lines = append(lines, expired)
+	if expired.Text != "" {
+		lines = append(lines, expired.Text)
+	}
+	if expired.Fork {
+		// The expiry closed the third repeated week in a row. The verdict has
+		// just been spoken; the fork is what owes the user next, exactly as
+		// after a session finished by hand.
+		oc := scrText(strings.Join(lines, "\n"))
+		oc.NextState = state.StatePuWeekFork
+		oc.Mutate = applyExpiry
+		return oc
 	}
 	lines = append(lines, renderContent(p.c.UI.MenuPrompt, map[string]string{
 		"week":    strconv.Itoa(prog.WeekIdx + 1),
@@ -73,8 +83,8 @@ func (p *PuMenuPhase) Setup(ctx Context) Outcome {
 
 	oc := scrText(strings.Join(lines, "\n"))
 	oc.Keyboard = kb
-	if expired != "" {
-		oc.Mutate = func(u *state.UserData) { puExpireSession(p.c, u, now) }
+	if expired.Text != "" {
+		oc.Mutate = applyExpiry
 	}
 	return oc
 }
@@ -95,7 +105,9 @@ func (p *PuMenuPhase) Collect(ctx Context, input string) Outcome {
 	case labelIs(in, p.c.UI.ProgressButton):
 		return Outcome{NextState: state.StatePuProgress}
 	case open == nil && labelIs(in, p.c.UI.RetestButton):
-		return Outcome{NextState: state.StatePuTest}
+		// A retest is a session of the week, so it passes the same recovery
+		// gate — the button is not a way around the 24 h block.
+		return puRetest(ctx, p.c)
 	default:
 		return Outcome{ReplyKey: "scr.invalid_button"}
 	}

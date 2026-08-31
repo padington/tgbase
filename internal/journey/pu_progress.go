@@ -72,11 +72,19 @@ func (p *PuProgressPhase) Setup(ctx Context) Outcome {
 }
 
 func (p *PuProgressPhase) Collect(ctx Context, input string) Outcome {
-	if labelIs(normText(input), p.c.UI.TrainButton) {
+	switch in := normText(input); {
+	case labelIs(in, p.c.UI.TrainButton):
 		return puTrain(ctx, p.c, false)
+	case labelIs(in, p.c.Session.TrainAnywayButton):
+		// The soft "less than 48 h" warning is answered right here — puTrain
+		// renders it without moving the state, so the screen that offered the
+		// override has to be the screen that honours it. (The hard 24 h block
+		// stays where it is: force only skips the soft one.)
+		return puTrain(ctx, p.c, true)
+	default:
+		// The screen is read-only: anything else simply reopens the menu.
+		return Outcome{NextState: state.StatePuMenu}
 	}
-	// The screen is read-only: anything else simply reopens the menu.
-	return Outcome{NextState: state.StatePuMenu}
 }
 
 func (PuProgressPhase) Remind(ctx Context) Outcome { return Outcome{} }
