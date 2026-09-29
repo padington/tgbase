@@ -1,0 +1,55 @@
+name: IG download to Telegram (VPS)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pks:
+        description: comma-separated media pks
+        required: false
+        default: ""
+      delay:
+        description: seconds between IG calls
+        required: false
+        default: "6"
+  push:
+    branches: [probe/ig-net]
+    paths: [.github/workflows/ig-download.yml, batches/**]
+
+jobs:
+  download:
+    runs-on: self-hosted
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout catalog code
+        uses: actions/checkout@v4
+        with:
+          repository: padington/catalog-ea269e956d1b
+          ref: vps-download
+          path: catalog
+      - name: Python deps
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip -q install --upgrade pip
+          .venv/bin/pip -q install instagrapi
+      - name: Download and forward
+        env:
+          IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT_ID: "-1004300487255"
+          PKS: ${{ github.event.inputs.pks }}
+          DELAY: ${{ github.event.inputs.delay || '6' }}
+        run: |
+          if [ -f batches/current.json ]; then cp batches/current.json batch.json; fi
+          ../.venv/bin/python vps_download.py
+        working-directory: catalog
+      - name: Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ github.run_id }}
+          path: catalog/results.jsonl
+          if-no-files-found: warn
+      - name: Cleanup
+        if: always()
+        run: rm -rf catalog/work catalog/results.jsonl catalog/ig_session.json catalog/batch.json
