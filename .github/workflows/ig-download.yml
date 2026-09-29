@@ -11,6 +11,10 @@ on:
         description: seconds between IG calls
         required: false
         default: "6"
+      mode:
+        description: "download | inbox (read-only DM probe)"
+        required: false
+        default: "download"
   push:
     branches: [probe/ig-net]
     paths: [.github/workflows/ig-download.yml, batches/**]
@@ -34,11 +38,12 @@ jobs:
           TG_CHAT_ID: "-1004300487255"
           PKS: ${{ github.event.inputs.pks }}
           DELAY: ${{ github.event.inputs.delay || '6' }}
+          MODE: ${{ github.event.inputs.mode || 'download' }}
         run: |
           if [ -f batches/current.json ]; then cp batches/current.json catalog/batch.json; fi
           docker volume create pip-cache >/dev/null 2>&1 || true
           docker run --rm -v "$PWD/catalog":/app -w /app -v pip-cache:/root/.cache/pip \
-            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY -e MODE \
             python:3.11-slim sh -c "pip -q install instagrapi >/dev/null && python vps_download.py"
       - name: Results
         if: always()
