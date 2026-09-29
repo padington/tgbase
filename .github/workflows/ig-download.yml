@@ -30,7 +30,7 @@ jobs:
       - name: Download and forward
         env:
           IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.LIBINSTA_BOT_TOKEN }}
           TG_CHAT_ID: "-1004300487255"
           PKS: ${{ github.event.inputs.pks }}
           DELAY: ${{ github.event.inputs.delay || '6' }}
