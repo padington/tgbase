@@ -27,11 +27,6 @@ jobs:
           repository: padington/catalog-ea269e956d1b
           ref: vps-download
           path: catalog
-      - name: Python deps
-        run: |
-          python3 -m venv .venv
-          .venv/bin/pip -q install --upgrade pip
-          .venv/bin/pip -q install instagrapi
       - name: Download and forward
         env:
           IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
@@ -40,9 +35,11 @@ jobs:
           PKS: ${{ github.event.inputs.pks }}
           DELAY: ${{ github.event.inputs.delay || '6' }}
         run: |
-          if [ -f batches/current.json ]; then cp batches/current.json batch.json; fi
-          ../.venv/bin/python vps_download.py
-        working-directory: catalog
+          if [ -f batches/current.json ]; then cp batches/current.json catalog/batch.json; fi
+          docker volume create pip-cache >/dev/null 2>&1 || true
+          docker run --rm -v "$PWD/catalog":/app -w /app -v pip-cache:/root/.cache/pip \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY \
+            python:3.11-slim sh -c "pip -q install instagrapi >/dev/null && python vps_download.py"
       - name: Results
         if: always()
         uses: actions/upload-artifact@v4
