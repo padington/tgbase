@@ -1,0 +1,31 @@
+name: libinsta deploy (VPS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout catalog code
+        uses: actions/checkout@v4
+        with:
+          repository: padington/catalog-ea269e956d1b
+          ref: vps-download
+          path: catalog
+      - name: Build image
+        run: docker build -f Dockerfile.vps -t libinsta .
+        working-directory: catalog
+      - name: Restart service
+        env:
+          IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.LIBINSTA_BOT_TOKEN }}
+        run: |
+          docker volume create libinsta_data >/dev/null 2>&1 || true
+          docker stop libinsta 2>/dev/null || true
+          docker rm libinsta 2>/dev/null || true
+          docker run -d --name libinsta --restart unless-stopped \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN \
+            -e TG_CHAT_ID="-1004300487255" -e OWNER_IDS="${{ vars.LIBINSTA_OWNER_IDS }}" \
+            -e DATA_DIR=/data -v libinsta_data:/data libinsta
+          sleep 5; docker logs --tail 5 libinsta
