@@ -35,6 +35,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'logs'
     runs-on: self-hosted
     steps:
+      - name: Remove root-owned leftovers (docker runs as root on the workspace bind mount)
+        run: |
+          [ -d catalog ] && docker run --rm -v "$PWD/catalog":/w python:3.11-slim sh -c 'find /w -name __pycache__ -prune -exec rm -rf {} +' || true
       - name: Checkout catalog code
         uses: actions/checkout@v4
         with:
