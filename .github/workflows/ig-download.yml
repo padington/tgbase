@@ -15,21 +15,36 @@ on:
         description: "download | inbox (read-only DM probe)"
         required: false
         default: "download"
-  push:
-    branches: [probe/ig-net]
-    paths: [.github/workflows/ig-download.yml, batches/**]
+      batch:
+        description: "batch file in this repo (list of {pk, shortcode, shared_by, caption}); pks input, if set, takes precedence"
+        required: false
+        default: "batches/current.json"
+      tag:
+        description: "last caption line (SPEC 3.1), empty = none"
+        required: false
+        default: "#nonparsed"
+      catalog_ref:
+        description: "ref of padington/catalog-ea269e956d1b with vps_download.py"
+        required: false
+        default: "vps-download"
+# No push trigger: backlog.py commits batches/ and then dispatches explicitly,
+# a push-triggered run would post the same batch twice.
+
+concurrency:
+  group: ig-download
+  cancel-in-progress: false
 
 jobs:
   download:
     runs-on: self-hosted
-    timeout-minutes: 300
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - name: Checkout catalog code
         uses: actions/checkout@v4
         with:
           repository: padington/catalog-ea269e956d1b
-          ref: vps-download
+          ref: ${{ github.event.inputs.catalog_ref || 'vps-download' }}
           path: catalog
       - name: Download and forward
         env:
@@ -39,11 +54,13 @@ jobs:
           PKS: ${{ github.event.inputs.pks }}
           DELAY: ${{ github.event.inputs.delay || '6' }}
           MODE: ${{ github.event.inputs.mode || 'download' }}
+          TAG: ${{ github.event.inputs.tag }}
+          BATCH: ${{ github.event.inputs.batch || 'batches/current.json' }}
         run: |
-          if [ -f batches/current.json ]; then cp batches/current.json catalog/batch.json; fi
+          if [ -f "$BATCH" ]; then cp "$BATCH" catalog/batch.json; echo "batch $BATCH: $(grep -c '"pk"' "$BATCH") pks"; fi
           docker volume create pip-cache >/dev/null 2>&1 || true
           docker run --rm -v "$PWD/catalog":/app -w /app -v pip-cache:/root/.cache/pip \
-            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY -e MODE \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY -e MODE -e TAG \
             python:3.11-slim sh -c "pip -q install instagrapi >/dev/null && python vps_download.py"
       - name: Results
         if: always()
