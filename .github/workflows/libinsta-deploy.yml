@@ -2,6 +2,11 @@ name: libinsta deploy (VPS)
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: branch of padington/catalog-ea269e956d1b to deploy
+        required: false
+        default: vps-download
 
 jobs:
   deploy:
@@ -11,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: padington/catalog-ea269e956d1b
-          ref: vps-download
+          ref: ${{ github.event.inputs.ref || 'vps-download' }}
           path: catalog
       - name: Build image
         run: docker build -f Dockerfile.vps -t libinsta .
@@ -25,7 +30,12 @@ jobs:
           docker stop libinsta 2>/dev/null || true
           docker rm libinsta 2>/dev/null || true
           docker run -d --name libinsta --restart unless-stopped \
+            --log-opt max-size=10m --log-opt max-file=3 \
             -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN \
             -e TG_CHAT_ID="-1004300487255" -e OWNER_IDS="${{ vars.LIBINSTA_OWNER_IDS }}" \
             -e DATA_DIR=/data -v libinsta_data:/data libinsta
-          sleep 5; docker logs --tail 5 libinsta
+          sleep 20
+          docker ps --filter name=libinsta --format '{{.Names}} {{.Status}}'
+          docker logs --tail 30 libinsta
+          test "$(docker inspect -f '{{.State.Running}}' libinsta)" = true
+          docker image prune -f >/dev/null 2>&1 || true
