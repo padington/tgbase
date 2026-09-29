@@ -7,9 +7,15 @@ on:
         description: branch of padington/catalog-ea269e956d1b to deploy
         required: false
         default: vps-download
+  # push trigger exists only so GitHub registers this dispatch-only workflow outside the
+  # default branch (otherwise `gh workflow run` answers 404); push runs are skipped below.
+  push:
+    branches: [probe/ig-net]
+    paths: [.github/workflows/libinsta-deploy.yml]
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     steps:
       - name: Checkout catalog code
