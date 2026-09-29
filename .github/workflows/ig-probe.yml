@@ -14,7 +14,7 @@ jobs:
           echo "host=$(hostname) user=$(whoami)"; uname -a
           curl -s -m 10 https://ipinfo.io/json | tr -d '\n' | cut -c1-300; echo
           df -h / | tail -1; free -m | head -2; nproc
-          which python3 docker ffmpeg; python3 --version || true
+          which python3 docker ffmpeg || true; python3 --version || true
       - name: Instagram reachability
         run: |
           for u in https://www.instagram.com/ https://i.instagram.com/api/v1/ https://api.telegram.org/; do
