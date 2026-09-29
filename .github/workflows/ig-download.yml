@@ -60,7 +60,7 @@ jobs:
           if [ -f "$BATCH" ]; then cp "$BATCH" catalog/batch.json; echo "batch $BATCH: $(grep -c '"pk"' "$BATCH") pks"; fi
           docker volume create pip-cache >/dev/null 2>&1 || true
           docker run --rm -v "$PWD/catalog":/app -w /app -v pip-cache:/root/.cache/pip \
-            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY -e MODE -e TAG \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e TG_CHAT_ID -e PKS -e DELAY -e MODE -e TAG -e PYTHONDONTWRITEBYTECODE=1 \
             python:3.11-slim sh -c "pip -q install instagrapi >/dev/null && python vps_download.py"
       - name: Results
         if: always()
