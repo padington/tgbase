@@ -7,6 +7,14 @@ on:
         description: branch of padington/catalog-ea269e956d1b to deploy
         required: false
         default: vps-download
+      action:
+        description: "deploy | logs (only print docker logs, no restart)"
+        required: false
+        default: deploy
+      tail:
+        description: lines of docker logs for action=logs
+        required: false
+        default: "200"
   # push trigger exists only so GitHub registers this dispatch-only workflow outside the
   # default branch (otherwise `gh workflow run` answers 404); push runs are skipped below.
   push:
@@ -14,8 +22,17 @@ on:
     paths: [.github/workflows/libinsta-deploy.yml]
 
 jobs:
+  logs:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'logs'
+    runs-on: self-hosted
+    steps:
+      - name: docker logs
+        run: |
+          docker ps -a --filter name=libinsta --format '{{.Names}} {{.Status}} restarts={{.RunningFor}}'
+          docker inspect -f 'running={{.State.Running}} restarts={{.RestartCount}} started={{.State.StartedAt}}' libinsta
+          docker logs --tail "${{ github.event.inputs.tail || '200' }}" libinsta 2>&1
   deploy:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'logs'
     runs-on: self-hosted
     steps:
       - name: Checkout catalog code
