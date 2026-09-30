@@ -8,7 +8,7 @@ on:
         required: false
         default: vps-download
       action:
-        description: "deploy | logs (only print docker logs, no restart)"
+        description: "deploy | logs (only print docker logs, no restart) | index (refresh /data/index.json from padington/libinsta-index, no restart)"
         required: false
         default: deploy
       tail:
@@ -31,8 +31,27 @@ jobs:
           docker ps -a --filter name=libinsta --format '{{.Names}} {{.Status}} restarts={{.RunningFor}}'
           docker inspect -f 'running={{.State.Running}} restarts={{.RestartCount}} started={{.State.StartedAt}}' libinsta
           docker logs --tail "${{ github.event.inputs.tail || '200' }}" libinsta 2>&1
+  index:
+    # Search index for /tags /find (SPEC 3.5). Read-only deploy key of padington/libinsta-index
+    # (secret LIBINSTA_INDEX_DEPLOY_KEY); the bot sees the new file by mtime and reloads it.
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'index'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout index
+        uses: actions/checkout@v4
+        with:
+          repository: padington/libinsta-index
+          ssh-key: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
+          path: libinsta-index
+      - name: Copy index.json into the running container
+        run: |
+          python3 -c "import json;d=json.load(open('libinsta-index/index.json'));print('index.json: %d posts, built_at %s' % (len(d['posts']), d.get('built_at')))"
+          docker cp libinsta-index/index.json libinsta:/data/index.json.new
+          docker exec libinsta sh -c 'mv /data/index.json.new /data/index.json'
+          sleep 8
+          docker logs --since 30s libinsta 2>&1 | grep -i index || true
   deploy:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'logs'
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action != 'logs' && github.event.inputs.action != 'index'
     runs-on: self-hosted
     steps:
       - name: Remove root-owned leftovers (docker runs as root on the workspace bind mount)
@@ -47,17 +66,32 @@ jobs:
       - name: Build image
         run: docker build -f Dockerfile.vps -t libinsta .
         working-directory: catalog
+      - name: Checkout search index (optional; bot works without it)
+        id: index
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: padington/libinsta-index
+          ssh-key: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
+          path: libinsta-index
       - name: Restart service
         env:
           IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.LIBINSTA_BOT_TOKEN }}
+          GH_INDEX_TOKEN: ${{ secrets.GH_INDEX_TOKEN }}   # optional fine-grained PAT; empty -> file mode
         run: |
           docker volume create libinsta_data >/dev/null 2>&1 || true
+          if [ -f libinsta-index/index.json ]; then
+            docker run --rm -v libinsta_data:/data -v "$PWD/libinsta-index":/src:ro python:3.11-slim \
+              sh -c 'cp /src/index.json /data/index.json.new && mv /data/index.json.new /data/index.json && ls -l /data/index.json'
+          else
+            echo "no index.json checked out — keeping the one in the volume (if any)"
+          fi
           docker stop libinsta 2>/dev/null || true
           docker rm libinsta 2>/dev/null || true
           docker run -d --name libinsta --restart unless-stopped \
             --log-opt max-size=10m --log-opt max-file=3 \
-            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN \
+            -e IG_SESSION_JSON -e TELEGRAM_BOT_TOKEN -e GH_INDEX_TOKEN \
             -e TG_CHAT_ID="-1004300487255" -e OWNER_IDS="${{ vars.LIBINSTA_OWNER_IDS }}" \
             -e DATA_DIR=/data -v libinsta_data:/data libinsta
           sleep 20
