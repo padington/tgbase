@@ -1,0 +1,20 @@
+name: cleanup legacy libinsta
+on:
+  workflow_dispatch:
+  push:
+    branches: [probe/ig-net]
+    paths: [.github/workflows/cleanup-legacy.yml]
+jobs:
+  cleanup:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: self-hosted
+    steps:
+      - run: |
+          docker rm -f libinsta 2>/dev/null || true
+          docker rmi -f libinsta 2>/dev/null || true
+          docker volume rm libinsta_data 2>/dev/null || true
+          docker image prune -f >/dev/null 2>&1 || true
+          echo "== containers"; docker ps -a --format '{{.Names}}	{{.Status}}	{{.Image}}'
+          echo "== volumes"; docker volume ls --format '{{.Name}}'
+          echo "== images"; docker images --format '{{.Repository}}:{{.Tag}}	{{.Size}}'
+          df -h / | tail -1
