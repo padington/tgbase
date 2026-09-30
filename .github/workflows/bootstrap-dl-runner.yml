@@ -1,0 +1,28 @@
+name: bootstrap libinsta-dl runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  runner:
+    runs-on: self-hosted
+    steps:
+      - name: Start containerized runner for padington/libinsta-dl
+        env:
+          RUNNER_TOKEN: ${{ secrets.DL_RUNNER_TOKEN }}
+        run: |
+          WORK=$HOME/dl-runner
+          mkdir -p "$WORK"
+          docker stop dl-runner 2>/dev/null || true
+          docker rm dl-runner 2>/dev/null || true
+          docker run -d --name dl-runner --restart unless-stopped \
+            -e REPO_URL=https://github.com/padington/libinsta-dl \
+            -e RUNNER_NAME=vps-debian12-dl \
+            -e RUNNER_TOKEN \
+            -e RUNNER_WORKDIR="$WORK" \
+            -e LABELS=self-hosted,Linux,X64,libinsta-dl \
+            -e EPHEMERAL=false -e DISABLE_AUTO_UPDATE=true \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$WORK":"$WORK" \
+            myoung34/github-runner:latest
+          sleep 25; docker logs --tail 15 dl-runner
