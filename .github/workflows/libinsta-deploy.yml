@@ -37,15 +37,20 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'index'
     runs-on: self-hosted
     steps:
-      - name: Checkout index
-        uses: actions/checkout@v4
-        with:
-          repository: padington/libinsta-index
-          ssh-key: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
-          path: libinsta-index
+      - name: Fetch index (read-only deploy key)
+        env:
+          KEY: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
+        run: |
+          # own ssh setup: the VPS /etc/ssh/ssh_config has server-only options and breaks actions/checkout
+          rm -rf libinsta-index; d="$(mktemp -d)"; umask 077
+          printf '%s\n' "$KEY" > "$d/key"
+          ssh_cmd="ssh -F /dev/null -i $d/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$d/kh -o BatchMode=yes"
+          GIT_SSH_COMMAND="$ssh_cmd" git clone -q --depth 1 git@github.com:padington/libinsta-index.git libinsta-index \
+            || GIT_SSH_COMMAND="$ssh_cmd -p 443" git clone -q --depth 1 ssh://git@ssh.github.com:443/padington/libinsta-index.git libinsta-index
+          rc=$?; rm -rf "$d"; test $rc = 0
+          python3 -c "import json;d=json.load(open('libinsta-index/index.json'));print('index.json: %d posts, built_at %s' % (len(d['posts']), d.get('built_at')))"
       - name: Copy index.json into the running container
         run: |
-          python3 -c "import json;d=json.load(open('libinsta-index/index.json'));print('index.json: %d posts, built_at %s' % (len(d['posts']), d.get('built_at')))"
           docker cp libinsta-index/index.json libinsta:/data/index.json.new
           docker exec libinsta sh -c 'mv /data/index.json.new /data/index.json'
           sleep 8
@@ -66,14 +71,19 @@ jobs:
       - name: Build image
         run: docker build -f Dockerfile.vps -t libinsta .
         working-directory: catalog
-      - name: Checkout search index (optional; bot works without it)
-        id: index
+      - name: Fetch search index (optional; bot works without it)
         continue-on-error: true
-        uses: actions/checkout@v4
-        with:
-          repository: padington/libinsta-index
-          ssh-key: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
-          path: libinsta-index
+        env:
+          KEY: ${{ secrets.LIBINSTA_INDEX_DEPLOY_KEY }}
+        run: |
+          # own ssh setup: the VPS /etc/ssh/ssh_config has server-only options and breaks actions/checkout
+          rm -rf libinsta-index; d="$(mktemp -d)"; umask 077
+          printf '%s\n' "$KEY" > "$d/key"
+          ssh_cmd="ssh -F /dev/null -i $d/key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$d/kh -o BatchMode=yes"
+          GIT_SSH_COMMAND="$ssh_cmd" git clone -q --depth 1 git@github.com:padington/libinsta-index.git libinsta-index \
+            || GIT_SSH_COMMAND="$ssh_cmd -p 443" git clone -q --depth 1 ssh://git@ssh.github.com:443/padington/libinsta-index.git libinsta-index
+          rc=$?; rm -rf "$d"; test $rc = 0
+          python3 -c "import json;d=json.load(open('libinsta-index/index.json'));print('index.json: %d posts, built_at %s' % (len(d['posts']), d.get('built_at')))"
       - name: Restart service
         env:
           IG_SESSION_JSON: ${{ secrets.IG_SESSION_JSON }}
