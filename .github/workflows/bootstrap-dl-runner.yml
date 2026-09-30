@@ -21,6 +21,7 @@ jobs:
           docker logs --tail 20 dl-runner 2>&1 | tail -20 || true
           docker stop dl-runner 2>/dev/null || true
           docker rm dl-runner 2>/dev/null || true
+          docker volume rm dl-runner-config >/dev/null 2>&1 || true
           docker volume create dl-runner-config >/dev/null 2>&1 || true
           docker run -d --name dl-runner --restart unless-stopped \
             -e REPO_URL=https://github.com/padington/libinsta-dl \
@@ -30,6 +31,7 @@ jobs:
             -e LABELS=self-hosted,Linux,X64,libinsta-dl \
             -e EPHEMERAL=false -e DISABLE_AUTO_UPDATE=true \
             -e CONFIGURED_ACTIONS_RUNNER_FILES_DIR=/runner-config \
+            -e DISABLE_AUTOMATIC_DEREGISTRATION=true \
             -v dl-runner-config:/runner-config \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$WORK":"$WORK" \
