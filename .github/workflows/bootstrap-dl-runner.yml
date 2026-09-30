@@ -2,9 +2,13 @@ name: bootstrap libinsta-dl runner
 
 on:
   workflow_dispatch:
+  push:
+    branches: [probe/ig-net]
+    paths: [.github/workflows/bootstrap-dl-runner.yml]
 
 jobs:
   runner:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
     steps:
       - name: Start containerized runner for padington/libinsta-dl
