@@ -17,8 +17,11 @@ jobs:
         run: |
           WORK=$HOME/dl-runner
           mkdir -p "$WORK"
+          docker ps -a --filter name=dl-runner --format '{{.Names}} {{.Status}}' || true
+          docker logs --tail 20 dl-runner 2>&1 | tail -20 || true
           docker stop dl-runner 2>/dev/null || true
           docker rm dl-runner 2>/dev/null || true
+          docker volume create dl-runner-config >/dev/null 2>&1 || true
           docker run -d --name dl-runner --restart unless-stopped \
             -e REPO_URL=https://github.com/padington/libinsta-dl \
             -e RUNNER_NAME=vps-debian12-dl \
@@ -26,6 +29,8 @@ jobs:
             -e RUNNER_WORKDIR="$WORK" \
             -e LABELS=self-hosted,Linux,X64,libinsta-dl \
             -e EPHEMERAL=false -e DISABLE_AUTO_UPDATE=true \
+            -e CONFIGURED_ACTIONS_RUNNER_FILES_DIR=/runner-config \
+            -v dl-runner-config:/runner-config \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$WORK":"$WORK" \
             myoung34/github-runner:latest
