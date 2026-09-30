@@ -12,7 +12,7 @@ jobs:
       - run: |
           uptime; free -m; df -h / | tail -1
           echo "== containers"; docker ps -a --format '{{.Names}}	{{.Status}}	{{.Image}}'
-          echo "== dl-runner logs"; docker logs --tail 60 dl-runner 2>&1 | tail -60 || true
-          echo "== libinsta-dl logs"; docker logs --tail 20 libinsta-dl 2>&1 | tail -20 || true
-          echo "== dmesg oom"; (dmesg 2>/dev/null | grep -i -E "oom|killed process" | tail -10) || true
-          echo "== docker events"; docker events --since 3h --until 1s --filter container=dl-runner 2>/dev/null | tail -20 || true
+          echo "== dl-runner first 40 lines"; docker logs dl-runner 2>&1 | head -40
+          echo "== dl-runner around first failure"; docker logs dl-runner 2>&1 | grep -n -i -E "Running job|Job .* completed|exit|error|terminat|shut|update|Listening|removed|deleted|Failed" | head -40
+          echo "== inspect"; docker inspect dl-runner --format 'restarts={{.RestartCount}} started={{.State.StartedAt}} finished={{.State.FinishedAt}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}'
+          echo "== events die"; docker events --since 4h --until 1s --filter container=dl-runner --filter event=die 2>/dev/null | head -5 || true
