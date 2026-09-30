@@ -2,8 +2,6 @@ name: IG network probe
 
 on:
   workflow_dispatch:
-  push:
-    branches: [probe/ig-net]
 
 jobs:
   probe:
