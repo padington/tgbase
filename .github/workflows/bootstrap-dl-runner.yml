@@ -29,7 +29,7 @@ jobs:
             -e RUNNER_TOKEN \
             -e RUNNER_WORKDIR="$WORK" \
             -e LABELS=self-hosted,Linux,X64,libinsta-dl \
-            -e EPHEMERAL=false -e DISABLE_AUTO_UPDATE=true \
+            -e DISABLE_AUTO_UPDATE=true \
             -e CONFIGURED_ACTIONS_RUNNER_FILES_DIR=/runner-config \
             -e DISABLE_AUTOMATIC_DEREGISTRATION=true \
             -v dl-runner-config:/runner-config \
