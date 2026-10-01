@@ -6,6 +6,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - run: |
-          docker inspect libinsta-dl --format 'restarts={{.RestartCount}} started={{.State.StartedAt}} oom={{.State.OOMKilled}}'
-          echo "== libinsta-dl last 80 log lines"
-          docker logs --tail 80 libinsta-dl 2>&1
+          docker inspect libinsta-dl --format 'restarts={{.RestartCount}} started={{.State.StartedAt}}'
+          echo "== startup lines"
+          docker logs libinsta-dl 2>&1 | grep -m3 "service up"
+          echo "== backfill lines"
+          docker logs libinsta-dl 2>&1 | grep -i "backfill" | tail -30
+          echo "== tail 5"
+          docker logs --tail 5 libinsta-dl 2>&1
