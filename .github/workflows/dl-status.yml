@@ -1,0 +1,11 @@
+name: dl status
+on:
+  workflow_dispatch:
+jobs:
+  status:
+    runs-on: self-hosted
+    steps:
+      - run: |
+          docker inspect libinsta-dl --format 'restarts={{.RestartCount}} started={{.State.StartedAt}} oom={{.State.OOMKilled}}'
+          echo "== libinsta-dl last 80 log lines"
+          docker logs --tail 80 libinsta-dl 2>&1
