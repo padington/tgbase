@@ -1,0 +1,14 @@
+name: dl status
+on:
+  workflow_dispatch:
+jobs:
+  status:
+    runs-on: self-hosted
+    steps:
+      - run: |
+          echo "== libinsta-dl inspect"
+          docker inspect libinsta-dl --format 'restarts={{.RestartCount}} started={{.State.StartedAt}} oom={{.State.OOMKilled}}'
+          echo "== last healthz"
+          curl -s -m 5 localhost:8080/healthz || echo "no healthz on 8080"
+          echo; echo "== libinsta-dl last 80 log lines"
+          docker logs --tail 80 libinsta-dl 2>&1
